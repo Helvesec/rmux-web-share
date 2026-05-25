@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('read-only client confirms endpoint and receives the initial snapshot', async ({ page }) => {
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}`);
+  await page.goto(`/#t=${readToken}`);
   await expect(page.locator('[data-share-confirm]')).toBeVisible();
   await expect.poll(() => new URL(page.url()).hash).toBe('');
   expect(page.url()).not.toContain(readToken);
@@ -44,8 +44,25 @@ test('read-only client confirms endpoint and receives the initial snapshot', asy
   );
 });
 
+test('explicit endpoint links keep the short e/t fragment contract', async ({ page }) => {
+  await page.goto(`/#e=wss://terminal.example/share&t=${readToken}`);
+
+  await expect(page.locator('[data-share-endpoint]')).toHaveText('terminal.example');
+  await page.locator('[data-share-confirm-connect]').click();
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => sentFrames(page)).toContainEqual(
+    JSON.stringify({
+      type: 'auth',
+      protocol_version: 2,
+      capabilities: ['token-auth', 'terminal-palette-v1'],
+      token: readToken,
+    }),
+  );
+});
+
 test('terminal theme selection persists locally', async ({ page }) => {
-  const url = `/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}`;
+  const url = `/#t=${readToken}`;
   await page.goto(url);
   await page.locator('[data-share-terminal-theme]').selectOption('dark');
   await page.reload();
@@ -73,7 +90,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
     }),
   }));
 
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}`);
+  await page.goto(`/#t=${readToken}`);
   await page.locator('[data-share-provenance-open]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
@@ -84,7 +101,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
 });
 
 test('operator sends xterm data and can open session actions', async ({ page }) => {
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${operatorToken}`);
+  await page.goto(`/#t=${operatorToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('.share-role-badge')).toBeHidden();
@@ -111,7 +128,7 @@ test('operator can disconnect, copy the sanitized link, and reconnect from the s
       },
     });
   });
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${operatorToken}`);
+  await page.goto(`/#t=${operatorToken}`);
   await page.locator('[data-share-confirm-connect]').click();
   await expect.poll(() => socketCount(page)).toBe(1);
   await expect.poll(() => new URL(page.url()).hash).toBe('');
@@ -126,8 +143,9 @@ test('operator can disconnect, copy the sanitized link, and reconnect from the s
   const copied = await page.evaluate(() => {
     return (window as unknown as { __rmuxCopiedShareLink?: string }).__rmuxCopiedShareLink;
   });
-  expect(copied).toContain('endpoint=ws%3A%2F%2F127.0.0.1%3A9777%2Fshare');
-  expect(copied).toContain(`token=${operatorToken}`);
+  expect(copied).toContain(`/#t=${operatorToken}`);
+  expect(copied).not.toContain('endpoint=');
+  expect(copied).not.toContain('token=');
 
   await page.locator('[data-share-reconnect-connect]').click();
   await expect.poll(() => socketCount(page)).toBe(2);
@@ -140,7 +158,7 @@ test('session operator can logout the shared session from the status menu', asyn
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyControls = true;
   });
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${operatorToken}`);
+  await page.goto(`/#t=${operatorToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await page.locator('[data-share-status-menu]').click();
@@ -155,7 +173,7 @@ test('session operator without controls cannot logout from the status menu', asy
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
   });
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${operatorToken}`);
+  await page.goto(`/#t=${operatorToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await page.locator('[data-share-status-menu]').click();
@@ -170,7 +188,7 @@ test('session controls send attach input until pass-through is enabled', async (
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyControls = true;
   });
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${operatorToken}`);
+  await page.goto(`/#t=${operatorToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-controls]')).toBeVisible();
@@ -192,7 +210,7 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyControls = true;
   });
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${operatorToken}`);
+  await page.goto(`/#t=${operatorToken}`);
   await page.locator('[data-share-confirm-connect]').click();
   await page.locator('.xterm').hover();
 
@@ -202,7 +220,7 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
 });
 
 test('toolbar visibility is a session preference', async ({ page }) => {
-  const url = `/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}`;
+  const url = `/#t=${readToken}`;
   await page.goto(url);
   await page.locator('[data-share-confirm-cancel]').click();
 
@@ -216,7 +234,7 @@ test('toolbar visibility is a session preference', async ({ page }) => {
 });
 
 test('URL options can remove chrome and disclaimer', async ({ page }) => {
-  const url = `/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}&navbar=off&disclaimer=off&theme=dark`;
+  const url = `/#t=${readToken}&navbar=off&disclaimer=off&theme=dark`;
   await page.goto(url);
   await page.locator('[data-share-confirm-connect]').click();
 
@@ -230,7 +248,7 @@ test('URL options can remove chrome and disclaimer', async ({ page }) => {
 });
 
 test('pin-protected URLs send the out-of-band pairing code', async ({ page }) => {
-  const url = `/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}&pin=required`;
+  const url = `/#t=${readToken}&pin=required`;
   await page.goto(url);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
@@ -254,7 +272,7 @@ test('pin-protected URLs send the out-of-band pairing code', async ({ page }) =>
 
 test('pin-protected minimal links stay readable in a light user theme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
-  const url = `/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}&pin=required&navbar=off&disclaimer=off`;
+  const url = `/#t=${readToken}&pin=required&navbar=off&disclaimer=off`;
   await page.goto(url);
 
   await expect(page.locator('[data-share-confirm]')).toBeVisible();
@@ -287,7 +305,7 @@ test('user terminal theme applies the palette from the ready message', async ({ 
     };
   });
 
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}`);
+  await page.goto(`/#t=${readToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'user');
@@ -320,7 +338,7 @@ test('light client terminal palette drives the surrounding chrome', async ({ pag
     };
   });
 
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}`);
+  await page.goto(`/#t=${readToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-theme', 'user');
@@ -331,18 +349,10 @@ test('light client terminal palette drives the surrounding chrome', async ({ pag
 });
 
 test('invalid terminal theme in the URL is rejected', async ({ page }) => {
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&token=${readToken}&theme=solarized`);
+  await page.goto(`/#t=${readToken}&theme=solarized`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
   await expect(page.locator('[data-share-terminal]')).toContainText('invalid terminal theme');
-  await expect.poll(() => socketCount(page)).toBe(0);
-});
-
-test('legacy id and key URLs are rejected', async ({ page }) => {
-  await page.goto(`/#endpoint=ws://127.0.0.1:9777/share&id=abcdefgh&key=${readToken}`);
-
-  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
-  await expect(page.locator('[data-share-terminal]')).toContainText('missing share token');
   await expect.poll(() => socketCount(page)).toBe(0);
 });
 

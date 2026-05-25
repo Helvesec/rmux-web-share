@@ -1,11 +1,12 @@
 import type { ShareParams, TerminalThemeName } from './types';
 
 const TOKEN_RE = /^[A-Za-z0-9._~-]{24,512}$/;
+const DEFAULT_SHARE_ENDPOINT = 'ws://127.0.0.1:9777/share';
 
 export function parseShareFragment(hash: string): ShareParams {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
-  const endpoint = parseEndpoint(params.get('endpoint'));
-  const token = parseToken(params.get('token'));
+  const endpoint = parseEndpoint(params.get('e'));
+  const token = parseToken(params.get('t'));
   const theme = parseTheme(params.get('theme'));
   const navbar = parseNavbar(params.get('navbar'));
   const disclaimer = parseDisclaimer(params.get('disclaimer'));
@@ -15,23 +16,24 @@ export function parseShareFragment(hash: string): ShareParams {
 }
 
 export function shareUrl(params: ShareParams, origin = window.location.origin): string {
-  const fragment = new URLSearchParams({
-    endpoint: params.endpoint,
-    token: params.token,
-  });
+  const fragment = [];
+  if (params.endpoint !== DEFAULT_SHARE_ENDPOINT) {
+    fragment.push(`e=${params.endpoint}`);
+  }
+  fragment.push(`t=${params.token}`);
   if (params.theme) {
-    fragment.set('theme', params.theme);
+    fragment.push(`theme=${params.theme}`);
   }
   if (params.navbar === 'off') {
-    fragment.set('navbar', 'off');
+    fragment.push('navbar=off');
   }
   if (params.disclaimer === 'off') {
-    fragment.set('disclaimer', 'off');
+    fragment.push('disclaimer=off');
   }
   if (params.requiresPin) {
-    fragment.set('pin', 'required');
+    fragment.push('pin=required');
   }
-  return `${origin}/#${fragment.toString()}`;
+  return `${origin}/#${fragment.join('&')}`;
 }
 
 export function endpointHost(endpoint: string): string {
@@ -40,7 +42,7 @@ export function endpointHost(endpoint: string): string {
 
 function parseEndpoint(value: string | null): string {
   if (!value) {
-    throw new Error('missing endpoint');
+    return DEFAULT_SHARE_ENDPOINT;
   }
 
   let url: URL;

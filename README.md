@@ -14,7 +14,7 @@ npm run dev
 Open:
 
 ```text
-http://127.0.0.1:4321/#endpoint=ws://127.0.0.1:9777/share&token=<token>
+http://127.0.0.1:4321/#t=<token>
 ```
 
 ## Build
