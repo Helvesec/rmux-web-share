@@ -1,0 +1,30 @@
+---
+const pageTitle = 'rmux share';
+const pageDescription = 'Read-only browser terminal for rmux web-share sessions.';
+---
+
+<!doctype html>
+<html lang="en" class="share-page">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    <meta name="theme-color" content="#060807" />
+    <meta name="application-name" content="rmux share" />
+    <meta name="apple-mobile-web-app-title" content="rmux share" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/share.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  </head>
+  <body class="share-page">
+    <div data-rmux-share-root></div>
+    <script>
+      import { mountShareApp } from '../scripts/share/main';
+
+      mountShareApp(document.querySelector('[data-rmux-share-root]'));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,55 @@
+name: Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler pages deploy dist \
+            --project-name=rmux-web-share \
+            --branch=main \
+            --commit-dirty=true | tee wrangler-deploy.log
+          deploy_url="$(grep -Eo 'https://[^[:space:]]+\.pages\.dev' wrangler-deploy.log | tail -n 1 || true)"
+          echo "url=${deploy_url}" >> "$GITHUB_OUTPUT"
+      - name: Publish deployment proof
+        run: |
+          set -euo pipefail
+          {
+            echo "## Deployment proof"
+            echo ""
+            echo "- GitHub SHA-1: \`${GITHUB_SHA}\`"
+            echo "- Source commit: https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+            echo "- GitHub Actions run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Cloudflare Pages project: \`rmux-web-share\`"
+            if [ -n "${{ steps.deploy.outputs.url }}" ]; then
+              echo "- Cloudflare deployment: ${{ steps.deploy.outputs.url }}"
+            fi
+            echo "- Public domain: https://share.rmux.io"
+            echo "- Public provenance: https://share.rmux.io/.well-known/rmux-web-share.json"
+            echo "- Asset checksums: https://share.rmux.io/checksums.txt"
+            echo ""
+            echo "share.rmux.io serves only the static frontend and does not relay terminal data. The token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted."
+          } >> "$GITHUB_STEP_SUMMARY"
