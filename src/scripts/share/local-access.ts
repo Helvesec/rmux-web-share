@@ -1,23 +1,17 @@
 export interface ConfirmationCopy {
   button: string;
   detail: string;
+  title: string;
   local: boolean;
 }
 
 const LOCAL_ACCESS_CONFIRMED_KEY = 'rmux.share.localAccessConfirmed';
 
-export function confirmationCopy(endpoint: string): ConfirmationCopy {
-  if (!isLoopbackEndpoint(endpoint)) {
-    return {
-      button: 'Connect',
-      detail: 'Only connect to endpoints you trust.',
-      local: false,
-    };
-  }
-
+export function chromeLocalAccessCopy(endpoint: string): ConfirmationCopy {
   return {
-    button: 'Connect to local daemon',
-    detail: localAccessHint(),
+    button: 'Retry connection',
+    detail: `Chrome blocked access to ${new URL(endpoint).host}. Click Allow in the browser prompt, then retry.`,
+    title: 'Allow local access in Chrome',
     local: true,
   };
 }
@@ -29,13 +23,28 @@ export function connectionErrorMessage(endpoint: string): string {
       'Phones cannot reach ws://127.0.0.1 on your desktop. Use --tunnel-url for phone or internet sharing.',
     ].join(' ');
   }
-  if (looksLikeBlockedLoopback(endpoint)) {
+  if (shouldShowChromeLocalAccessHelp(endpoint)) {
     return [
-      'Chrome may need Local Network Access before it can reach your local rmux daemon.',
-      'Click Allow when prompted, then retry. If this browser blocks local access, refresh or use --frontend-url with a localhost-hosted frontend.',
+      'Chrome blocked Local Network Access to your rmux daemon.',
+      'Click Allow in the browser prompt, then retry.',
     ].join(' ');
   }
   return 'connection error. Lost connection? Try refreshing.';
+}
+
+export function pinPromptCopy(): ConfirmationCopy {
+  return {
+    button: 'Connect',
+    detail: 'Enter the 6-digit pairing code shown by rmux.',
+    title: 'Pairing code required',
+    local: false,
+  };
+}
+
+export function shouldShowChromeLocalAccessHelp(endpoint: string): boolean {
+  return looksLikeBlockedLoopback(endpoint)
+    && isChromiumBrowser()
+    && !localAccessWasConfirmed();
 }
 
 export function rememberLocalAccess(endpoint: string): void {
@@ -66,13 +75,6 @@ function looksLikeBlockedLoopback(endpoint: string): boolean {
 
 function isLoopbackHost(host: string): boolean {
   return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
-}
-
-function localAccessHint(): string {
-  if (isChromiumBrowser() && !localAccessWasConfirmed()) {
-    return 'If Chrome asks for Local Network Access, click Allow.';
-  }
-  return 'Connects to the rmux daemon running on this computer.';
 }
 
 function localAccessWasConfirmed(): boolean {

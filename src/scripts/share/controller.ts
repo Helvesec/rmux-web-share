@@ -7,9 +7,11 @@ import {
   type EncryptedShareTransport,
 } from './e2ee';
 import {
-  confirmationCopy,
+  chromeLocalAccessCopy,
   connectionErrorMessage,
+  pinPromptCopy,
   rememberLocalAccess,
+  shouldShowChromeLocalAccessHelp,
   type ConfirmationCopy,
 } from './local-access';
 import {
@@ -98,16 +100,22 @@ export function startShareApp(root: HTMLElement): void {
   }
 
   const host = endpointHost(params.endpoint);
-  const copy = confirmationCopy(params.endpoint);
   const connect = (pin = currentPin) => {
     currentPin = pin;
     connection?.dispose();
-    connection = new ShareConnection(params, view, () => terminalTheme, pin, () => showConnectPrompt(true));
+    connection = new ShareConnection(
+      params,
+      view,
+      () => terminalTheme,
+      pin,
+      () => showPrompt(host, pinPromptCopy(), true),
+      () => showPrompt(host, chromeLocalAccessCopy(params.endpoint), false),
+    );
     connection.connect();
   };
-  const showConnectPrompt = (requiresPin: boolean) => {
-    view.confirm(host, copy, requiresPin, {
-      cancel: () => view.setStatus({ connected: false, detail: 'connection canceled', tone: 'idle' }),
+  const showPrompt = (promptHost: string, copy: ConfirmationCopy, requiresPin: boolean) => {
+    view.confirm(promptHost, copy, requiresPin, {
+      cancel: () => view.setStatus({ connected: false, detail: 'disconnected', tone: 'idle' }),
       connect,
     });
   };
@@ -115,7 +123,7 @@ export function startShareApp(root: HTMLElement): void {
     reconnect: () => connect(),
     copyLink: () => copyCurrentShareUrl(params, view),
   });
-  showConnectPrompt(false);
+  connect();
 }
 
 class ShareConnection {
@@ -139,6 +147,7 @@ class ShareConnection {
     private readonly terminalTheme: () => TerminalThemeName,
     private readonly pin?: string,
     private readonly requestPin?: () => void,
+    private readonly requestLocalAccessHelp?: () => void,
   ) {
     this.role = 'read';
   }
@@ -161,6 +170,9 @@ class ShareConnection {
     socket.addEventListener('error', () => {
       this.socketError = true;
       this.view.showError(connectionErrorMessage(this.params.endpoint));
+      if (shouldShowChromeLocalAccessHelp(this.params.endpoint)) {
+        this.requestLocalAccessHelp?.();
+      }
     });
     socket.addEventListener('close', (event) => this.handleClose(event));
   }
@@ -425,6 +437,7 @@ class ShareView {
   private readonly controlsPassthroughButton: HTMLButtonElement;
   private readonly statusButton: HTMLButtonElement;
   private readonly confirmDialog: HTMLDialogElement;
+  private readonly confirmTitle: HTMLElement;
   private readonly confirmDetail: HTMLElement;
   private readonly confirmConnect: HTMLButtonElement;
   private readonly confirmCancel: HTMLButtonElement;
@@ -473,6 +486,7 @@ class ShareView {
     this.controlsPassthroughButton = query(root, '[data-share-controls-passthrough]');
     this.statusButton = query(root, '[data-share-status-menu]');
     this.confirmDialog = query(root, '[data-share-confirm]');
+    this.confirmTitle = query(root, '[data-share-confirm-title]');
     this.confirmDetail = query(root, '[data-share-confirm-detail]');
     this.confirmConnect = query(root, '[data-share-confirm-connect]');
     this.confirmCancel = query(root, '[data-share-confirm-cancel]');
@@ -516,7 +530,9 @@ class ShareView {
     requiresPin: boolean,
     actions: { cancel: () => void; connect: (pin?: string) => void },
   ): void {
+    this.confirmTitle.textContent = copy.title;
     this.endpointHost.textContent = host;
+    this.endpointHost.hidden = !copy.local;
     this.confirmDetail.textContent = copy.detail;
     this.confirmConnect.textContent = copy.button;
     this.confirmDialog.dataset.local = String(copy.local);

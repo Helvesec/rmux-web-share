@@ -9,24 +9,19 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(installMockShareWebSocket);
 });
 
-test('read-only client confirms endpoint and receives the initial snapshot', async ({ page }) => {
+test('read-only client connects immediately and receives the initial snapshot', async ({ page }) => {
   await page.goto(`/#t=${readToken}`);
-  await expect(page.locator('[data-share-confirm]')).toBeVisible();
   await expect.poll(() => new URL(page.url()).hash).toBe('');
   expect(page.url()).not.toContain(readToken);
-  await expect(page.locator('[data-share-endpoint]')).toHaveText('127.0.0.1:9777');
-  await expect(page.locator('[data-share-confirm-detail]')).toContainText('click Allow');
-  await expect(page.locator('[data-share-confirm-connect]')).toHaveText('Connect to local daemon');
+  await expect(page.locator('[data-share-confirm]')).toBeHidden();
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
   await expect(page.locator('.share-brand-context')).toHaveText('Web Multiplex');
   await expect(page.locator('[data-share-role]')).toHaveText('Read Only');
-  await expect.poll(() => socketCount(page)).toBe(0);
+  await expect.poll(() => socketCount(page)).toBe(1);
 
   await page.locator('[data-share-terminal-theme]').selectOption('light');
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-theme', 'light');
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'light');
-
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'light');
@@ -44,7 +39,7 @@ test('read-only client confirms endpoint and receives the initial snapshot', asy
   expect(JSON.stringify(await sentFrames(page))).not.toContain(readToken);
 });
 
-test('Firefox copy does not mention Chrome local network access', async ({ page }) => {
+test('Firefox local links do not show a Chrome permission prompt', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'userAgent', {
       configurable: true,
@@ -58,25 +53,24 @@ test('Firefox copy does not mention Chrome local network access', async ({ page 
 
   await page.goto(`/?again=1#t=${readToken}`);
 
-  await expect(page.locator('[data-share-confirm-detail]')).toHaveText('Connects to the rmux daemon running on this computer.');
+  await expect(page.locator('[data-share-confirm]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal]')).not.toContainText('Chrome');
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
-test('local access hint is hidden after a successful local connection', async ({ page }) => {
+test('local access success is remembered without prompting', async ({ page }) => {
   await page.goto(`/#t=${readToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('rmux.share.localAccessConfirmed'))).toBe('1');
 
   await page.goto(`/?again=1#t=${readToken}`);
 
-  await expect(page.locator('[data-share-confirm-detail]')).toHaveText('Connects to the rmux daemon running on this computer.');
+  await expect(page.locator('[data-share-confirm]')).toBeHidden();
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
 test('explicit endpoint links keep the short e/t fragment contract', async ({ page }) => {
   await page.goto(`/#e=wss://terminal.example/share&t=${readToken}`);
-
-  await expect(page.locator('[data-share-endpoint]')).toHaveText('terminal.example');
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => sentFrames(page)).toContainEqual(
@@ -93,7 +87,6 @@ test('server viewer-count option shows the live connected browser count', async 
     window.__rmuxShareShowViewers = true;
   });
   await page.goto(`/#t=${readToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-viewers]')).toBeVisible();
   await expect(page.locator('[data-share-viewers-count]')).toHaveText('3');
@@ -102,7 +95,6 @@ test('server viewer-count option shows the live connected browser count', async 
 
 test('URL cannot force the live viewer count when the server disabled it', async ({ page }) => {
   await page.goto(`/#t=${readToken}&viewers=on`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-viewers]')).toBeHidden();
@@ -115,7 +107,6 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
     ];
   });
   await page.goto(`/#t=${operatorToken}&theme=dark`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
@@ -151,7 +142,8 @@ test('security provenance dialog displays build proof links', async ({ page }) =
   }));
 
   await page.goto(`/#t=${readToken}`);
-  await page.locator('[data-share-provenance-open]').click();
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await page.locator('[data-share-toast-provenance]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
   await expect(page.locator('[data-share-provenance-statement]')).toContainText('builds are verifiable');
@@ -162,7 +154,6 @@ test('security provenance dialog displays build proof links', async ({ page }) =
 
 test('operator sends xterm data and can open session actions', async ({ page }) => {
   await page.goto(`/#t=${operatorToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('.share-role-badge')).toBeHidden();
   await page.locator('.xterm').click();
@@ -189,7 +180,6 @@ test('operator can disconnect, copy the sanitized link, and reconnect from the s
     });
   });
   await page.goto(`/#t=${operatorToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
   await expect.poll(() => socketCount(page)).toBe(1);
   await expect.poll(() => new URL(page.url()).hash).toBe('');
 
@@ -219,7 +209,6 @@ test('session operator can logout the shared session from the status menu', asyn
     window.__rmuxShareReadyControls = true;
   });
   await page.goto(`/#t=${operatorToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await page.locator('[data-share-status-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
@@ -234,7 +223,6 @@ test('session operator without controls cannot logout from the status menu', asy
     window.__rmuxShareReadyScope = 'session';
   });
   await page.goto(`/#t=${operatorToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await page.locator('[data-share-status-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
@@ -249,7 +237,6 @@ test('session controls send attach input until pass-through is enabled', async (
     window.__rmuxShareReadyControls = true;
   });
   await page.goto(`/#t=${operatorToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-controls]')).toBeVisible();
   await expect(page.locator('[data-share-controls]')).toContainText('Controls');
@@ -271,7 +258,6 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
     window.__rmuxShareReadyControls = true;
   });
   await page.goto(`/#t=${operatorToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
   await page.locator('.xterm').hover();
 
   const before = await sentFrames(page);
@@ -282,7 +268,7 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
 test('toolbar visibility is a session preference', async ({ page }) => {
   const url = `/#t=${readToken}`;
   await page.goto(url);
-  await page.locator('[data-share-confirm-cancel]').click();
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 
   await page.locator('[data-share-chrome-hide]').click();
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
@@ -296,7 +282,6 @@ test('toolbar visibility is a session preference', async ({ page }) => {
 test('URL options can remove chrome and disclaimer', async ({ page }) => {
   const url = `/#t=${readToken}&navbar=off&disclaimer=off&theme=dark`;
   await page.goto(url);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('.share-app')).toHaveAttribute('data-navbar', 'off');
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
@@ -313,8 +298,6 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   });
   await page.goto(`/#t=${readToken}`);
 
-  await expect(page.locator('[data-share-pin]')).toBeHidden();
-  await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-pin-error]')).toContainText('6-digit');
@@ -342,10 +325,10 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await page.goto(url);
 
   await expect(page.locator('[data-share-confirm]')).toBeVisible();
+  await expect(page.locator('[data-share-confirm-title]')).toHaveText('Pairing code required');
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'light');
   await expect(page.locator('.share-confirm')).toHaveCSS('background-color', 'rgb(255, 250, 240)');
   await expect(page.locator('.share-confirm h1')).toHaveCSS('color', 'rgb(16, 33, 26)');
-  await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await expect(page.locator('[data-share-pin]')).toHaveCSS('color', 'rgb(16, 33, 26)');
 
@@ -374,7 +357,6 @@ test('user terminal theme applies the palette from the ready message', async ({ 
   });
 
   await page.goto(`/#t=${readToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'user');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme-mode', 'dark');
@@ -407,7 +389,6 @@ test('light client terminal palette drives the surrounding chrome', async ({ pag
   });
 
   await page.goto(`/#t=${readToken}`);
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-theme', 'user');
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'light');

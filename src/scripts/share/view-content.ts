@@ -90,7 +90,8 @@ export function shareViewTemplate(): string {
       </dialog>
       <dialog class="share-confirm" data-share-confirm>
         <form method="dialog" class="share-confirm-panel">
-          <h1>Connect to <span data-share-endpoint></span>?</h1>
+          <h1 data-share-confirm-title></h1>
+          <p class="share-confirm-endpoint" data-share-endpoint hidden></p>
           <p data-share-confirm-detail></p>
           <label class="share-pin" data-share-pin-group hidden>
             <span>Pairing code</span>
