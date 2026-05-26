@@ -16,7 +16,30 @@ export function parseShareFragment(hash: string): ShareParams {
   return { endpoint, token, theme, navbar, disclaimer, viewers, requiresPin };
 }
 
-export function shareUrl(params: ShareParams, origin = window.location.origin): string {
+export function shareBasePath(location: Location = window.location): string {
+  const { pathname } = location;
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+  if (pathname.endsWith('/')) {
+    return pathname;
+  }
+  const leaf = pathname.slice(pathname.lastIndexOf('/') + 1);
+  if (!leaf.includes('.')) {
+    return `${pathname}/`;
+  }
+  return pathname.slice(0, pathname.lastIndexOf('/') + 1) || '/';
+}
+
+export function shareBaseUrl(location: Location = window.location): string {
+  return `${location.origin}${shareBasePath(location)}`;
+}
+
+export function shareAssetUrl(path: string, location: Location = window.location): string {
+  return new URL(path, shareBaseUrl(location)).toString();
+}
+
+export function shareUrl(params: ShareParams, baseUrl = shareBaseUrl()): string {
   const fragment = [];
   if (params.endpoint !== DEFAULT_SHARE_ENDPOINT) {
     fragment.push(`e=${params.endpoint}`);
@@ -37,7 +60,8 @@ export function shareUrl(params: ShareParams, origin = window.location.origin): 
   if (params.requiresPin) {
     fragment.push('pin=required');
   }
-  return `${origin}/#${fragment.join('&')}`;
+  const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return `${base}#${fragment.join('&')}`;
 }
 
 export function endpointHost(endpoint: string): string {

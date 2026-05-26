@@ -1,6 +1,8 @@
 ---
 const pageTitle = 'rmux share';
 const pageDescription = 'Read-only browser terminal for rmux web-share sessions.';
+const baseUrl = import.meta.env.BASE_URL;
+const publicAsset = (path: string) => `${baseUrl}${path}`;
 ---
 
 <!doctype html>
@@ -16,8 +18,8 @@ const pageDescription = 'Read-only browser terminal for rmux web-share sessions.
     <meta name="apple-mobile-web-app-title" content="rmux share" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <link rel="manifest" href="/share.webmanifest" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href={publicAsset('share.webmanifest')} />
+    <link rel="apple-touch-icon" sizes="180x180" href={publicAsset('apple-touch-icon.png')} />
   </head>
   <body class="share-page">
     <div data-rmux-share-root></div>

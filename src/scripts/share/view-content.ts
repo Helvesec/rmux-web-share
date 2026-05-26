@@ -1,3 +1,4 @@
+import { shareAssetUrl } from './fragment';
 import type { ShareRole } from './types';
 
 export function shareViewTemplate(): string {
@@ -7,8 +8,8 @@ export function shareViewTemplate(): string {
         <div class="share-brand">
           <a class="share-brand-home" href="https://rmux.io/" aria-label="RMUX">
             <span class="share-brand-mark" aria-hidden="true">
-              <img class="share-brand-logo share-brand-logo-dark" src="/rmux-logo-dark.svg" alt="" />
-              <img class="share-brand-logo share-brand-logo-light" src="/rmux-logo-light.svg" alt="" />
+              <img class="share-brand-logo share-brand-logo-dark" src="${shareAssetUrl('rmux-logo-dark.svg')}" alt="" />
+              <img class="share-brand-logo share-brand-logo-light" src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
             </span>
             <span class="share-brand-title">RMUX</span>
           </a>
@@ -127,7 +128,7 @@ export function shareViewTemplate(): string {
             </div>
             <div>
               <dt>Asset hashes</dt>
-              <dd><a href="/checksums.txt" target="_blank" rel="noopener noreferrer">checksums.txt</a></dd>
+              <dd><a href="${shareAssetUrl('checksums.txt')}" target="_blank" rel="noopener noreferrer">checksums.txt</a></dd>
             </div>
           </dl>
           <div class="share-confirm-actions">

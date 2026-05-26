@@ -13,7 +13,7 @@ if (!existsSync(shareEntry)) {
 }
 
 const assets = [...new Set([...extras, ...collectAssets(shareEntry)])].sort();
-const version = createHash('sha256').update(assets.join('\n')).digest('hex').slice(0, 16);
+const version = manifestVersion(assets);
 mkdirSync(dirname(fileURLToPath(output)), { recursive: true });
 writeFileSync(output, `${JSON.stringify({ version, assets }, null, 2)}\n`);
 console.log(`share offline manifest: ${assets.length} assets, version ${version}`);
@@ -60,7 +60,8 @@ function assetRefs(text, owner) {
 
 function resolveAsset(ref, owner) {
   if (ref.startsWith('/')) {
-    return fileURLToPath(new URL(`.${ref}`, distRoot));
+    const assetPath = ref.includes('/_astro/') ? ref.slice(ref.indexOf('/_astro/')) : ref;
+    return fileURLToPath(new URL(`.${assetPath}`, distRoot));
   }
   if (ref.startsWith('_astro/')) {
     return fileURLToPath(new URL(ref, distRoot));
@@ -71,4 +72,18 @@ function resolveAsset(ref, owner) {
 function publicPath(file) {
   const root = fileURLToPath(distRoot);
   return `/${normalize(file).slice(root.length).replaceAll('\\', '/')}`;
+}
+
+function manifestVersion(paths) {
+  const hash = createHash('sha256');
+  for (const path of paths) {
+    hash.update(path);
+    hash.update('\0');
+    const file = path === '/' ? fileURLToPath(shareEntry) : fileURLToPath(new URL(`.${path}`, distRoot));
+    if (existsSync(file)) {
+      hash.update(readFileSync(file));
+    }
+    hash.update('\0');
+  }
+  return hash.digest('hex').slice(0, 16);
 }

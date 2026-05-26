@@ -1,3 +1,5 @@
+import { shareBasePath } from './fragment';
+
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
 export function registerShareServiceWorker(): void {
@@ -16,5 +18,6 @@ function canRegisterServiceWorker(): boolean {
 }
 
 function shareServiceWorkerOptions(): { scope: string; url: string } {
-  return { scope: '/', url: '/sw.js' };
+  const scope = shareBasePath();
+  return { scope, url: `${scope}sw.js` };
 }

@@ -1,4 +1,4 @@
-import { endpointHost, parseShareFragment, shareUrl } from './fragment';
+import { endpointHost, parseShareFragment, shareBasePath, shareBaseUrl, shareUrl } from './fragment';
 import { confirmationCopy, connectionErrorMessage, type ConfirmationCopy } from './local-access';
 import {
   DEFAULT_TERMINAL_THEME,
@@ -37,7 +37,7 @@ const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const CHROME_HIDDEN_STORAGE_KEY = 'rmux.share.chromeHidden';
 const PRIVACY_TOAST_MS = 20_000;
 const PIN_RE = /^\d{6}$/;
-const PROVENANCE_URL = '/.well-known/rmux-web-share.json';
+const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
 
 export function startShareApp(root: HTMLElement): void {
   const view = ShareView.render(root);
@@ -646,9 +646,10 @@ class ShareView {
   private async openProvenance(): Promise<void> {
     this.provenanceDialog.showModal();
     try {
-      const response = await fetch(PROVENANCE_URL, { cache: 'no-store' });
+      const provenanceUrl = new URL(PROVENANCE_PATH, shareBaseUrl()).toString();
+      const response = await fetch(provenanceUrl, { cache: 'no-store' });
       if (!response.ok) {
-        throw new Error(`failed to fetch ${PROVENANCE_URL}`);
+        throw new Error(`failed to fetch ${provenanceUrl}`);
       }
       this.setProvenance(await response.json() as BuildProvenance);
     } catch {
@@ -784,7 +785,7 @@ function removeShareSecretFromAddressBar(): void {
     return;
   }
 
-  window.history.replaceState(null, '', '/');
+  window.history.replaceState(null, '', shareBasePath());
 }
 
 async function copyCurrentShareUrl(params: ShareParams, view: ShareView): Promise<void> {

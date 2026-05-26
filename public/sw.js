@@ -1,5 +1,4 @@
-const CACHE_NAME = 'rmux-share-v2';
-const MANIFEST_URL = '/offline-manifest.json';
+const CACHE_PREFIX = 'rmux-share-';
 const CORE_ASSETS = [
   '/',
   '/share.webmanifest',
@@ -21,62 +20,127 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (isShareAsset(url.pathname) || event.request.mode === 'navigate') {
-    event.respondWith(cacheFirst(event.request));
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkFirstNavigation(event.request));
+    return;
+  }
+
+  if (isShareAsset(url.pathname)) {
+    event.respondWith(cacheFirstAsset(event.request));
   }
 });
 
 async function precache() {
-  const cache = await caches.open(CACHE_NAME);
-  const assets = await offlineAssets();
-  await cache.addAll([...new Set([...CORE_ASSETS, ...assets])]);
+  const manifest = await offlineManifest();
+  const cache = await caches.open(cacheName(manifest.version));
+  await cache.addAll(manifest.assets);
 }
 
-async function offlineAssets() {
+async function offlineManifest() {
+  const manifest = await fetchOfflineManifest();
+  if (manifest) {
+    return manifest;
+  }
+  return {
+    assets: scopedAssets(CORE_ASSETS),
+    fallback: true,
+    version: 'offline',
+  };
+}
+
+async function fetchOfflineManifest() {
   try {
-    const response = await fetch(MANIFEST_URL, { cache: 'no-store' });
+    const response = await fetch(scopedUrl('/offline-manifest.json'), { cache: 'no-store' });
     if (!response.ok) {
-      return [];
+      return null;
     }
     const manifest = await response.json();
-    return Array.isArray(manifest.assets) ? manifest.assets : [];
+    if (typeof manifest.version !== 'string' || !Array.isArray(manifest.assets)) {
+      return null;
+    }
+    return {
+      assets: scopedAssets([...new Set([...CORE_ASSETS, ...manifest.assets])]),
+      fallback: false,
+      version: manifest.version,
+    };
   } catch {
-    return [];
+    return null;
   }
 }
 
 async function cleanupCaches() {
+  const manifest = await fetchOfflineManifest();
+  if (!manifest) {
+    return;
+  }
+  const current = cacheName(manifest.version);
   const names = await caches.keys();
-  await Promise.all(names.filter((name) => name.startsWith('rmux-share-') && name !== CACHE_NAME).map((name) => caches.delete(name)));
+  await Promise.all(
+    names
+      .filter((name) => name.startsWith(CACHE_PREFIX) && name !== current)
+      .map((name) => caches.delete(name)),
+  );
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) {
-    return cached;
-  }
-
+async function networkFirstNavigation(request) {
+  const manifest = await offlineManifest();
+  const cache = await caches.open(cacheName(manifest.version));
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
       await cache.put(request, response.clone());
+      await cache.put(scopedUrl('/'), response.clone());
     }
     return response;
   } catch (error) {
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/');
-      if (fallback) {
-        return fallback;
-      }
+    const cached = await caches.match(request) || await caches.match(scopedUrl('/'));
+    if (cached) {
+      return cached;
     }
     throw error;
   }
 }
 
+async function cacheFirstAsset(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+
+  const manifest = await offlineManifest();
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(cacheName(manifest.version));
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+function cacheName(version) {
+  return `${CACHE_PREFIX}${version}`;
+}
+
+function scopedAssets(paths) {
+  return paths.map(scopedUrl);
+}
+
+function scopedUrl(path) {
+  if (!path.startsWith('/')) {
+    return new URL(path, self.registration.scope).toString();
+  }
+  const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+  const scopedPath = `${scopePath}${path}`;
+  return new URL(scopedPath || '/', self.location.origin).toString();
+}
+
 function isShareAsset(pathname) {
-  return pathname === '/'
-    || pathname === '/offline-manifest.json'
-    || pathname === '/share.webmanifest'
-    || pathname.startsWith('/_astro/');
+  return pathname === scopedPath('/')
+    || pathname === scopedPath('/offline-manifest.json')
+    || pathname === scopedPath('/share.webmanifest')
+    || pathname.startsWith(scopedPath('/_astro/'));
+}
+
+function scopedPath(path) {
+  const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+  return `${scopePath}${path}` || '/';
 }

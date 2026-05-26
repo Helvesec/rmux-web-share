@@ -73,7 +73,8 @@ function assetRefs(text, owner) {
 
 function resolveAsset(ref, owner) {
   if (ref.startsWith('/')) {
-    return fileURLToPath(new URL(`.${ref}`, distRoot));
+    const assetPath = ref.includes('/_astro/') ? ref.slice(ref.indexOf('/_astro/')) : ref;
+    return fileURLToPath(new URL(`.${assetPath}`, distRoot));
   }
   if (ref.startsWith('_astro/')) {
     return fileURLToPath(new URL(ref, distRoot));
