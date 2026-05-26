@@ -45,9 +45,17 @@ export function installMockShareWebSocket(): void {
           ttl_remaining_seconds: 60,
           readers_active: 1,
           readers_max: 5,
+          viewers_connected: 1,
           terminal_palette: window.__rmuxShareTerminalPalette,
         };
         this.dispatchMessage(JSON.stringify(ready));
+        this.dispatchMessage(JSON.stringify(window.__rmuxShareViewerCount ?? {
+          type: 'viewer_count',
+          readers_active: 2,
+          readers_max: 5,
+          operator_connected: true,
+          viewers_connected: 3,
+        }));
         this.dispatchMessage(new Uint8Array([0x10, ...new TextEncoder().encode('hello from rmux')]).buffer);
       }
       if (typeof data === 'string' && data.includes('"logout"')) {
@@ -89,6 +97,13 @@ declare global {
       background: string;
       cursor: string;
       ansi: string[];
+    };
+    __rmuxShareViewerCount?: {
+      type: 'viewer_count';
+      readers_active: number;
+      readers_max: number;
+      operator_connected: boolean;
+      viewers_connected: number;
     };
   }
 }

@@ -61,6 +61,15 @@ test('explicit endpoint links keep the short e/t fragment contract', async ({ pa
   );
 });
 
+test('viewer count option shows the live connected browser count', async ({ page }) => {
+  await page.goto(`/#t=${readToken}&viewers=on`);
+  await page.locator('[data-share-confirm-connect]').click();
+
+  await expect(page.locator('[data-share-viewers]')).toBeVisible();
+  await expect(page.locator('[data-share-viewers-count]')).toHaveText('3');
+  await expect(page.locator('[data-share-viewers] svg')).toBeVisible();
+});
+
 test('terminal theme selection persists locally', async ({ page }) => {
   const url = `/#t=${readToken}`;
   await page.goto(url);

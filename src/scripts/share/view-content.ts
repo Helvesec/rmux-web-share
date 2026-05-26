@@ -25,6 +25,13 @@ export function shareViewTemplate(): string {
             <span data-share-role>Read Only</span>
           </span>
           <span class="share-session-label" data-share-meta hidden>rmux share</span>
+          <span class="share-viewer-count" data-share-viewers hidden aria-label="Connected browsers">
+            <svg class="share-viewer-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+              <circle cx="12" cy="12" r="2.8" />
+            </svg>
+            <span data-share-viewers-count>0</span>
+          </span>
           <span class="share-controls-inline" data-share-controls hidden>
             <span class="share-controls-copy">Controls</span>
             <button class="share-controls-toggle" data-share-controls-passthrough type="button" aria-pressed="false">rmux keys</button>

@@ -141,6 +141,7 @@
 }
 
 .share-role-badge,
+.share-viewer-count,
 .share-status {
   display: inline-flex;
   align-items: center;
@@ -155,6 +156,7 @@
 }
 
 .share-app[data-terminal-mode='light'] .share-role-badge,
+.share-app[data-terminal-mode='light'] .share-viewer-count,
 .share-app[data-terminal-mode='light'] .share-status {
   border-color: rgb(37 99 145 / 0.28);
   background: rgb(255 252 244 / 0.74);
@@ -162,6 +164,7 @@
 }
 
 .share-app[data-terminal-theme='user'][data-client-palette='present'] .share-role-badge,
+.share-app[data-terminal-theme='user'][data-client-palette='present'] .share-viewer-count,
 .share-app[data-terminal-theme='user'][data-client-palette='present'] .share-status {
   border-color: color-mix(in srgb, var(--share-client-accent) 42%, var(--share-client-fg) 14%);
   background: color-mix(in srgb, var(--share-client-bg) 78%, transparent);
@@ -182,6 +185,26 @@
   display: inline-block;
   width: 16px;
   height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.share-viewer-count {
+  gap: 8px;
+  min-width: 70px;
+  padding: 0 14px;
+}
+
+.share-viewer-count[hidden] {
+  display: none;
+}
+
+.share-viewer-icon {
+  display: inline-block;
+  width: 17px;
+  height: 17px;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
@@ -433,6 +456,7 @@
   }
 
   .share-role-badge,
+  .share-viewer-count,
   .share-theme-select,
   .share-status,
   .share-chrome-button {
@@ -443,6 +467,11 @@
   .share-role-badge {
     min-width: 124px;
     padding: 0 14px;
+  }
+
+  .share-viewer-count {
+    min-width: 66px;
+    padding: 0 12px;
   }
 
   .share-theme-select {
@@ -546,18 +575,23 @@
   }
 
   .share-controls-inline {
-    order: 2;
+    order: 3;
     flex: 1 0 100%;
     width: 100%;
   }
 
+  .share-viewer-count {
+    order: 2;
+    flex: 0 0 auto;
+  }
+
   .share-theme-control {
-    order: 3;
+    order: 4;
     margin-left: 0;
   }
 
   .share-status {
-    order: 4;
+    order: 5;
     flex: 1 1 148px;
     width: auto;
     min-width: 0;
@@ -565,7 +599,7 @@
   }
 
   .share-chrome-hide {
-    order: 5;
+    order: 6;
     margin-left: 0;
   }
 }

@@ -10,9 +10,10 @@ export function parseShareFragment(hash: string): ShareParams {
   const theme = parseTheme(params.get('theme'));
   const navbar = parseNavbar(params.get('navbar'));
   const disclaimer = parseDisclaimer(params.get('disclaimer'));
+  const viewers = parseViewers(params.get('viewers'));
   const requiresPin = parsePinRequirement(params.get('pin'));
 
-  return { endpoint, token, theme, navbar, disclaimer, requiresPin };
+  return { endpoint, token, theme, navbar, disclaimer, viewers, requiresPin };
 }
 
 export function shareUrl(params: ShareParams, origin = window.location.origin): string {
@@ -29,6 +30,9 @@ export function shareUrl(params: ShareParams, origin = window.location.origin): 
   }
   if (params.disclaimer === 'off') {
     fragment.push('disclaimer=off');
+  }
+  if (params.viewers === 'visible') {
+    fragment.push('viewers=on');
   }
   if (params.requiresPin) {
     fragment.push('pin=required');
@@ -99,6 +103,16 @@ function parseDisclaimer(value: string | null): ShareParams['disclaimer'] {
     return 'off';
   }
   throw new Error('invalid disclaimer option');
+}
+
+function parseViewers(value: string | null): ShareParams['viewers'] {
+  if (!value || value === 'off') {
+    return 'hidden';
+  }
+  if (value === 'on') {
+    return 'visible';
+  }
+  throw new Error('invalid viewers option');
 }
 
 function parsePinRequirement(value: string | null): boolean {

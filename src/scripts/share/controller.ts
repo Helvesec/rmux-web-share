@@ -9,7 +9,15 @@ import {
   type ShareTerminal,
   type TerminalThemeName,
 } from './terminal';
-import type { ReadyMessage, ServerMessage, ShareParams, ShareRole, ShareScope, ShareStatus } from './types';
+import type {
+  ReadyMessage,
+  ServerMessage,
+  ShareParams,
+  ShareRole,
+  ShareScope,
+  ShareStatus,
+  ViewerCountMessage,
+} from './types';
 import type { TerminalThemePalette } from './types';
 import { privacyToastContent, shareViewTemplate, titleCase } from './view-content';
 import {
@@ -72,6 +80,7 @@ export function startShareApp(root: HTMLElement): void {
     applyTerminalTheme(terminalTheme);
   }
   view.setNavbarMode(params.navbar);
+  view.setViewerCountMode(params.viewers);
   if (params.navbar === 'off') {
     view.setChromeHidden(true);
   }
@@ -153,6 +162,9 @@ class ShareConnection {
       case 'operator_changed':
         this.view.setOperatorConnected(message.connected);
         break;
+      case 'viewer_count':
+        this.view.setViewerCount(message);
+        break;
       case 'ttl_warn':
         this.terminal?.notice(`share expires in ${message.seconds_remaining}s`);
         this.view.setStatus({ connected: true, detail: `expires in ${message.seconds_remaining}s`, tone: 'warn' });
@@ -224,6 +236,7 @@ class ShareConnection {
       logout: () => this.logout(),
     });
     this.view.setReady(message);
+    this.view.setViewerCount(message);
     this.view.setControlsInline(this.controls, this.passControlsToPty);
     if (this.params.disclaimer !== 'off') {
       this.view.showPrivacyToast(this.params.endpoint);
@@ -328,6 +341,8 @@ class ShareView {
   private readonly themeSelect: HTMLSelectElement;
   private readonly chromeHide: HTMLButtonElement;
   private readonly chromeShow: HTMLButtonElement;
+  private readonly viewers: HTMLElement;
+  private readonly viewersCount: HTMLElement;
   private readonly controlsInline: HTMLElement;
   private readonly controlsPassthroughButton: HTMLButtonElement;
   private readonly statusButton: HTMLButtonElement;
@@ -351,6 +366,7 @@ class ShareView {
   private readonly toast: HTMLElement;
   private connected = false;
   private canLogout = false;
+  private viewerCountVisible = false;
   private detachHandler?: () => void;
   private logoutHandler?: () => void;
   private reconnectHandler?: () => void;
@@ -373,6 +389,8 @@ class ShareView {
     this.themeSelect = query(root, '[data-share-terminal-theme]');
     this.chromeHide = query(root, '[data-share-chrome-hide]');
     this.chromeShow = query(root, '[data-share-chrome-show]');
+    this.viewers = query(root, '[data-share-viewers]');
+    this.viewersCount = query(root, '[data-share-viewers-count]');
     this.controlsInline = query(root, '[data-share-controls]');
     this.controlsPassthroughButton = query(root, '[data-share-controls-passthrough]');
     this.statusButton = query(root, '[data-share-status-menu]');
@@ -546,6 +564,20 @@ class ShareView {
     this.app.dataset.navbar = navbar;
   }
 
+  setViewerCountMode(mode: ShareParams['viewers']): void {
+    this.viewerCountVisible = mode === 'visible';
+    this.viewers.hidden = !this.viewerCountVisible;
+  }
+
+  setViewerCount(message: ReadyMessage | ViewerCountMessage): void {
+    if (!this.viewerCountVisible) {
+      return;
+    }
+    const viewers = connectedViewers(message);
+    this.viewersCount.textContent = String(viewers);
+    this.viewers.title = `${viewers} connected browser${viewers === 1 ? '' : 's'}`;
+  }
+
   setOperatorConnected(connected: boolean): void {
     this.rootDataset('operator', connected ? 'connected' : 'free');
   }
@@ -698,6 +730,21 @@ function setProofLink(link: HTMLAnchorElement, label: string, href: string): voi
 
 function shortSha(value: string | null): string {
   return value ? value.slice(0, 12) : 'unavailable';
+}
+
+function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {
+  const explicit = finiteCount(message.viewers_connected);
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  const readers = finiteCount(message.readers_active) ?? 0;
+  return readers + (message.operator_connected ? 1 : 0);
+}
+
+function finiteCount(value: number | undefined): number | undefined {
+  return value === undefined || !Number.isFinite(value)
+    ? undefined
+    : Math.max(0, Math.floor(value));
 }
 
 function bindUserThemeChanges(callback: () => void): void {

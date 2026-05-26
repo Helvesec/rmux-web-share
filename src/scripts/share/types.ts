@@ -8,6 +8,7 @@ export interface ShareParams {
   theme?: TerminalThemeName;
   navbar: 'visible' | 'off';
   disclaimer: 'on' | 'off';
+  viewers: 'hidden' | 'visible';
   requiresPin: boolean;
 }
 
@@ -30,7 +31,16 @@ export interface ReadyMessage {
   ttl_remaining_seconds?: number;
   readers_active?: number;
   readers_max?: number;
+  viewers_connected?: number;
   terminal_palette?: TerminalThemePalette;
+}
+
+export interface ViewerCountMessage {
+  type: 'viewer_count';
+  readers_active: number;
+  readers_max: number;
+  operator_connected: boolean;
+  viewers_connected: number;
 }
 
 export interface TerminalThemePalette {
@@ -42,6 +52,7 @@ export interface TerminalThemePalette {
 
 export type ServerMessage =
   | ReadyMessage
+  | ViewerCountMessage
   | { type: 'error'; code: 'invalid_share' | 'invalid_auth' | string }
   | { type: 'operator_changed'; connected: boolean }
   | { type: 'ttl_warn'; seconds_remaining: number }
