@@ -36,6 +36,7 @@ export type DecryptedWebSocketMessage =
   | { type: 'binary'; bytes: Uint8Array };
 
 export class EncryptedShareTransport {
+  private openChain = Promise.resolve();
   private sendChain = Promise.resolve();
 
   constructor(
@@ -57,7 +58,17 @@ export class EncryptedShareTransport {
   }
 
   async open(data: ArrayBuffer): Promise<DecryptedWebSocketMessage> {
-    const plain = await this.opener.open(new Uint8Array(data));
+    const frame = new Uint8Array(data);
+    const task = this.openChain.then(() => this.openFrame(frame));
+    this.openChain = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    return task;
+  }
+
+  private async openFrame(frame: Uint8Array): Promise<DecryptedWebSocketMessage> {
+    const plain = await this.opener.open(frame);
     const kind = plain[0];
     const body = plain.subarray(1);
     if (kind === PLAINTEXT_TEXT) {

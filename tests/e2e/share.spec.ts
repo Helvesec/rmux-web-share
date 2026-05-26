@@ -112,6 +112,35 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
 
+test('bursty encrypted output frames are decrypted in wire order', async ({ page }) => {
+  await page.addInitScript(() => {
+    const decrypt = SubtleCrypto.prototype.decrypt;
+    let calls = 0;
+    SubtleCrypto.prototype.decrypt = function delayedDecrypt(...args) {
+      const result = decrypt.apply(this, args);
+      if (calls++ === 2) {
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            result.then(resolve, reject);
+          }, 30);
+        });
+      }
+      return result;
+    };
+    window.__rmuxSharePostSnapshotFrames = [
+      new Uint8Array([0x01, ...new TextEncoder().encode('burst one')]).buffer,
+      new Uint8Array([0x01, ...new TextEncoder().encode('burst two')]).buffer,
+    ];
+  });
+
+  await page.goto(`/#t=${readToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('burst one');
+  await expect(page.locator('.xterm')).toContainText('burst two');
+  await expect(page.locator('[data-share-terminal]')).not.toContainText('encrypted frame failed authentication');
+});
+
 test('terminal theme selection persists locally', async ({ page }) => {
   const url = `/#t=${readToken}`;
   await page.goto(url);
