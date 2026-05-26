@@ -27,6 +27,11 @@ export function installMockShareWebSocket(): void {
       this.sent.push(serializeFrame(data));
       if (typeof data === 'string' && data.includes('"type":"auth"')) {
         const auth = JSON.parse(data);
+        if (window.__rmuxShareRequirePin && !auth.pin) {
+          this.readyState = MockWebSocket.CLOSED;
+          this.dispatchEvent(new CloseEvent('close', { code: 4008, reason: 'pin_required' }));
+          return;
+        }
         const role = window.__rmuxShareReadyRole
           ?? (String(auth.token).includes('operator') ? 'operator' : 'read');
         const ready = {
@@ -41,6 +46,7 @@ export function installMockShareWebSocket(): void {
           role,
           writable: true,
           controls: Boolean(window.__rmuxShareReadyControls),
+          show_viewers: Boolean(window.__rmuxShareShowViewers),
           operator_connected: false,
           ttl_remaining_seconds: 60,
           readers_active: 1,
@@ -94,6 +100,8 @@ declare global {
     __rmuxShareReadyControls?: boolean;
     __rmuxShareReadyRole?: 'read' | 'operator';
     __rmuxShareReadyScope?: 'pane' | 'session';
+    __rmuxShareRequirePin?: boolean;
+    __rmuxShareShowViewers?: boolean;
     __rmuxShareSockets?: Array<{ sent: unknown[] }>;
     __rmuxSharePostSnapshotFrames?: ArrayBuffer[];
     __rmuxShareTerminalPalette?: {

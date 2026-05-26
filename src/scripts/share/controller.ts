@@ -37,6 +37,7 @@ const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const CHROME_HIDDEN_STORAGE_KEY = 'rmux.share.chromeHidden';
 const PRIVACY_TOAST_MS = 20_000;
 const PIN_RE = /^\d{6}$/;
+const PIN_REQUIRED_CLOSE_CODE = 4008;
 const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
 
 export function startShareApp(root: HTMLElement): void {
@@ -80,25 +81,29 @@ export function startShareApp(root: HTMLElement): void {
     applyTerminalTheme(terminalTheme);
   }
   view.setNavbarMode(params.navbar);
-  view.setViewerCountMode(params.viewers);
   if (params.navbar === 'off') {
     view.setChromeHidden(true);
   }
 
+  const host = endpointHost(params.endpoint);
+  const copy = confirmationCopy(params.endpoint);
   const connect = (pin = currentPin) => {
     currentPin = pin;
     connection?.dispose();
-    connection = new ShareConnection(params, view, () => terminalTheme, pin);
+    connection = new ShareConnection(params, view, () => terminalTheme, pin, () => showConnectPrompt(true));
     connection.connect();
+  };
+  const showConnectPrompt = (requiresPin: boolean) => {
+    view.confirm(host, copy, requiresPin, {
+      cancel: () => view.setStatus({ connected: false, detail: 'connection canceled', tone: 'idle' }),
+      connect,
+    });
   };
   view.bindReconnectActions({
     reconnect: () => connect(),
     copyLink: () => copyCurrentShareUrl(params, view),
   });
-  view.confirm(endpointHost(params.endpoint), confirmationCopy(params.endpoint), params.requiresPin, {
-    cancel: () => view.setStatus({ connected: false, detail: 'connection canceled', tone: 'idle' }),
-    connect,
-  });
+  showConnectPrompt(false);
 }
 
 class ShareConnection {
@@ -119,6 +124,7 @@ class ShareConnection {
     private readonly view: ShareView,
     private readonly terminalTheme: () => TerminalThemeName,
     private readonly pin?: string,
+    private readonly requestPin?: () => void,
   ) {
     this.role = 'read';
   }
@@ -187,6 +193,12 @@ class ShareConnection {
       return;
     }
 
+    if (event.code === PIN_REQUIRED_CLOSE_CODE) {
+      this.view.setStatus({ connected: false, detail: 'pairing code required', tone: 'warn' });
+      this.requestPin?.();
+      return;
+    }
+
     const message = closeMessage(event.code);
     if (event.code === 1000) {
       this.view.setStatus({ connected: false, detail: message, tone: 'idle' });
@@ -214,6 +226,7 @@ class ShareConnection {
     this.controls = message.controls && message.scope === 'session' && message.role === 'operator';
     this.passControlsToPty = false;
     this.userTerminalTheme = message.terminal_palette;
+    this.view.setViewerCountMode(message.show_viewers);
     this.view.setTerminalTheme(this.terminalTheme(), this.userTerminalTheme);
     this.disposeTerminal();
     this.terminal = openShareTerminal(
@@ -448,18 +461,18 @@ class ShareView {
     this.pinInput.required = requiresPin;
     this.pinInput.value = '';
     this.pinError.textContent = '';
-    this.confirmConnect.addEventListener('click', () => {
+    this.confirmConnect.onclick = () => {
       const pin = this.confirmPin(requiresPin);
       if (pin === false) {
         return;
       }
       this.confirmDialog.close();
       actions.connect(pin);
-    });
-    this.confirmCancel.addEventListener('click', () => {
+    };
+    this.confirmCancel.onclick = () => {
       this.confirmDialog.close();
       actions.cancel();
-    }, { once: true });
+    };
     this.confirmDialog.showModal();
   }
 
@@ -566,8 +579,8 @@ class ShareView {
     this.app.dataset.navbar = navbar;
   }
 
-  setViewerCountMode(mode: ShareParams['viewers']): void {
-    this.viewerCountVisible = mode === 'visible';
+  setViewerCountMode(visible: boolean): void {
+    this.viewerCountVisible = visible;
     this.viewers.hidden = !this.viewerCountVisible;
   }
 

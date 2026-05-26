@@ -88,6 +88,8 @@ export function closeMessage(code: number): string {
       return 'protocol violation';
     case 4007:
       return 'operator slot already taken';
+    case 4008:
+      return 'pairing code required';
     default:
       return code ? `connection closed (${code})` : 'connection closed';
   }

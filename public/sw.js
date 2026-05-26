@@ -11,7 +11,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(cleanupCaches().then(() => self.clients.claim()));
+  event.waitUntil(activateServiceWorker());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -68,18 +68,34 @@ async function fetchOfflineManifest() {
   }
 }
 
+async function activateServiceWorker() {
+  const deletedCaches = await cleanupCaches();
+  await self.clients.claim();
+  if (deletedCaches > 0) {
+    await refreshWindowClients();
+  }
+}
+
 async function cleanupCaches() {
   const manifest = await fetchOfflineManifest();
   if (!manifest) {
-    return;
+    return 0;
   }
   const current = cacheName(manifest.version);
   const names = await caches.keys();
-  await Promise.all(
-    names
-      .filter((name) => name.startsWith(CACHE_PREFIX) && name !== current)
-      .map((name) => caches.delete(name)),
-  );
+  const stale = names.filter((name) => name.startsWith(CACHE_PREFIX) && name !== current);
+  const results = await Promise.all(stale.map((name) => caches.delete(name)));
+  return results.filter(Boolean).length;
+}
+
+async function refreshWindowClients() {
+  const clients = await self.clients.matchAll({ type: 'window' });
+  await Promise.all(clients.map((client) => {
+    if (!client.url.startsWith(self.registration.scope) || typeof client.navigate !== 'function') {
+      return null;
+    }
+    return client.navigate(client.url).catch(() => null);
+  }));
 }
 
 async function networkFirstNavigation(request) {

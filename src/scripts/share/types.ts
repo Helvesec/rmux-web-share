@@ -8,8 +8,6 @@ export interface ShareParams {
   theme?: TerminalThemeName;
   navbar: 'visible' | 'off';
   disclaimer: 'on' | 'off';
-  viewers: 'hidden' | 'visible';
-  requiresPin: boolean;
 }
 
 export interface ReadyMessage {
@@ -27,6 +25,7 @@ export interface ReadyMessage {
   role: ShareRole;
   writable: boolean;
   controls: boolean;
+  show_viewers: boolean;
   operator_connected?: boolean;
   ttl_remaining_seconds?: number;
   readers_active?: number;

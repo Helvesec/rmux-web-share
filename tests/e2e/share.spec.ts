@@ -61,13 +61,24 @@ test('explicit endpoint links keep the short e/t fragment contract', async ({ pa
   );
 });
 
-test('viewer count option shows the live connected browser count', async ({ page }) => {
-  await page.goto(`/#t=${readToken}&viewers=on`);
+test('server viewer-count option shows the live connected browser count', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareShowViewers = true;
+  });
+  await page.goto(`/#t=${readToken}`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-viewers]')).toBeVisible();
   await expect(page.locator('[data-share-viewers-count]')).toHaveText('3');
   await expect(page.locator('[data-share-viewers] svg')).toBeVisible();
+});
+
+test('URL cannot force the live viewer count when the server disabled it', async ({ page }) => {
+  await page.goto(`/#t=${readToken}&viewers=on`);
+  await page.locator('[data-share-confirm-connect]').click();
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-viewers]')).toBeHidden();
 });
 
 test('resize acknowledgement does not clear the initial snapshot', async ({ page }) => {
@@ -76,7 +87,7 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
       new Uint8Array([0x02, 0x00, 0x18, 0x00, 0x06]).buffer,
     ];
   });
-  await page.goto(`/#t=${operatorToken}&viewers=on&theme=dark`);
+  await page.goto(`/#t=${operatorToken}&theme=dark`);
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
@@ -269,10 +280,14 @@ test('URL options can remove chrome and disclaimer', async ({ page }) => {
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
-test('pin-protected URLs send the out-of-band pairing code', async ({ page }) => {
-  const url = `/#t=${readToken}&pin=required`;
-  await page.goto(url);
+test('pin-protected shares ask for the out-of-band pairing code after auth challenge', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareRequirePin = true;
+  });
+  await page.goto(`/#t=${readToken}`);
 
+  await expect(page.locator('[data-share-pin]')).toBeHidden();
+  await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-pin-error]')).toContainText('6-digit');
@@ -294,13 +309,18 @@ test('pin-protected URLs send the out-of-band pairing code', async ({ page }) =>
 
 test('pin-protected minimal links stay readable in a light user theme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
-  const url = `/#t=${readToken}&pin=required&navbar=off&disclaimer=off`;
+  await page.addInitScript(() => {
+    window.__rmuxShareRequirePin = true;
+  });
+  const url = `/#t=${readToken}&navbar=off&disclaimer=off`;
   await page.goto(url);
 
   await expect(page.locator('[data-share-confirm]')).toBeVisible();
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'light');
   await expect(page.locator('.share-confirm')).toHaveCSS('background-color', 'rgb(255, 250, 240)');
   await expect(page.locator('.share-confirm h1')).toHaveCSS('color', 'rgb(16, 33, 26)');
+  await page.locator('[data-share-confirm-connect]').click();
+  await expect(page.locator('[data-share-pin]')).toBeVisible();
   await expect(page.locator('[data-share-pin]')).toHaveCSS('color', 'rgb(16, 33, 26)');
 
   await page.locator('[data-share-pin]').fill('123456');

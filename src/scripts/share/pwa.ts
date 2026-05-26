@@ -8,9 +8,11 @@ export function registerShareServiceWorker(): void {
   }
 
   const options = shareServiceWorkerOptions();
-  void navigator.serviceWorker.register(options.url, { scope: options.scope }).catch(() => {
-    // Offline caching is a convenience path. Connection flow must not depend on it.
-  });
+  void navigator.serviceWorker.register(options.url, { scope: options.scope })
+    .then((registration) => registration.update())
+    .catch(() => {
+      // Offline caching is a convenience path. Connection flow must not depend on it.
+    });
 }
 
 function canRegisterServiceWorker(): boolean {
