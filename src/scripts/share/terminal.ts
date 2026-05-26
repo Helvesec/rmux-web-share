@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
@@ -11,6 +12,9 @@ export type TerminalThemeMode = 'dark' | 'light';
 export const DEFAULT_TERMINAL_THEME: TerminalThemeName = 'user';
 const LIVE_SCROLLBACK_LINES = 2000;
 const WHEEL_PIXEL_LINE = 16;
+const IMAGE_PIXEL_LIMIT = 4_194_304;
+const IMAGE_SEQUENCE_LIMIT = 8_000_000;
+const IMAGE_STORAGE_MB = 48;
 
 export interface TerminalChromePalette {
   accent: string;
@@ -68,6 +72,17 @@ class XtermShareTerminal implements ShareTerminal {
     this.role = role;
     this.term = new Terminal(optionsForRole(role, theme));
     this.term.loadAddon(this.fitAddon);
+    this.term.loadAddon(
+      new ImageAddon({
+        enableSizeReports: false,
+        iipSizeLimit: IMAGE_SEQUENCE_LIMIT,
+        iipSupport: true,
+        pixelLimit: IMAGE_PIXEL_LIMIT,
+        sixelSizeLimit: IMAGE_SEQUENCE_LIMIT,
+        sixelSupport: true,
+        storageLimit: IMAGE_STORAGE_MB,
+      }),
+    );
     this.term.loadAddon(new WebLinksAddon());
     container.replaceChildren();
     this.setTheme(theme, userTheme);
