@@ -51,5 +51,5 @@ jobs:
             echo "- Public provenance: https://share.rmux.io/.well-known/rmux-web-share.json"
             echo "- Asset checksums: https://share.rmux.io/checksums.txt"
             echo ""
-            echo "share.rmux.io serves only the static frontend and does not relay terminal data. The token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted."
+            echo "share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted."
           } >> "$GITHUB_STEP_SUMMARY"
