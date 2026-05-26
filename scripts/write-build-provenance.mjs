@@ -9,7 +9,7 @@ const PUBLIC_ORIGIN = 'https://share.rmux.io';
 const PROJECT_NAME = 'rmux-web-share';
 const SECURITY_STATEMENT = [
   'share.rmux.io serves only the static frontend and does not relay terminal data.',
-  'The token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.',
+  'Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.',
 ].join(' ');
 
 const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));

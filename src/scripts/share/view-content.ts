@@ -111,7 +111,7 @@ export function shareViewTemplate(): string {
         <form method="dialog" class="share-provenance-panel">
           <h1>Security & provenance</h1>
           <p data-share-provenance-statement>
-            share.rmux.io serves only the static frontend and does not relay terminal data. The token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.
+            share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.
           </p>
           <dl class="share-provenance-list">
             <div>
@@ -151,10 +151,9 @@ export function privacyToastContent(endpoint: string): DocumentFragment {
   body.className = 'share-toast-body';
   body.textContent = privacyToastMessage(endpoint);
 
-  const link = document.createElement('a');
-  link.href = 'https://rmux.io/docs/web-share/';
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
+  const link = document.createElement('button');
+  link.type = 'button';
+  link.dataset.shareToastProvenance = '';
   link.textContent = 'More info';
 
   fragment.append(icon, body, link);
@@ -165,14 +164,14 @@ function privacyToastMessage(endpoint: string): string {
   try {
     const url = new URL(endpoint);
     if (url.protocol === 'wss:') {
-      return `Secure WebSocket to ${url.host}. share.rmux.io only served this static client; terminal data does not pass through share.rmux.io.`;
+      return `Your connection to ${url.host} is end-to-end encrypted.`;
     }
     if (isLoopbackHost(url.hostname)) {
-      return `Local client-side session. share.rmux.io only served this static app; terminal data stays between this browser and ${url.host}.`;
+      return `Your local connection to ${url.host} is end-to-end encrypted.`;
     }
-    return `Client-side session. Terminal data connects directly to ${url.host}; share.rmux.io only served the static app.`;
+    return `Your connection to ${url.host} is end-to-end encrypted.`;
   } catch {
-    return 'Client-side session. share.rmux.io only served the static app; terminal data connects to the endpoint in this link.';
+    return 'Your rmux web-share connection is end-to-end encrypted.';
   }
 }
 

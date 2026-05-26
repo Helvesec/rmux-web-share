@@ -1,5 +1,12 @@
 import { endpointHost, parseShareFragment, shareBasePath, shareBaseUrl, shareUrl } from './fragment';
 import {
+  createClientHello,
+  createEncryptedTransport,
+  parseChallenge,
+  type ClientHandshakeState,
+  type EncryptedShareTransport,
+} from './e2ee';
+import {
   confirmationCopy,
   connectionErrorMessage,
   rememberLocalAccess,
@@ -114,6 +121,8 @@ export function startShareApp(root: HTMLElement): void {
 class ShareConnection {
   private role: ShareRole;
   private socket?: WebSocket;
+  private transport?: EncryptedShareTransport;
+  private handshake?: ClientHandshakeState;
   private socketError = false;
   private terminal?: ShareTerminal;
   private userTerminalTheme?: TerminalThemePalette;
@@ -144,9 +153,11 @@ class ShareConnection {
     socket.addEventListener('open', () => {
       rememberLocalAccess(this.params.endpoint);
       this.view.setStatus({ connected: false, detail: 'authenticating', tone: 'idle' });
-      socket.send(authPayload(this.params, this.pin));
+      void this.sendHello(socket);
     });
-    socket.addEventListener('message', (event) => this.handleMessage(event));
+    socket.addEventListener('message', (event) => {
+      void this.handleMessage(event);
+    });
     socket.addEventListener('error', () => {
       this.socketError = true;
       this.view.showError(connectionErrorMessage(this.params.endpoint));
@@ -154,12 +165,52 @@ class ShareConnection {
     socket.addEventListener('close', (event) => this.handleClose(event));
   }
 
-  private handleMessage(event: MessageEvent<string | ArrayBuffer>): void {
-    if (typeof event.data === 'string') {
-      this.handleControl(JSON.parse(event.data) as ServerMessage);
+  private async sendHello(socket: WebSocket): Promise<void> {
+    try {
+      const hello = await createClientHello(this.params);
+      this.handshake = hello.state;
+      socket.send(hello.text);
+    } catch {
+      this.view.showError('browser crypto is unavailable');
+      socket.close(4006, 'e2ee_unavailable');
+    }
+  }
+
+  private async handleMessage(event: MessageEvent<string | ArrayBuffer>): Promise<void> {
+    if (!this.transport) {
+      if (typeof event.data !== 'string' || !this.handshake || !this.socket) {
+        this.socket?.close(4006, 'invalid_e2ee_handshake');
+        return;
+      }
+      try {
+        this.transport = await createEncryptedTransport(
+          this.socket,
+          this.handshake,
+          parseChallenge(event.data),
+        );
+        this.transport.sendText(authPayload(this.pin));
+      } catch {
+        this.view.showError('encrypted handshake failed');
+        this.socket?.close(4006, 'e2ee_handshake_failed');
+      }
       return;
     }
-    this.handleBinary(new Uint8Array(event.data));
+
+    if (typeof event.data === 'string') {
+      this.socket?.close(4006, 'plaintext_after_e2ee');
+      return;
+    }
+    try {
+      const message = await this.transport.open(event.data);
+      if (message.type === 'text') {
+        this.handleControl(JSON.parse(message.text) as ServerMessage);
+      } else {
+        this.handleBinary(message.bytes);
+      }
+    } catch {
+      this.view.showError('encrypted frame failed authentication');
+      this.socket?.close(4006, 'e2ee_decrypt_failed');
+    }
   }
 
   private handleControl(message: ServerMessage): void {
@@ -294,6 +345,7 @@ class ShareConnection {
     this.disposed = true;
     this.socket?.close(1000, 'replaced');
     this.socket = undefined;
+    this.transport = undefined;
     this.disposeTerminal();
   }
 
@@ -319,6 +371,7 @@ class ShareConnection {
   private detach(): void {
     this.socket?.close(1000, 'detached');
     this.socket = undefined;
+    this.transport = undefined;
     this.view.setStatus({ connected: false, detail: 'disconnected', tone: 'idle' });
     this.view.showReconnect();
   }
@@ -332,11 +385,15 @@ class ShareConnection {
     logoutSession(socket);
   }
 
-  private openOperatorSocket(): WebSocket | undefined {
-    if (this.role !== 'operator' || this.socket?.readyState !== WebSocket.OPEN) {
+  private openOperatorSocket(): EncryptedShareTransport | undefined {
+    if (
+      this.role !== 'operator'
+      || this.socket?.readyState !== WebSocket.OPEN
+      || !this.transport
+    ) {
       return undefined;
     }
-    return this.socket;
+    return this.transport;
   }
 
   private disposeTerminal(): void {
@@ -614,6 +671,11 @@ class ShareView {
 
   showPrivacyToast(endpoint: string): void {
     this.toast.replaceChildren(privacyToastContent(endpoint));
+    this.toast
+      .querySelector('[data-share-toast-provenance]')
+      ?.addEventListener('click', () => {
+        void this.openProvenance();
+      });
     this.toast.hidden = false;
     this.toast.dataset.visible = 'true';
     if (this.toastTimer !== undefined) {

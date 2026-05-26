@@ -31,17 +31,17 @@ test('read-only client confirms endpoint and receives the initial snapshot', asy
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'light');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme-mode', 'light');
-  await expect(page.locator('[data-share-toast]')).toContainText('share.rmux.io only served this static app');
+  await expect(page.locator('[data-share-toast]')).toContainText('end-to-end encrypted');
   await expect(page.locator('[data-share-toast]')).toContainText('More info');
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
       type: 'auth',
-      protocol_version: 2,
-      capabilities: ['token-auth', 'terminal-palette-v1'],
-      token: readToken,
+      protocol_version: 3,
+      capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
     }),
   );
+  expect(JSON.stringify(await sentFrames(page))).not.toContain(readToken);
 });
 
 test('Firefox copy does not mention Chrome local network access', async ({ page }) => {
@@ -82,9 +82,8 @@ test('explicit endpoint links keep the short e/t fragment contract', async ({ pa
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
       type: 'auth',
-      protocol_version: 2,
-      capabilities: ['token-auth', 'terminal-palette-v1'],
-      token: readToken,
+      protocol_version: 3,
+      capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
     }),
   );
 });
@@ -139,7 +138,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
       repository: 'https://github.com/Helvesec/rmux-web-share',
       commit_sha1: '0123456789abcdef0123456789abcdef01234567',
       commit_url: 'https://github.com/Helvesec/rmux-web-share/commit/0123456789abcdef0123456789abcdef01234567',
-      security_statement: 'share.rmux.io serves only the static frontend and does not relay terminal data. The token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.',
+      security_statement: 'share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.',
       github_actions: {
         run_id: '123456',
         run_url: 'https://github.com/Helvesec/rmux-web-share/actions/runs/123456',
@@ -326,9 +325,8 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
       type: 'auth',
-      protocol_version: 2,
-      capabilities: ['token-auth', 'terminal-palette-v1'],
-      token: readToken,
+      protocol_version: 3,
+      capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
       pin: '123456',
     }),
   );

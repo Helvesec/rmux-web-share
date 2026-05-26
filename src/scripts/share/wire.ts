@@ -1,8 +1,6 @@
-import type { ShareParams } from './types';
-
-export const WEB_SHARE_PROTOCOL_VERSION = 2;
+export const WEB_SHARE_PROTOCOL_VERSION = 3;
 export const WEB_SHARE_CLIENT_CAPABILITIES = [
-  'token-auth',
+  'e2ee-token-auth',
   'terminal-palette-v1',
 ] as const;
 
@@ -13,18 +11,22 @@ const MAX_INPUT_BYTES = 4096;
 
 const encoder = new TextEncoder();
 
-export function authPayload(params: ShareParams, pin?: string): string {
+export interface ShareTransport {
+  readonly readyState: number;
+  sendText(text: string): void;
+  sendBinary(bytes: Uint8Array): void;
+}
+
+export function authPayload(pin?: string): string {
   const payload: {
     type: 'auth';
     protocol_version: number;
     capabilities: readonly string[];
-    token: string;
     pin?: string;
   } = {
     type: 'auth',
     protocol_version: WEB_SHARE_PROTOCOL_VERSION,
     capabilities: WEB_SHARE_CLIENT_CAPABILITIES,
-    token: params.token,
   };
   if (pin) {
     payload.pin = pin;
@@ -32,15 +34,15 @@ export function authPayload(params: ShareParams, pin?: string): string {
   return JSON.stringify(payload);
 }
 
-export function sendInputText(ws: WebSocket, text: string): boolean {
+export function sendInputText(ws: ShareTransport, text: string): boolean {
   return sendTextFrame(ws, INPUT_TEXT, text);
 }
 
-export function sendAttachInputText(ws: WebSocket, text: string): boolean {
+export function sendAttachInputText(ws: ShareTransport, text: string): boolean {
   return sendTextFrame(ws, ATTACH_INPUT, text);
 }
 
-function sendTextFrame(ws: WebSocket, opcode: number, text: string): boolean {
+function sendTextFrame(ws: ShareTransport, opcode: number, text: string): boolean {
   const utf8 = encoder.encode(text);
   if (utf8.length > MAX_INPUT_BYTES) {
     return false;
@@ -48,11 +50,11 @@ function sendTextFrame(ws: WebSocket, opcode: number, text: string): boolean {
   const frame = new Uint8Array(1 + utf8.length);
   frame[0] = opcode;
   frame.set(utf8, 1);
-  ws.send(frame);
+  ws.sendBinary(frame);
   return true;
 }
 
-export function sendResizeRequest(ws: WebSocket, cols: number, rows: number): void {
+export function sendResizeRequest(ws: ShareTransport, cols: number, rows: number): void {
   const frame = new Uint8Array(5);
   const safeCols = clampSize(cols);
   const safeRows = clampSize(rows);
@@ -61,11 +63,11 @@ export function sendResizeRequest(ws: WebSocket, cols: number, rows: number): vo
   frame[2] = safeCols & 0xff;
   frame[3] = (safeRows >> 8) & 0xff;
   frame[4] = safeRows & 0xff;
-  ws.send(frame);
+  ws.sendBinary(frame);
 }
 
-export function logoutSession(ws: WebSocket): void {
-  ws.send(JSON.stringify({ type: 'logout' }));
+export function logoutSession(ws: ShareTransport): void {
+  ws.sendText(JSON.stringify({ type: 'logout' }));
 }
 
 export function closeMessage(code: number): string {
