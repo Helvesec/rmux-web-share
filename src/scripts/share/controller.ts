@@ -241,7 +241,9 @@ class ShareConnection {
     if (this.params.disclaimer !== 'off') {
       this.view.showPrivacyToast(this.params.endpoint);
     }
-    this.terminal.fit();
+    if (message.scope === 'session') {
+      this.terminal.fit();
+    }
     this.resizeHandler = () => this.terminal?.fit();
     window.addEventListener('resize', this.resizeHandler);
   }

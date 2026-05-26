@@ -70,6 +70,19 @@ test('viewer count option shows the live connected browser count', async ({ page
   await expect(page.locator('[data-share-viewers] svg')).toBeVisible();
 });
 
+test('resize acknowledgement does not clear the initial snapshot', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxSharePostSnapshotFrames = [
+      new Uint8Array([0x02, 0x00, 0x18, 0x00, 0x06]).buffer,
+    ];
+  });
+  await page.goto(`/#t=${operatorToken}&viewers=on&theme=dark`);
+  await page.locator('[data-share-confirm-connect]').click();
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('hello from rmux');
+});
+
 test('terminal theme selection persists locally', async ({ page }) => {
   const url = `/#t=${readToken}`;
   await page.goto(url);

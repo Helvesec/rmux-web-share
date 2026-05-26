@@ -57,6 +57,9 @@ export function installMockShareWebSocket(): void {
           viewers_connected: 3,
         }));
         this.dispatchMessage(new Uint8Array([0x10, ...new TextEncoder().encode('hello from rmux')]).buffer);
+        for (const frame of window.__rmuxSharePostSnapshotFrames ?? []) {
+          this.dispatchMessage(frame);
+        }
       }
       if (typeof data === 'string' && data.includes('"logout"')) {
         this.close();
@@ -92,6 +95,7 @@ declare global {
     __rmuxShareReadyRole?: 'read' | 'operator';
     __rmuxShareReadyScope?: 'pane' | 'session';
     __rmuxShareSockets?: Array<{ sent: unknown[] }>;
+    __rmuxSharePostSnapshotFrames?: ArrayBuffer[];
     __rmuxShareTerminalPalette?: {
       foreground: string;
       background: string;

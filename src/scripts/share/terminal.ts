@@ -55,6 +55,7 @@ class XtermShareTerminal implements ShareTerminal {
   readonly term: Terminal;
   role: ShareRole;
 
+  private readonly decoder = new TextDecoder();
   private readonly fitAddon = new FitAddon();
   private readonly disposables: IDisposable[] = [];
 
@@ -92,10 +93,13 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   write(data: Uint8Array): void {
-    this.term.write(data);
+    this.term.write(this.decoder.decode(data, { stream: true }));
   }
 
   resize(cols: number, rows: number): void {
+    if (this.term.cols === cols && this.term.rows === rows) {
+      return;
+    }
     this.term.resize(cols, rows);
   }
 
