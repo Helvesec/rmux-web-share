@@ -15,7 +15,7 @@ test('read-only client confirms endpoint and receives the initial snapshot', asy
   await expect.poll(() => new URL(page.url()).hash).toBe('');
   expect(page.url()).not.toContain(readToken);
   await expect(page.locator('[data-share-endpoint]')).toHaveText('127.0.0.1:9777');
-  await expect(page.locator('[data-share-confirm-detail]')).toContainText('Click Allow');
+  await expect(page.locator('[data-share-confirm-detail]')).toContainText('click Allow');
   await expect(page.locator('[data-share-confirm-connect]')).toHaveText('Connect to local daemon');
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
   await expect(page.locator('.share-brand-context')).toHaveText('Web Multiplex');
@@ -42,6 +42,34 @@ test('read-only client confirms endpoint and receives the initial snapshot', asy
       token: readToken,
     }),
   );
+});
+
+test('Firefox copy does not mention Chrome local network access', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userAgent', {
+      configurable: true,
+      get: () => 'Mozilla/5.0 Firefox/145.0',
+    });
+    Object.defineProperty(Navigator.prototype, 'userAgentData', {
+      configurable: true,
+      get: () => undefined,
+    });
+  });
+
+  await page.goto(`/?again=1#t=${readToken}`);
+
+  await expect(page.locator('[data-share-confirm-detail]')).toHaveText('Connects to the rmux daemon running on this computer.');
+});
+
+test('local access hint is hidden after a successful local connection', async ({ page }) => {
+  await page.goto(`/#t=${readToken}`);
+  await page.locator('[data-share-confirm-connect]').click();
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('rmux.share.localAccessConfirmed'))).toBe('1');
+
+  await page.goto(`/?again=1#t=${readToken}`);
+
+  await expect(page.locator('[data-share-confirm-detail]')).toHaveText('Connects to the rmux daemon running on this computer.');
 });
 
 test('explicit endpoint links keep the short e/t fragment contract', async ({ page }) => {

@@ -1,5 +1,10 @@
 import { endpointHost, parseShareFragment, shareBasePath, shareBaseUrl, shareUrl } from './fragment';
-import { confirmationCopy, connectionErrorMessage, type ConfirmationCopy } from './local-access';
+import {
+  confirmationCopy,
+  connectionErrorMessage,
+  rememberLocalAccess,
+  type ConfirmationCopy,
+} from './local-access';
 import {
   DEFAULT_TERMINAL_THEME,
   terminalChromePalette,
@@ -137,6 +142,7 @@ class ShareConnection {
     this.socket = socket;
 
     socket.addEventListener('open', () => {
+      rememberLocalAccess(this.params.endpoint);
       this.view.setStatus({ connected: false, detail: 'authenticating', tone: 'idle' });
       socket.send(authPayload(this.params, this.pin));
     });

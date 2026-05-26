@@ -4,6 +4,8 @@ export interface ConfirmationCopy {
   local: boolean;
 }
 
+const LOCAL_ACCESS_CONFIRMED_KEY = 'rmux.share.localAccessConfirmed';
+
 export function confirmationCopy(endpoint: string): ConfirmationCopy {
   if (!isLoopbackEndpoint(endpoint)) {
     return {
@@ -15,7 +17,7 @@ export function confirmationCopy(endpoint: string): ConfirmationCopy {
 
   return {
     button: 'Connect to local daemon',
-    detail: 'First time on Chrome? Click Allow if the browser asks for Local Network Access.',
+    detail: localAccessHint(),
     local: true,
   };
 }
@@ -36,6 +38,17 @@ export function connectionErrorMessage(endpoint: string): string {
   return 'connection error. Lost connection? Try refreshing.';
 }
 
+export function rememberLocalAccess(endpoint: string): void {
+  if (!isLoopbackEndpoint(endpoint)) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(LOCAL_ACCESS_CONFIRMED_KEY, '1');
+  } catch {
+    // Storage can be disabled; this hint is only an ergonomic optimization.
+  }
+}
+
 export function isLoopbackEndpoint(endpoint: string): boolean {
   try {
     const url = new URL(endpoint);
@@ -53,6 +66,33 @@ function looksLikeBlockedLoopback(endpoint: string): boolean {
 
 function isLoopbackHost(host: string): boolean {
   return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+}
+
+function localAccessHint(): string {
+  if (isChromiumBrowser() && !localAccessWasConfirmed()) {
+    return 'If Chrome asks for Local Network Access, click Allow.';
+  }
+  return 'Connects to the rmux daemon running on this computer.';
+}
+
+function localAccessWasConfirmed(): boolean {
+  try {
+    return window.localStorage.getItem(LOCAL_ACCESS_CONFIRMED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function isChromiumBrowser(): boolean {
+  const userAgentData = (navigator as Navigator & {
+    userAgentData?: { brands?: Array<{ brand: string }> };
+  }).userAgentData;
+  const brands = userAgentData?.brands ?? [];
+  if (brands.some((brand) => /Chromium|Google Chrome|Microsoft Edge/i.test(brand.brand))) {
+    return true;
+  }
+  return /\b(?:Chrome|Chromium|Edg|OPR)\//.test(navigator.userAgent)
+    && !/\bFirefox\//.test(navigator.userAgent);
 }
 
 function isLikelyMobileBrowser(): boolean {
