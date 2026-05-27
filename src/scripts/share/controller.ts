@@ -40,8 +40,10 @@ import {
   closeMessage,
   logoutSession,
   scrollSessionPane,
+  selectSessionPane,
   sendAttachInputText,
   sendInputText,
+  sendResizeRequest,
   WEB_SHARE_PROTOCOL_VERSION,
 } from './wire';
 
@@ -141,6 +143,7 @@ class ShareConnection {
   private viewportObserver?: ResizeObserver;
   private viewportRaf?: number;
   private viewportTimers: number[] = [];
+  private lastResizeRequest?: { cols: number; rows: number };
   private disposed = false;
 
   constructor(
@@ -309,7 +312,7 @@ class ShareConnection {
       this.userTerminalTheme,
     );
     this.terminal.onData((data) => this.sendOperatorData(data));
-    this.terminal.onMouseInput((data) => this.sendOperatorData(data));
+    this.terminal.onPaneSelect((paneId) => this.selectPane(paneId));
     this.terminal.onPaneScroll((paneId, delta) => this.sendPaneScroll(paneId, delta));
     this.view.bindSessionActions({
       detach: () => this.detach(),
@@ -377,6 +380,13 @@ class ShareConnection {
     scrollSessionPane(this.transport, paneId, delta);
   }
 
+  private selectPane(paneId: number): void {
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session' || this.role !== 'operator') {
+      return;
+    }
+    selectSessionPane(this.transport, paneId);
+  }
+
   private detach(): void {
     this.socket?.close(1000, 'detached');
     this.socket = undefined;
@@ -425,6 +435,7 @@ class ShareConnection {
     this.viewportRaf = window.requestAnimationFrame(() => {
       this.viewportRaf = undefined;
       this.terminal?.syncViewport();
+      this.syncOperatorBrowserSize();
     });
   }
 
@@ -445,6 +456,28 @@ class ShareConnection {
     this.viewportTimers = [];
     this.terminal?.dispose();
     this.terminal = undefined;
+    this.lastResizeRequest = undefined;
+  }
+
+  private syncOperatorBrowserSize(): void {
+    if (
+      this.scope !== 'session'
+      || this.role !== 'operator'
+      || this.socket?.readyState !== WebSocket.OPEN
+      || !this.transport
+      || !this.terminal
+    ) {
+      return;
+    }
+    const size = this.terminal.fitSize();
+    if (!size || (
+      this.lastResizeRequest?.cols === size.cols
+      && this.lastResizeRequest?.rows === size.rows
+    )) {
+      return;
+    }
+    this.lastResizeRequest = size;
+    sendResizeRequest(this.transport, size.cols, size.rows);
   }
 }
 

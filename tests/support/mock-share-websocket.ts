@@ -124,7 +124,8 @@ export function installMockShareWebSocket(): void {
         pane_label: '%1',
         role,
         operator: role === 'operator',
-        controls: Boolean(window.__rmuxShareReadyControls),
+        controls: window.__rmuxShareReadyControls
+          ?? (role === 'operator' && window.__rmuxShareReadyScope === 'session'),
         show_viewers: Boolean(window.__rmuxShareShowViewers),
         operator_connected: false,
         ttl_remaining_seconds: 60,

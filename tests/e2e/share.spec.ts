@@ -212,7 +212,7 @@ test('session viewer keeps the status row visible after a remote resize notice',
   });
 });
 
-test('session operator click sends a mouse event through the attach stream', async ({ page }) => {
+test('session operator click selects the clicked pane without shell input', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'operator';
@@ -221,6 +221,13 @@ test('session operator click sends a mouse event through the attach stream', asy
       '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
       + '\x1b[1;42Hright pane'
       + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
   });
   await page.goto(`/#t=${operatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
@@ -229,9 +236,41 @@ test('session operator click sends a mouse event through the attach stream', asy
   expect(screen).not.toBeNull();
   await page.mouse.click(screen!.x + screen!.width * 0.75, screen!.y + 44);
 
-  await expect.poll(async () => (await sentMouseFrames(page)).length).toBeGreaterThan(0);
-  const mouse = (await sentMouseFrames(page)).at(-1);
-  expect(mouse).toMatch(/^\x1b\[<0;\d+;\d+M$/);
+  await expect.poll(() => selectedPaneFrames(page)).toContainEqual({
+    type: 'select_pane',
+    pane_id: 2,
+  });
+  expect(await sentInputFrameCount(page)).toBe(0);
+});
+
+test('session operator drives the remote size from the browser viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt'
+      + '\x1b[24;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
+  });
+
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(async () => (await sentFrames(page)).some(isResizeFrame)).toBe(true);
+  const firstResize = (await sentFrames(page)).find(isResizeFrame);
+  expect(firstResize).toBeDefined();
+  expect(decodeResizeFrame(firstResize!)).toMatchObject({
+    cols: expect.any(Number),
+    rows: expect.any(Number),
+  });
+
+  await page.setViewportSize({ width: 720, height: 420 });
+  await expect.poll(async () => (await sentFrames(page)).filter(isResizeFrame).length).toBeGreaterThan(1);
+  const resizeFrames = (await sentFrames(page)).filter(isResizeFrame);
+  const last = decodeResizeFrame(resizeFrames.at(-1)!);
+  const first = decodeResizeFrame(firstResize!);
+  expect(last.cols).toBeLessThan(first.cols);
+  expect(last.rows).toBeLessThan(first.rows);
 });
 
 test('bursty encrypted output frames are decrypted in wire order', async ({ page }) => {
@@ -598,6 +637,24 @@ async function paneScrollFrames(page: import('@playwright/test').Page): Promise<
   });
 }
 
+async function selectedPaneFrames(page: import('@playwright/test').Page): Promise<Array<{
+  type: 'select_pane';
+  pane_id: number;
+}>> {
+  const frames = await sentFrames(page);
+  return frames.flatMap((frame) => {
+    if (typeof frame !== 'string') {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(frame);
+      return parsed?.type === 'select_pane' ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 async function sentInputFrameCount(page: import('@playwright/test').Page): Promise<number> {
   const frames = await sentFrames(page);
   return frames.filter((frame) => Array.isArray(frame) && (frame[0] === 0x80 || frame[0] === 0x83)).length;
@@ -620,6 +677,13 @@ async function customProperty(page: import('@playwright/test').Page, name: strin
 
 function isResizeFrame(frame: unknown): frame is number[] {
   return Array.isArray(frame) && frame[0] === 0x82 && frame.length === 5;
+}
+
+function decodeResizeFrame(frame: number[]): { cols: number; rows: number } {
+  return {
+    cols: (frame[1] << 8) | frame[2],
+    rows: (frame[3] << 8) | frame[4],
+  };
 }
 
 async function terminalProjection(page: import('@playwright/test').Page) {
@@ -661,12 +725,4 @@ async function terminalProjection(page: import('@playwright/test').Page) {
       statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash* "very-long-hostname" 16:34 27-May-26') ?? false,
     };
   });
-}
-
-async function sentMouseFrames(page: import('@playwright/test').Page): Promise<string[]> {
-  const frames = await sentFrames(page);
-  return frames
-    .filter((frame): frame is number[] => Array.isArray(frame) && (frame[0] === 0x80 || frame[0] === 0x83))
-    .map((frame) => String.fromCharCode(...frame.slice(1)))
-    .filter((text) => text.startsWith('\x1b[<0;'));
 }

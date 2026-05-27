@@ -35,6 +35,7 @@ export interface TerminalChromePalette {
 export interface ShareTerminal {
   role: ShareRole;
   term: Terminal;
+  fitSize(): { cols: number; rows: number } | undefined;
   syncViewport(): void;
   setRole(role: ShareRole): void;
   setTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void;
@@ -44,7 +45,7 @@ export interface ShareTerminal {
   setSessionView(view: SessionView): void;
   dispose(): void;
   onData(callback: (data: string) => void): void;
-  onMouseInput(callback: (data: string) => void): void;
+  onPaneSelect(callback: (paneId: number) => void): void;
   onPaneScroll(callback: (paneId: number, delta: number) => void): void;
   notice(text: string): void;
 }
@@ -84,6 +85,8 @@ class XtermShareTerminal implements ShareTerminal {
   private remoteRows = 0;
   private snapshotCols = 0;
   private snapshotRows = 0;
+  private operatorCols = 0;
+  private operatorRows = 0;
   private sessionView?: SessionView;
   private paneScrollHandler?: (paneId: number, delta: number) => void;
 
@@ -127,6 +130,7 @@ class XtermShareTerminal implements ShareTerminal {
   syncViewport(): void {
     if (this.scope === 'session') {
       this.enqueue((done) => {
+        this.rememberOperatorFitSize();
         this.resizeSessionGrid();
         this.fitSessionStage();
         this.scrollToTopLeft();
@@ -137,6 +141,17 @@ class XtermShareTerminal implements ShareTerminal {
     if (this.stickToBottom) {
       this.scrollToBottom();
     }
+  }
+
+  fitSize(): { cols: number; rows: number } | undefined {
+    const metrics = this.cellMetrics();
+    if (!metrics || this.container.clientWidth <= 0 || this.container.clientHeight <= 0) {
+      return undefined;
+    }
+    return {
+      cols: clampTerminalSize(Math.floor(this.container.clientWidth / metrics.width)),
+      rows: clampTerminalSize(Math.floor(this.container.clientHeight / metrics.height)),
+    };
   }
 
   setRole(role: ShareRole): void {
@@ -233,18 +248,18 @@ class XtermShareTerminal implements ShareTerminal {
     this.disposables.push(this.term.onData(callback));
   }
 
-  onMouseInput(callback: (data: string) => void): void {
+  onPaneSelect(callback: (paneId: number) => void): void {
     const onMouseDown = (event: MouseEvent) => {
       if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
         return;
       }
-      const cell = this.cellFromMouseEvent(event);
-      if (!cell) {
+      const pane = this.paneFromMouseEvent(event);
+      if (!pane) {
         return;
       }
       event.preventDefault();
       this.term.focus();
-      callback(`\x1b[<0;${cell.col};${cell.row}M`);
+      callback(pane.id);
     };
     this.stage.addEventListener('mousedown', onMouseDown);
     this.disposables.push({
@@ -366,6 +381,9 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private sessionGridSize(): { cols: number; rows: number } {
+    if (this.role === 'operator' && this.operatorCols > 0 && this.operatorRows > 0) {
+      return { cols: this.operatorCols, rows: this.operatorRows };
+    }
     return {
       cols: Math.max(
         this.remoteCols,
@@ -374,6 +392,18 @@ class XtermShareTerminal implements ShareTerminal {
       ),
       rows: Math.max(this.remoteRows, this.snapshotRows, MIN_TERMINAL_ROWS),
     };
+  }
+
+  private rememberOperatorFitSize(): void {
+    if (this.role !== 'operator') {
+      return;
+    }
+    const size = this.fitSize();
+    if (!size) {
+      return;
+    }
+    this.operatorCols = size.cols;
+    this.operatorRows = size.rows;
   }
 
   private cellMetrics(): { width: number; height: number } | undefined {
@@ -444,8 +474,8 @@ class XtermShareTerminal implements ShareTerminal {
     if (!cell || !this.sessionView) {
       return undefined;
     }
-    const col = cell.col - 1;
-    const row = cell.row - 1;
+    const col = projectCell(cell.col - 1, this.term.cols, this.sessionView.size.cols);
+    const row = projectCell(cell.row - 1, this.term.rows, this.sessionView.size.rows);
     return this.sessionView.panes.find((pane) => (
       col >= pane.x
       && col < pane.x + pane.cols
@@ -620,6 +650,17 @@ function wheelDeltaPixels(event: WheelEvent, pageHeight: number): { x: number; y
     x: event.deltaX * unit,
     y: event.deltaY * unit,
   };
+}
+
+function clampTerminalSize(value: number): number {
+  return Math.max(MIN_TERMINAL_COLS, Math.min(0xffff, value));
+}
+
+function projectCell(cell: number, fromSize: number, toSize: number): number {
+  if (fromSize <= 0 || toSize <= 0 || fromSize === toSize) {
+    return cell;
+  }
+  return Math.min(toSize - 1, Math.max(0, Math.floor(cell * toSize / fromSize)));
 }
 
 function snapshotGeometry(text: string): { cols: number; rows: number } {

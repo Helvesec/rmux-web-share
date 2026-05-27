@@ -5,6 +5,7 @@ export const WEB_SHARE_CLIENT_CAPABILITIES = [
 ] as const;
 
 const INPUT_TEXT = 0x80;
+const RESIZE_REQUEST = 0x82;
 const ATTACH_INPUT = 0x83;
 const MAX_INPUT_BYTES = 4096;
 
@@ -41,6 +42,16 @@ export function sendAttachInputText(ws: ShareTransport, text: string): boolean {
   return sendTextFrame(ws, ATTACH_INPUT, text);
 }
 
+export function sendResizeRequest(ws: ShareTransport, cols: number, rows: number): void {
+  const frame = new Uint8Array(5);
+  frame[0] = RESIZE_REQUEST;
+  frame[1] = (cols >> 8) & 0xff;
+  frame[2] = cols & 0xff;
+  frame[3] = (rows >> 8) & 0xff;
+  frame[4] = rows & 0xff;
+  ws.sendBinary(frame);
+}
+
 function sendTextFrame(ws: ShareTransport, opcode: number, text: string): boolean {
   const utf8 = encoder.encode(text);
   if (utf8.length > MAX_INPUT_BYTES) {
@@ -59,6 +70,10 @@ export function logoutSession(ws: ShareTransport): void {
 
 export function scrollSessionPane(ws: ShareTransport, paneId: number, delta: number): void {
   ws.sendText(JSON.stringify({ type: 'pane_scroll', pane_id: paneId, delta }));
+}
+
+export function selectSessionPane(ws: ShareTransport, paneId: number): void {
+  ws.sendText(JSON.stringify({ type: 'select_pane', pane_id: paneId }));
 }
 
 export function closeMessage(code: number): string {
