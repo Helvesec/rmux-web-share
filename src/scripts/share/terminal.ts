@@ -100,11 +100,10 @@ class XtermShareTerminal implements ShareTerminal {
     if (viewport.width <= 0 || viewport.height <= 0 || !natural) {
       return;
     }
-    const scaleX = viewport.width / natural.width;
-    const scaleY = viewport.height / natural.height;
+    const scale = Math.min(viewport.width / natural.width, viewport.height / natural.height);
     this.stage.style.width = `${natural.width}px`;
     this.stage.style.height = `${natural.height}px`;
-    this.stage.style.transform = `scale(${scaleCss(scaleX)}, ${scaleCss(scaleY)})`;
+    this.stage.style.transform = `scale(${scaleCss(scale)})`;
   }
 
   setRole(role: ShareRole): void {

@@ -112,7 +112,7 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
 
-test('session viewer scales the terminal locally without sending resize frames', async ({ page }) => {
+test('session viewer fits the terminal locally without sending resize frames', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -122,11 +122,21 @@ test('session viewer scales the terminal locally without sending resize frames',
   await page.goto(`/#t=${readToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await expect.poll(() => scaledTerminalGap(page)).toEqual({ width: 0, height: 0 });
+  await expect.poll(() => fittedTerminal(page)).toMatchObject({
+    fitsWidth: true,
+    fitsHeight: true,
+    anchoredBottom: true,
+    uniformScale: true,
+  });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 
   await page.setViewportSize({ width: 1500, height: 840 });
-  await expect.poll(() => scaledTerminalGap(page)).toEqual({ width: 0, height: 0 });
+  await expect.poll(() => fittedTerminal(page)).toMatchObject({
+    fitsWidth: true,
+    fitsHeight: true,
+    anchoredBottom: true,
+    uniformScale: true,
+  });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 });
 
@@ -475,7 +485,7 @@ function isResizeFrame(frame: unknown): frame is number[] {
   return Array.isArray(frame) && frame[0] === 0x82 && frame.length === 5;
 }
 
-async function scaledTerminalGap(page: import('@playwright/test').Page) {
+async function fittedTerminal(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
     const terminal = document.querySelector<HTMLElement>('[data-share-terminal]');
     const stage = document.querySelector<HTMLElement>('.share-terminal-stage');
@@ -484,9 +494,12 @@ async function scaledTerminalGap(page: import('@playwright/test').Page) {
     }
     const terminalRect = terminal.getBoundingClientRect();
     const stageRect = stage.getBoundingClientRect();
+    const transform = new DOMMatrixReadOnly(getComputedStyle(stage).transform);
     return {
-      width: Math.round(Math.abs(terminalRect.width - stageRect.width)),
-      height: Math.round(Math.abs(terminalRect.height - stageRect.height)),
+      fitsWidth: stageRect.width <= terminalRect.width + 1,
+      fitsHeight: stageRect.height <= terminalRect.height + 1,
+      anchoredBottom: Math.abs(terminalRect.bottom - stageRect.bottom) <= 1,
+      uniformScale: Math.abs(transform.a - transform.d) < 0.001 && Math.abs(transform.b) < 0.001 && Math.abs(transform.c) < 0.001,
     };
   });
 }
