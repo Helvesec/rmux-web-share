@@ -137,22 +137,22 @@ test('session viewer expands locally without sending resize frames', async ({ pa
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
-      noTransform: true,
-      promptAtTop: true,
-      statusAtBottom: true,
-      growsBeyondSnapshotRows: true,
-      singleStatusRow: true,
-    });
+    noTransform: true,
+    promptAtTop: true,
+    statusAtBottom: true,
+    growsBeyondSnapshotRows: true,
+    singleStatusRow: true,
+  });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 
   await page.setViewportSize({ width: 960, height: 560 });
   await expect.poll(() => terminalProjection(page)).toMatchObject({
-      noTransform: true,
-      promptAtTop: true,
-      statusAtBottom: true,
-      growsBeyondSnapshotRows: true,
-      singleStatusRow: true,
-    });
+    noTransform: true,
+    promptAtTop: true,
+    statusAtBottom: true,
+    growsBeyondSnapshotRows: true,
+    singleStatusRow: true,
+  });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 });
 
