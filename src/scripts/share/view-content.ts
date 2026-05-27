@@ -3,7 +3,7 @@ import type { ShareRole } from './types';
 
 export function shareViewTemplate(): string {
   return `
-    <main class="share-app" data-chrome="visible" data-navbar="visible" data-operator="free" data-role="read" data-terminal-mode="dark" data-terminal-theme="user">
+    <main class="share-app" data-chrome="visible" data-navbar="visible" data-operator="free" data-role="spectator" data-terminal-mode="dark" data-terminal-theme="user">
       <header class="share-topbar">
         <div class="share-brand">
           <a class="share-brand-home" href="https://rmux.io/" aria-label="RMUX">
@@ -23,7 +23,7 @@ export function shareViewTemplate(): string {
               <rect x="5" y="10" width="14" height="10" rx="2.5" />
               <path d="M12 14v2.5" />
             </svg>
-            <span data-share-role>Read Only</span>
+            <span data-share-role>Spectator</span>
           </span>
           <span class="share-session-label" data-share-meta hidden>rmux share</span>
           <span class="share-viewer-count" data-share-viewers hidden aria-label="Connected browsers">
@@ -138,5 +138,5 @@ export function shareViewTemplate(): string {
 }
 
 export function titleCase(role: ShareRole): string {
-  return role === 'operator' ? 'Operator' : 'Read Only';
+  return role === 'operator' ? 'Operator' : 'Spectator';
 }

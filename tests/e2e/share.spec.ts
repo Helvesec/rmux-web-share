@@ -2,21 +2,21 @@ import { expect, test } from '@playwright/test';
 
 import { installMockShareWebSocket } from '../support/mock-share-websocket';
 
-const readToken = `read_${'a'.repeat(48)}`;
+const spectatorToken = `spectator_${'a'.repeat(48)}`;
 const operatorToken = `operator_${'b'.repeat(48)}`;
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(installMockShareWebSocket);
 });
 
-test('read-only client connects immediately and receives the initial snapshot', async ({ page }) => {
-  await page.goto(`/#t=${readToken}`);
+test('spectator client connects immediately and receives the initial snapshot', async ({ page }) => {
+  await page.goto(`/#t=${spectatorToken}`);
   await expect.poll(() => new URL(page.url()).hash).toBe('');
-  expect(page.url()).not.toContain(readToken);
+  expect(page.url()).not.toContain(spectatorToken);
   await expect(page.locator('[data-share-confirm]')).toBeHidden();
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
   await expect(page.locator('.share-brand-context')).toHaveText('Web Multiplex');
-  await expect(page.locator('[data-share-role]')).toHaveText('Read Only');
+  await expect(page.locator('[data-share-role]')).toHaveText('Spectator');
   await expect.poll(() => socketCount(page)).toBe(1);
 
   await page.locator('[data-share-terminal-theme]').selectOption('light');
@@ -35,7 +35,7 @@ test('read-only client connects immediately and receives the initial snapshot', 
       capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
     }),
   );
-  expect(JSON.stringify(await sentFrames(page))).not.toContain(readToken);
+  expect(JSON.stringify(await sentFrames(page))).not.toContain(spectatorToken);
 });
 
 test('Firefox local links do not show a Chrome permission prompt', async ({ page }) => {
@@ -50,7 +50,7 @@ test('Firefox local links do not show a Chrome permission prompt', async ({ page
     });
   });
 
-  await page.goto(`/?again=1#t=${readToken}`);
+  await page.goto(`/?again=1#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-confirm]')).toBeHidden();
   await expect(page.locator('[data-share-terminal]')).not.toContainText('Chrome');
@@ -58,18 +58,18 @@ test('Firefox local links do not show a Chrome permission prompt', async ({ page
 });
 
 test('local access success is remembered without prompting', async ({ page }) => {
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('rmux.share.localAccessConfirmed'))).toBe('1');
 
-  await page.goto(`/?again=1#t=${readToken}`);
+  await page.goto(`/?again=1#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-confirm]')).toBeHidden();
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
 test('explicit endpoint links keep the short e/t fragment contract', async ({ page }) => {
-  await page.goto(`/#e=wss://terminal.example/share&t=${readToken}`);
+  await page.goto(`/#e=wss://terminal.example/share&t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => sentFrames(page)).toContainEqual(
@@ -85,7 +85,7 @@ test('server viewer-count option shows the live connected browser count', async 
   await page.addInitScript(() => {
     window.__rmuxShareShowViewers = true;
   });
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-viewers]')).toBeVisible();
   await expect(page.locator('[data-share-viewers-count]')).toHaveText('3');
@@ -93,7 +93,7 @@ test('server viewer-count option shows the live connected browser count', async 
 });
 
 test('URL cannot force the live viewer count when the server disabled it', async ({ page }) => {
-  await page.goto(`/#t=${readToken}&viewers=on`);
+  await page.goto(`/#t=${spectatorToken}&viewers=on`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-viewers]')).toBeHidden();
@@ -117,7 +117,7 @@ test('full snapshots replace the previous terminal frame', async ({ page }) => {
       new Uint8Array([0x10, ...new TextEncoder().encode('fresh snapshot after resize')]).buffer,
     ];
   });
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('.xterm')).toContainText('fresh snapshot after resize');
@@ -128,12 +128,12 @@ test('session viewer keeps the remote grid local without sending resize frames',
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
-    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadyRole = 'spectator';
     window.__rmuxShareReadySize = { cols: 12, rows: 3 };
     window.__rmuxShareInitialSnapshot = '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt\x1b[9;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
   });
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
@@ -164,7 +164,7 @@ test('session viewer scales tall remote snapshots into the browser height', asyn
   await page.setViewportSize({ width: 960, height: 420 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
-    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadyRole = 'spectator';
     window.__rmuxShareReadySize = { cols: 80, rows: 55 };
     window.__rmuxShareInitialSnapshot =
       '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Htop-left prompt'
@@ -172,7 +172,7 @@ test('session viewer scales tall remote snapshots into the browser height', asyn
       + '\x1b[55;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
   });
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
@@ -189,7 +189,7 @@ test('session viewer keeps the status row visible after a remote resize notice',
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
-    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadyRole = 'spectator';
     window.__rmuxShareReadySize = { cols: 120, rows: 32 };
     window.__rmuxShareInitialSnapshot =
       '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt'
@@ -199,7 +199,7 @@ test('session viewer keeps the status row visible after a remote resize notice',
     ];
   });
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
@@ -255,7 +255,7 @@ test('bursty encrypted output frames are decrypted in wire order', async ({ page
     ];
   });
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('.xterm')).toContainText('burst one');
@@ -264,7 +264,7 @@ test('bursty encrypted output frames are decrypted in wire order', async ({ page
 });
 
 test('terminal theme selection persists locally', async ({ page }) => {
-  const url = `/#t=${readToken}`;
+  const url = `/#t=${spectatorToken}`;
   await page.goto(url);
   await page.locator('[data-share-terminal-theme]').selectOption('dark');
   await page.reload();
@@ -292,7 +292,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
     }),
   }));
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await page.locator('[data-share-status-menu]').click();
   await page.locator('[data-share-session-provenance]').click();
@@ -370,7 +370,7 @@ test('session operator can logout the shared session from the status menu', asyn
   await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
 });
 
-test('writable session operators send attach input without a controls toggle', async ({ page }) => {
+test('operator session shares send attach input without a controls toggle', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyControls = true;
@@ -400,7 +400,7 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
 test('session pane scrollbar requests pane scroll without shell input', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
-    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadyRole = 'spectator';
     window.__rmuxShareReadySize = { cols: 80, rows: 24 };
     window.__rmuxShareInitialSnapshot =
       '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hscrollable pane'
@@ -419,7 +419,7 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
       }],
     };
   });
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('.share-pane-scrollbar')).toHaveCount(1);
 
@@ -436,7 +436,7 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
 });
 
 test('toolbar visibility is a session preference', async ({ page }) => {
-  const url = `/#t=${readToken}`;
+  const url = `/#t=${spectatorToken}`;
   await page.goto(url);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 
@@ -450,7 +450,7 @@ test('toolbar visibility is a session preference', async ({ page }) => {
 });
 
 test('URL options can remove chrome and disclaimer', async ({ page }) => {
-  const url = `/#t=${readToken}&navbar=off&disclaimer=off&theme=dark`;
+  const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off&theme=dark`;
   await page.goto(url);
 
   await expect(page.locator('.share-app')).toHaveAttribute('data-navbar', 'off');
@@ -466,7 +466,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await page.locator('[data-share-confirm-connect]').click();
@@ -491,7 +491,7 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
-  const url = `/#t=${readToken}&navbar=off&disclaimer=off`;
+  const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off`;
   await page.goto(url);
 
   await expect(page.locator('[data-share-confirm]')).toBeVisible();
@@ -526,7 +526,7 @@ test('user terminal theme applies the palette from the ready message', async ({ 
     };
   });
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'user');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme-mode', 'dark');
@@ -558,7 +558,7 @@ test('light client terminal palette drives the surrounding chrome', async ({ pag
     };
   });
 
-  await page.goto(`/#t=${readToken}`);
+  await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-theme', 'user');
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'light');
@@ -568,7 +568,7 @@ test('light client terminal palette drives the surrounding chrome', async ({ pag
 });
 
 test('invalid terminal theme in the URL is rejected', async ({ page }) => {
-  await page.goto(`/#t=${readToken}&theme=solarized`);
+  await page.goto(`/#t=${spectatorToken}&theme=solarized`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
   await expect(page.locator('[data-share-terminal]')).toContainText('invalid terminal theme');

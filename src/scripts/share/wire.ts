@@ -74,7 +74,7 @@ export function closeMessage(code: number): string {
     case 4002:
       return 'frame too large';
     case 4003:
-      return 'read-only quota reached';
+      return 'spectator limit reached';
     case 4004:
       return 'origin not whitelisted; check --frontend-url';
     case 4006:

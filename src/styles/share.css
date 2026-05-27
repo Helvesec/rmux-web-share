@@ -74,7 +74,7 @@
   padding: 0;
 }
 
-.share-app[data-role='read'] {
+.share-app[data-role='spectator'] {
   --share-bg: #061013;
   --share-panel: rgb(9 20 23 / 0.78);
   --share-role: #77c7ff;
@@ -303,8 +303,8 @@
   background: transparent;
 }
 
-.share-terminal[data-role='read'] .xterm-cursor,
-.share-terminal[data-role='read'] .xterm-cursor-layer {
+.share-terminal[data-role='spectator'] .xterm-cursor,
+.share-terminal[data-role='spectator'] .xterm-cursor-layer {
   visibility: hidden !important;
 }
 

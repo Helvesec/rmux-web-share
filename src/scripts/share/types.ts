@@ -1,4 +1,4 @@
-export type ShareRole = 'read' | 'operator';
+export type ShareRole = 'spectator' | 'operator';
 export type ShareScope = 'pane' | 'session';
 export type TerminalThemeName = 'user' | 'dark' | 'light';
 
@@ -23,21 +23,21 @@ export interface ReadyMessage {
   session_name?: string;
   pane_label?: string;
   role: ShareRole;
-  writable: boolean;
+  operator: boolean;
   controls: boolean;
   show_viewers: boolean;
   operator_connected?: boolean;
   ttl_remaining_seconds?: number;
-  readers_active?: number;
-  readers_max?: number;
+  spectators_active?: number;
+  spectators_max?: number;
   viewers_connected?: number;
   terminal_palette?: TerminalThemePalette;
 }
 
 export interface ViewerCountMessage {
   type: 'viewer_count';
-  readers_active: number;
-  readers_max: number;
+  spectators_active: number;
+  spectators_max: number;
   operator_connected: boolean;
   viewers_connected: number;
 }

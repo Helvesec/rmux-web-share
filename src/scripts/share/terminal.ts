@@ -115,7 +115,7 @@ class XtermShareTerminal implements ShareTerminal {
     this.scrollLayer.className = 'share-pane-scroll-layer';
     container.append(this.stage);
     this.setTheme(theme, userTheme);
-    this.term.attachCustomKeyEventHandler(() => this.role !== 'read');
+    this.term.attachCustomKeyEventHandler(() => this.role !== 'spectator');
     this.bindScrollAnchor();
   }
 
@@ -141,7 +141,7 @@ class XtermShareTerminal implements ShareTerminal {
 
   setRole(role: ShareRole): void {
     this.role = role;
-    this.term.options.disableStdin = role === 'read';
+    this.term.options.disableStdin = role === 'spectator';
     this.term.options.cursorBlink = role === 'operator';
     this.term.options.cursorStyle = role === 'operator' ? 'block' : 'underline';
   }
@@ -597,7 +597,7 @@ function optionsForRole(
     convertEol: true,
     cursorBlink: role === 'operator',
     cursorStyle: role === 'operator' ? 'block' : 'underline',
-    disableStdin: role === 'read',
+    disableStdin: role === 'spectator',
     fontFamily: '"JetBrains Mono", "SFMono-Regular", Consolas, monospace',
     fontSize: 13,
     letterSpacing: 0,

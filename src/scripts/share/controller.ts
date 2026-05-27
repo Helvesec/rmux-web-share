@@ -151,7 +151,7 @@ class ShareConnection {
     private readonly requestPin?: () => void,
     private readonly requestLocalAccessHelp?: () => void,
   ) {
-    this.role = 'read';
+    this.role = 'spectator';
   }
 
   connect(): void {
@@ -831,8 +831,8 @@ function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {
   if (explicit !== undefined) {
     return explicit;
   }
-  const readers = finiteCount(message.readers_active) ?? 0;
-  return readers + (message.operator_connected ? 1 : 0);
+  const spectators = finiteCount(message.spectators_active) ?? 0;
+  return spectators + (message.operator_connected ? 1 : 0);
 }
 
 function finiteCount(value: number | undefined): number | undefined {

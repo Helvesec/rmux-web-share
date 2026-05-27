@@ -112,7 +112,7 @@ export function installMockShareWebSocket(): void {
         return;
       }
       const role = window.__rmuxShareReadyRole
-        ?? (this.token.includes('operator') ? 'operator' : 'read');
+        ?? (this.token.includes('operator') ? 'operator' : 'spectator');
       const ready = {
         type: 'ready',
         protocol_version: 3,
@@ -123,21 +123,21 @@ export function installMockShareWebSocket(): void {
         session_name: 'ci',
         pane_label: '%1',
         role,
-        writable: true,
+        operator: role === 'operator',
         controls: Boolean(window.__rmuxShareReadyControls),
         show_viewers: Boolean(window.__rmuxShareShowViewers),
         operator_connected: false,
         ttl_remaining_seconds: 60,
-        readers_active: 1,
-        readers_max: 5,
+        spectators_active: 1,
+        spectators_max: 5,
         viewers_connected: 1,
         terminal_palette: window.__rmuxShareTerminalPalette,
       };
       await this.dispatchEncryptedText(JSON.stringify(ready));
       await this.dispatchEncryptedText(JSON.stringify(window.__rmuxShareViewerCount ?? {
         type: 'viewer_count',
-        readers_active: 2,
-        readers_max: 5,
+        spectators_active: 2,
+        spectators_max: 5,
         operator_connected: true,
         viewers_connected: 3,
       }));
@@ -322,7 +322,7 @@ export function installMockShareWebSocket(): void {
 declare global {
   interface Window {
     __rmuxShareReadyControls?: boolean;
-    __rmuxShareReadyRole?: 'read' | 'operator';
+    __rmuxShareReadyRole?: 'spectator' | 'operator';
     __rmuxShareReadyScope?: 'pane' | 'session';
     __rmuxShareReadySize?: { cols: number; rows: number };
     __rmuxShareSessionView?: {
@@ -351,8 +351,8 @@ declare global {
     };
     __rmuxShareViewerCount?: {
       type: 'viewer_count';
-      readers_active: number;
-      readers_max: number;
+      spectators_active: number;
+      spectators_max: number;
       operator_connected: boolean;
       viewers_connected: number;
     };
