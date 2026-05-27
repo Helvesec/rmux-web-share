@@ -300,6 +300,7 @@ class ShareConnection {
     this.disposeTerminal();
     this.terminal = openShareTerminal(
       this.view.terminalElement(),
+      message.scope,
       this.role,
       message.pane_size.cols,
       message.pane_size.rows,

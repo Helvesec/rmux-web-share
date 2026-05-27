@@ -141,7 +141,9 @@ export function installMockShareWebSocket(): void {
         operator_connected: true,
         viewers_connected: 3,
       }));
-      await this.dispatchEncryptedBinary(new Uint8Array([0x10, ...encoder.encode('hello from rmux')]));
+      await this.dispatchEncryptedBinary(
+        new Uint8Array([0x10, ...encoder.encode(window.__rmuxShareInitialSnapshot ?? 'hello from rmux')]),
+      );
       for (const frame of window.__rmuxSharePostSnapshotFrames ?? []) {
         await this.dispatchEncryptedBinary(new Uint8Array(frame));
       }
@@ -322,6 +324,7 @@ declare global {
     __rmuxShareShowViewers?: boolean;
     __rmuxShareSockets?: Array<{ sent: unknown[] }>;
     __rmuxSharePostSnapshotFrames?: ArrayBuffer[];
+    __rmuxShareInitialSnapshot?: string;
     __rmuxShareTerminalPalette?: {
       foreground: string;
       background: string;

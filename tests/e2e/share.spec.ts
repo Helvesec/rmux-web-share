@@ -124,29 +124,32 @@ test('full snapshots replace the previous terminal frame', async ({ page }) => {
   await expect(page.locator('.xterm')).not.toContainText('hello from rmux');
 });
 
-test('session viewer renders the exact remote grid without sending resize frames', async ({ page }) => {
+test('session viewer expands locally without sending resize frames', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'read';
-    window.__rmuxShareReadySize = { cols: 140, rows: 40 };
+    window.__rmuxShareReadySize = { cols: 24, rows: 12 };
+    window.__rmuxShareInitialSnapshot = '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt\x1b[6;1H[ci] 0:bash*';
   });
 
   await page.goto(`/#t=${readToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await expect.poll(() => exactTerminal(page)).toMatchObject({
-    scrollableWidth: true,
-    scrollableHeight: true,
+  await expect.poll(() => terminalProjection(page)).toMatchObject({
     noTransform: true,
+    promptAtTop: true,
+    statusAtBottom: true,
+    growsBeyondRemoteRows: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 
-  await page.setViewportSize({ width: 960, height: 520 });
-  await expect.poll(() => exactTerminal(page)).toMatchObject({
-    scrollableWidth: true,
-    scrollableHeight: true,
+  await page.setViewportSize({ width: 960, height: 560 });
+  await expect.poll(() => terminalProjection(page)).toMatchObject({
     noTransform: true,
+    promptAtTop: true,
+    statusAtBottom: true,
+    growsBeyondRemoteRows: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 });
@@ -497,18 +500,26 @@ function isResizeFrame(frame: unknown): frame is number[] {
   return Array.isArray(frame) && frame[0] === 0x82 && frame.length === 5;
 }
 
-async function exactTerminal(page: import('@playwright/test').Page) {
+async function terminalProjection(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
     const terminal = document.querySelector<HTMLElement>('[data-share-terminal]');
     const stage = document.querySelector<HTMLElement>('.share-terminal-stage');
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('.xterm-rows > div'))
+      .map((row) => row.textContent ?? '');
     if (!terminal || !stage) {
-      return { scrollableWidth: false, scrollableHeight: false, noTransform: false };
+      return {
+        growsBeyondRemoteRows: false,
+        noTransform: false,
+        promptAtTop: false,
+        statusAtBottom: false,
+      };
     }
     const transform = getComputedStyle(stage).transform;
     return {
-      scrollableWidth: terminal.scrollWidth > terminal.clientWidth,
-      scrollableHeight: terminal.scrollHeight > terminal.clientHeight,
+      growsBeyondRemoteRows: rows.length > 6,
       noTransform: transform === 'none',
+      promptAtTop: rows[0]?.includes('prompt') ?? false,
+      statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash*') ?? false,
     };
   });
 }

@@ -3,7 +3,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 
-import type { ShareRole, TerminalThemeName, TerminalThemePalette } from './types';
+import type { ShareRole, ShareScope, TerminalThemeName, TerminalThemePalette } from './types';
 
 export type { TerminalThemeName } from './types';
 export type TerminalThemeMode = 'dark' | 'light';
@@ -15,6 +15,8 @@ const WHEEL_PIXEL_LINE = 16;
 const IMAGE_PIXEL_LIMIT = 4_194_304;
 const IMAGE_SEQUENCE_LIMIT = 8_000_000;
 const IMAGE_STORAGE_MB = 48;
+const MIN_TERMINAL_COLS = 2;
+const MIN_TERMINAL_ROWS = 2;
 
 export interface TerminalChromePalette {
   accent: string;
@@ -39,17 +41,17 @@ export interface ShareTerminal {
 
 export function openShareTerminal(
   container: HTMLElement,
+  scope: ShareScope,
   role: ShareRole,
   cols: number,
   rows: number,
   theme: TerminalThemeName = DEFAULT_TERMINAL_THEME,
   userTheme?: TerminalThemePalette,
 ): ShareTerminal {
-  const controller = new XtermShareTerminal(container, role, theme, userTheme);
+  const controller = new XtermShareTerminal(container, scope, role, theme, userTheme);
   controller.open();
   controller.bindLocalWheelScroll();
-  controller.term.resize(cols, rows);
-  controller.syncViewport();
+  controller.resize(cols, rows);
   if (role === 'operator') {
     controller.term.focus();
   }
@@ -66,9 +68,13 @@ class XtermShareTerminal implements ShareTerminal {
   private stickToBottom = true;
   private operationQueue = Promise.resolve();
   private disposed = false;
+  private lastSnapshotText?: string;
+  private remoteCols = 0;
+  private remoteRows = 0;
 
   constructor(
     private readonly container: HTMLElement,
+    private readonly scope: ShareScope,
     role: ShareRole,
     theme: TerminalThemeName,
     private userTheme?: TerminalThemePalette,
@@ -101,6 +107,17 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   syncViewport(): void {
+    if (this.scope === 'session') {
+      this.enqueue((done) => {
+        if (this.resizeSessionGrid() && this.lastSnapshotText !== undefined) {
+          this.writeSessionSnapshotNow(this.lastSnapshotText, done);
+        } else {
+          this.scrollToTop();
+          done();
+        }
+      });
+      return;
+    }
     if (this.stickToBottom) {
       this.scrollToBottom();
     }
@@ -118,15 +135,22 @@ class XtermShareTerminal implements ShareTerminal {
     this.container.dataset.theme = theme;
     this.container.dataset.themeMode = terminalThemeMode(theme, userTheme);
     this.term.options.theme = themePalette(theme, userTheme);
-    this.syncViewport();
+    if (this.term.element) {
+      this.syncViewport();
+    }
   }
 
   replace(data: Uint8Array): void {
     this.decoder.decode();
     const text = this.decoder.decode(data);
     this.enqueue((done) => {
-      this.term.reset();
-      this.writeDecodedNow(text, true, done);
+      if (this.scope === 'session') {
+        this.lastSnapshotText = text;
+        this.writeSessionSnapshotNow(text, done);
+      } else {
+        this.term.reset();
+        this.writeDecodedNow(text, true, done);
+      }
     });
   }
 
@@ -147,12 +171,19 @@ class XtermShareTerminal implements ShareTerminal {
 
   resize(cols: number, rows: number): void {
     this.enqueue((done) => {
-      if (this.term.cols !== cols || this.term.rows !== rows) {
-        this.term.resize(cols, rows);
-        this.term.clearTextureAtlas();
-        this.term.refresh(0, this.term.rows - 1);
+      this.remoteCols = Math.max(MIN_TERMINAL_COLS, cols);
+      this.remoteRows = Math.max(MIN_TERMINAL_ROWS, rows);
+      if (this.scope === 'session') {
+        this.resizeSessionGrid();
+        if (this.lastSnapshotText !== undefined) {
+          this.writeSessionSnapshotNow(this.lastSnapshotText, done);
+          return;
+        }
+        this.scrollToTop();
+      } else {
+        this.resizeTerm(this.remoteCols, this.remoteRows);
+        this.scrollToBottom();
       }
-      this.scrollToBottom();
       done();
     });
   }
@@ -217,9 +248,97 @@ class XtermShareTerminal implements ShareTerminal {
     this.stickToBottom = true;
   }
 
+  private scrollToTop(): void {
+    this.container.scrollTop = 0;
+    this.stickToBottom = false;
+  }
+
   private isNearBottom(): boolean {
     return this.container.scrollTop + this.container.clientHeight
       >= this.container.scrollHeight - BOTTOM_STICKY_THRESHOLD_PX;
+  }
+
+  private writeSessionSnapshotNow(text: string, done: () => void): void {
+    this.resizeSessionGrid();
+    this.term.reset();
+    this.writeDecodedNow(this.projectSessionSnapshot(text), false, () => {
+      this.scrollToTop();
+      done();
+    });
+  }
+
+  private projectSessionSnapshot(text: string): string {
+    const statusRow = this.sessionStatusRow(text);
+    if (!statusRow || this.term.rows <= statusRow) {
+      return text;
+    }
+    const sourceRow = String(statusRow);
+    const targetRow = String(this.term.rows);
+    return text.replace(/\x1b\[([0-9;]*)([Hf])/g, (sequence, params: string, command: string) => {
+      const parts = params === '' ? ['1'] : params.split(';');
+      if (parts[0] !== sourceRow) {
+        return sequence;
+      }
+      parts[0] = targetRow;
+      return `\x1b[${parts.join(';')}${command}`;
+    });
+  }
+
+  private sessionStatusRow(text: string): number | undefined {
+    const rows = [...text.matchAll(/\x1b\[([0-9;]*)([Hf])/g)]
+      .map((match) => Number.parseInt(match[1].split(';')[0] || '1', 10))
+      .filter((row) => Number.isFinite(row) && row >= MIN_TERMINAL_ROWS);
+    if (!rows.length) {
+      return undefined;
+    }
+    return Math.max(...rows);
+  }
+
+  private resizeSessionGrid(): boolean {
+    const size = this.sessionGridSize();
+    return this.resizeTerm(size.cols, size.rows);
+  }
+
+  private sessionGridSize(): { cols: number; rows: number } {
+    const metrics = this.cellMetrics();
+    if (!metrics) {
+      return { cols: this.remoteCols || this.term.cols, rows: this.remoteRows || this.term.rows };
+    }
+    return {
+      cols: Math.max(
+        this.remoteCols,
+        Math.floor(this.container.clientWidth / metrics.width),
+        MIN_TERMINAL_COLS,
+      ),
+      rows: Math.max(
+        this.remoteRows,
+        Math.floor(this.container.clientHeight / metrics.height),
+        MIN_TERMINAL_ROWS,
+      ),
+    };
+  }
+
+  private cellMetrics(): { width: number; height: number } | undefined {
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!screen || this.term.cols <= 0 || this.term.rows <= 0) {
+      return undefined;
+    }
+    const width = screen.clientWidth / this.term.cols;
+    const height = screen.clientHeight / this.term.rows;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return undefined;
+    }
+    return { width, height };
+  }
+
+  private resizeTerm(cols: number, rows: number): boolean {
+    if (this.term.cols === cols && this.term.rows === rows) {
+      return false;
+    }
+    this.term.resize(cols, rows);
+    this.term.clearTextureAtlas();
+    this.term.refresh(0, this.term.rows - 1);
+    return true;
   }
 }
 
