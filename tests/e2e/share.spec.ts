@@ -111,6 +111,19 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
 
+test('full snapshots replace the previous terminal frame', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxSharePostSnapshotFrames = [
+      new Uint8Array([0x10, ...new TextEncoder().encode('fresh snapshot after resize')]).buffer,
+    ];
+  });
+  await page.goto(`/#t=${readToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('fresh snapshot after resize');
+  await expect(page.locator('.xterm')).not.toContainText('hello from rmux');
+});
+
 test('session viewer renders the exact remote grid without sending resize frames', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {

@@ -28,6 +28,7 @@ export interface ShareTerminal {
   syncViewport(): void;
   setRole(role: ShareRole): void;
   setTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void;
+  replace(data: Uint8Array): void;
   write(data: Uint8Array): void;
   resize(cols: number, rows: number): void;
   dispose(): void;
@@ -61,6 +62,8 @@ class XtermShareTerminal implements ShareTerminal {
   private readonly stage: HTMLDivElement;
   private readonly disposables: IDisposable[] = [];
   private stickToBottom = true;
+  private operationQueue = Promise.resolve();
+  private disposed = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -116,24 +119,44 @@ class XtermShareTerminal implements ShareTerminal {
     this.syncViewport();
   }
 
+  replace(data: Uint8Array): void {
+    this.decoder.decode();
+    const text = this.decoder.decode(data);
+    this.enqueue((done) => {
+      this.term.reset();
+      this.writeDecodedNow(text, true, done);
+    });
+  }
+
   write(data: Uint8Array): void {
+    const text = this.decoder.decode(data, { stream: true });
     const stickToBottom = this.stickToBottom;
-    this.term.write(this.decoder.decode(data, { stream: true }), () => {
+    this.enqueue((done) => this.writeDecodedNow(text, stickToBottom, done));
+  }
+
+  private writeDecodedNow(data: string, stickToBottom: boolean, done: () => void): void {
+    this.term.write(data, () => {
       if (stickToBottom) {
         this.scrollToBottom();
       }
+      done();
     });
   }
 
   resize(cols: number, rows: number): void {
-    if (this.term.cols === cols && this.term.rows === rows) {
-      return;
-    }
-    this.term.resize(cols, rows);
-    this.scrollToBottom();
+    this.enqueue((done) => {
+      if (this.term.cols !== cols || this.term.rows !== rows) {
+        this.term.resize(cols, rows);
+        this.term.clearTextureAtlas();
+        this.term.refresh(0, this.term.rows - 1);
+      }
+      this.scrollToBottom();
+      done();
+    });
   }
 
   dispose(): void {
+    this.disposed = true;
     this.disposables.splice(0).forEach((disposable) => disposable.dispose());
     this.term.dispose();
   }
@@ -144,6 +167,17 @@ class XtermShareTerminal implements ShareTerminal {
 
   notice(text: string): void {
     this.term.writeln(`\r\n${text}`);
+  }
+
+  private enqueue(operation: (done: () => void) => void): void {
+    const run = () => new Promise<void>((resolve) => {
+      if (this.disposed) {
+        resolve();
+        return;
+      }
+      operation(resolve);
+    });
+    this.operationQueue = this.operationQueue.then(run, run);
   }
 
   private bindScrollAnchor(): void {
@@ -211,7 +245,7 @@ function optionsForRole(
   return {
     allowProposedApi: false,
     alternateScrollMode: false,
-    convertEol: true,
+    convertEol: false,
     cursorBlink: role === 'operator',
     cursorStyle: role === 'operator' ? 'block' : 'underline',
     disableStdin: role === 'read',
@@ -221,6 +255,9 @@ function optionsForRole(
     lineHeight: 1.2,
     scrollback: LIVE_SCROLLBACK_LINES,
     theme: themePalette(theme),
+    // rmux streams PTY output for a concrete remote geometry. Client-side
+    // reflow corrupts redraw-heavy terminal UIs during resize.
+    windowsPty: { backend: 'winpty' },
   };
 }
 

@@ -328,7 +328,10 @@ class ShareConnection {
     }
     const opcode = frame[0];
     const payload = frame.subarray(1);
-    if (opcode === OUTPUT_RAW || opcode === SNAPSHOT_FULL) {
+    if (opcode === SNAPSHOT_FULL) {
+      this.terminal.replace(payload);
+      this.scheduleTerminalViewportSync();
+    } else if (opcode === OUTPUT_RAW) {
       this.terminal.write(payload);
       this.scheduleTerminalViewportSync();
     } else if (opcode === RESIZE_NOTIFY && payload.length === 4) {
