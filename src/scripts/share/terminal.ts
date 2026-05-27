@@ -112,12 +112,10 @@ class XtermShareTerminal implements ShareTerminal {
   syncViewport(): void {
     if (this.scope === 'session') {
       this.enqueue((done) => {
-        if (this.resizeSessionGrid() && this.lastSnapshotText !== undefined) {
-          this.writeSessionSnapshotNow(this.lastSnapshotText, done);
-        } else {
-          this.scrollToTop();
-          done();
-        }
+        this.resizeSessionGrid();
+        this.fitSessionStage();
+        this.scrollToTopLeft();
+        done();
       });
       return;
     }
@@ -165,7 +163,8 @@ class XtermShareTerminal implements ShareTerminal {
     if (this.scope === 'session') {
       this.enqueue((done) => {
         this.writeDecodedNow(this.projectSessionFrame(text), false, () => {
-          this.scrollToTop();
+          this.fitSessionStage();
+          this.scrollToTopLeft();
           done();
         });
       });
@@ -189,8 +188,13 @@ class XtermShareTerminal implements ShareTerminal {
       this.remoteCols = Math.max(MIN_TERMINAL_COLS, cols);
       this.remoteRows = Math.max(MIN_TERMINAL_ROWS, rows);
       if (this.scope === 'session') {
+        if (this.lastSnapshotText !== undefined) {
+          this.writeSessionSnapshotNow(this.lastSnapshotText, done);
+          return;
+        }
         this.resizeSessionGrid();
-        this.scrollToTop();
+        this.fitSessionStage();
+        this.scrollToTopLeft();
       } else {
         this.resizeTerm(this.remoteCols, this.remoteRows);
         this.scrollToBottom();
@@ -283,6 +287,11 @@ class XtermShareTerminal implements ShareTerminal {
     this.stickToBottom = false;
   }
 
+  private scrollToTopLeft(): void {
+    this.container.scrollLeft = 0;
+    this.scrollToTop();
+  }
+
   private isNearBottom(): boolean {
     return this.container.scrollTop + this.container.clientHeight
       >= this.container.scrollHeight - BOTTOM_STICKY_THRESHOLD_PX;
@@ -291,7 +300,8 @@ class XtermShareTerminal implements ShareTerminal {
   private writeSessionSnapshotNow(text: string, done: () => void): void {
     this.resizeSessionGrid();
     this.writeDecodedNow(this.projectSessionFrame(text), false, () => {
-      this.scrollToTop();
+      this.fitSessionStage();
+      this.scrollToTopLeft();
       done();
     });
   }
@@ -320,18 +330,13 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private sessionGridSize(): { cols: number; rows: number } {
-    const metrics = this.cellMetrics();
-    if (!metrics) {
-      return { cols: this.remoteCols || this.term.cols, rows: this.remoteRows || this.term.rows };
-    }
     return {
       cols: Math.max(
         this.remoteCols,
         this.snapshotCols,
-        Math.floor(this.container.clientWidth / metrics.width),
         MIN_TERMINAL_COLS,
       ),
-      rows: Math.max(Math.floor(this.container.clientHeight / metrics.height), MIN_TERMINAL_ROWS),
+      rows: Math.max(this.remoteRows, this.snapshotRows, MIN_TERMINAL_ROWS),
     };
   }
 
@@ -358,21 +363,42 @@ class XtermShareTerminal implements ShareTerminal {
     return true;
   }
 
-  private cellFromMouseEvent(event: MouseEvent): { col: number; row: number } | undefined {
-    const metrics = this.cellMetrics();
+  private fitSessionStage(): void {
+    if (this.scope !== 'session') {
+      return;
+    }
     const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
-    if (!metrics || !screen) {
+    if (!screen || this.container.clientWidth <= 0 || this.container.clientHeight <= 0) {
+      return;
+    }
+    const width = screen.clientWidth;
+    const height = screen.clientHeight;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    const scale = Math.min(1, this.container.clientWidth / width, this.container.clientHeight / height);
+    this.stage.style.transform = scale < 0.999 ? `scale(${scale})` : 'none';
+  }
+
+  private cellFromMouseEvent(event: MouseEvent): { col: number; row: number } | undefined {
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!screen) {
       return undefined;
     }
     const rect = screen.getBoundingClientRect();
+    const cellWidth = rect.width / this.term.cols;
+    const cellHeight = rect.height / this.term.rows;
+    if (cellWidth <= 0 || cellHeight <= 0) {
+      return undefined;
+    }
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
       return undefined;
     }
     return {
-      col: Math.min(this.term.cols, Math.max(1, Math.floor(x / metrics.width) + 1)),
-      row: Math.min(this.term.rows, Math.max(1, Math.floor(y / metrics.height) + 1)),
+      col: Math.min(this.term.cols, Math.max(1, Math.floor(x / cellWidth) + 1)),
+      row: Math.min(this.term.rows, Math.max(1, Math.floor(y / cellHeight) + 1)),
     };
   }
 }

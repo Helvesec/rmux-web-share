@@ -201,8 +201,8 @@
 }
 
 .share-terminal[data-scope='session'] {
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
+  scrollbar-gutter: auto;
 }
 
 .share-terminal-stage {
@@ -213,6 +213,8 @@
   min-width: 100%;
   min-height: 100%;
   overflow: visible;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .share-terminal::-webkit-scrollbar {

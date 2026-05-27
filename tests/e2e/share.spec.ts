@@ -124,7 +124,7 @@ test('full snapshots replace the previous terminal frame', async ({ page }) => {
   await expect(page.locator('.xterm')).not.toContainText('hello from rmux');
 });
 
-test('session viewer expands locally without sending resize frames', async ({ page }) => {
+test('session viewer keeps the remote grid local without sending resize frames', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -137,28 +137,30 @@ test('session viewer expands locally without sending resize frames', async ({ pa
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
+    fitsViewport: true,
     noTransform: true,
-    noVerticalOverflow: true,
+    noScrollbars: true,
     promptAtTop: true,
     statusAtBottom: true,
-    growsBeyondSnapshotRows: true,
+    rowCount: 9,
     singleStatusRow: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 
   await page.setViewportSize({ width: 960, height: 560 });
   await expect.poll(() => terminalProjection(page)).toMatchObject({
+    fitsViewport: true,
     noTransform: true,
-    noVerticalOverflow: true,
+    noScrollbars: true,
     promptAtTop: true,
     statusAtBottom: true,
-    growsBeyondSnapshotRows: true,
+    rowCount: 9,
     singleStatusRow: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 });
 
-test('session viewer clips tall remote snapshots to the browser height', async ({ page }) => {
+test('session viewer scales tall remote snapshots into the browser height', async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 420 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -174,8 +176,10 @@ test('session viewer clips tall remote snapshots to the browser height', async (
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
-    noVerticalOverflow: true,
+    fitsViewport: true,
+    noScrollbars: true,
     promptAtTop: true,
+    scaledDown: true,
     singleStatusRow: true,
     statusAtBottom: true,
   });
@@ -199,8 +203,10 @@ test('session viewer keeps the status row visible after a remote resize notice',
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
-    noVerticalOverflow: true,
+    fitsViewport: true,
+    noScrollbars: true,
     promptAtTop: true,
+    scaledDown: true,
     singleStatusRow: true,
     statusAtBottom: true,
   });
@@ -219,7 +225,9 @@ test('session operator click sends a mouse event through the attach stream', asy
   await page.goto(`/#t=${operatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 
-  await page.locator('.xterm').click({ position: { x: 520, y: 44 } });
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + screen!.width * 0.75, screen!.y + 44);
 
   await expect.poll(async () => (await sentMouseFrames(page)).length).toBeGreaterThan(0);
   const mouse = (await sentMouseFrames(page)).at(-1);
@@ -580,21 +588,33 @@ async function terminalProjection(page: import('@playwright/test').Page) {
       .map((row) => row.textContent ?? '');
     if (!terminal || !stage) {
       return {
-        growsBeyondSnapshotRows: false,
-        noVerticalOverflow: false,
+        fitsViewport: false,
         noTransform: false,
+        noScrollbars: false,
         promptAtTop: false,
+        rowCount: 0,
+        scaledDown: false,
         singleStatusRow: false,
         statusAtBottom: false,
       };
     }
     const transform = getComputedStyle(stage).transform;
+    const terminalStyle = getComputedStyle(terminal);
+    const terminalRect = terminal.getBoundingClientRect();
+    const screenRect = document.querySelector<HTMLElement>('.xterm-screen')?.getBoundingClientRect();
     const statusRows = rows.filter((row) => row.includes('[ci] 0:bash*'));
     return {
-      growsBeyondSnapshotRows: rows.length > 9,
-      noVerticalOverflow: terminal.scrollHeight <= terminal.clientHeight + 2,
+      fitsViewport: screenRect
+        ? screenRect.left >= terminalRect.left - 2
+          && screenRect.top >= terminalRect.top - 2
+          && screenRect.right <= terminalRect.right + 2
+          && screenRect.bottom <= terminalRect.bottom + 2
+        : false,
       noTransform: transform === 'none',
+      noScrollbars: terminalStyle.overflowX === 'hidden' && terminalStyle.overflowY === 'hidden',
       promptAtTop: rows[0]?.includes('prompt') ?? false,
+      rowCount: rows.length,
+      scaledDown: transform !== 'none',
       singleStatusRow: statusRows.length === 1,
       statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash* "very-long-hostname" 16:34 27-May-26') ?? false,
     };
