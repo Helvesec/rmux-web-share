@@ -40,7 +40,6 @@ import {
   logoutSession,
   sendAttachInputText,
   sendInputText,
-  sendResizeRequest,
   WEB_SHARE_PROTOCOL_VERSION,
 } from './wire';
 
@@ -137,8 +136,10 @@ class ShareConnection {
   private scope: ShareScope = 'pane';
   private controls = false;
   private passControlsToPty = false;
-  private remoteResize = false;
-  private resizeHandler?: () => void;
+  private viewportHandler?: () => void;
+  private viewportObserver?: ResizeObserver;
+  private viewportRaf?: number;
+  private viewportTimers: number[] = [];
   private disposed = false;
 
   constructor(
@@ -307,7 +308,6 @@ class ShareConnection {
       this.userTerminalTheme,
     );
     this.terminal.onData((data) => this.sendOperatorData(data));
-    this.terminal.onResize(({ cols, rows }) => this.sendOperatorResize(cols, rows));
     this.view.bindControlsPassthrough((enabled) => {
       this.passControlsToPty = enabled;
       this.view.setControlsPassthrough(enabled);
@@ -323,11 +323,7 @@ class ShareConnection {
     if (this.params.disclaimer !== 'off') {
       this.view.showPrivacyToast(this.params.endpoint);
     }
-    if (message.scope === 'session') {
-      this.terminal.fit();
-    }
-    this.resizeHandler = () => this.terminal?.fit();
-    window.addEventListener('resize', this.resizeHandler);
+    this.bindTerminalViewport();
   }
 
   private handleBinary(frame: Uint8Array): void {
@@ -338,10 +334,10 @@ class ShareConnection {
     const payload = frame.subarray(1);
     if (opcode === OUTPUT_RAW || opcode === SNAPSHOT_FULL) {
       this.terminal.write(payload);
+      this.scheduleTerminalViewportSync();
     } else if (opcode === RESIZE_NOTIFY && payload.length === 4) {
-      this.remoteResize = true;
       this.terminal.resize((payload[0] << 8) | payload[1], (payload[2] << 8) | payload[3]);
-      this.remoteResize = false;
+      this.scheduleTerminalViewportSync();
     }
   }
 
@@ -372,14 +368,6 @@ class ShareConnection {
     }
   }
 
-  private sendOperatorResize(cols: number, rows: number): void {
-    const socket = this.openOperatorSocket();
-    if (!socket || this.remoteResize) {
-      return;
-    }
-    sendResizeRequest(socket, cols, rows);
-  }
-
   private detach(): void {
     this.socket?.close(1000, 'detached');
     this.socket = undefined;
@@ -408,11 +396,44 @@ class ShareConnection {
     return this.transport;
   }
 
-  private disposeTerminal(): void {
-    if (this.resizeHandler) {
-      window.removeEventListener('resize', this.resizeHandler);
-      this.resizeHandler = undefined;
+  private bindTerminalViewport(): void {
+    this.viewportHandler = () => this.scheduleTerminalViewportSync();
+    window.addEventListener('resize', this.viewportHandler, { passive: true });
+    if (typeof ResizeObserver !== 'undefined') {
+      this.viewportObserver = new ResizeObserver(() => this.scheduleTerminalViewportSync());
+      this.viewportObserver.observe(this.view.terminalElement());
     }
+    this.scheduleTerminalViewportSync();
+    for (const delay of [16, 64, 250, 1000]) {
+      this.viewportTimers.push(window.setTimeout(() => this.scheduleTerminalViewportSync(), delay));
+    }
+  }
+
+  private scheduleTerminalViewportSync(): void {
+    if (!this.terminal || this.viewportRaf !== undefined) {
+      return;
+    }
+    this.viewportRaf = window.requestAnimationFrame(() => {
+      this.viewportRaf = undefined;
+      this.terminal?.syncViewport();
+    });
+  }
+
+  private disposeTerminal(): void {
+    if (this.viewportHandler) {
+      window.removeEventListener('resize', this.viewportHandler);
+      this.viewportHandler = undefined;
+    }
+    this.viewportObserver?.disconnect();
+    this.viewportObserver = undefined;
+    if (this.viewportRaf !== undefined) {
+      window.cancelAnimationFrame(this.viewportRaf);
+      this.viewportRaf = undefined;
+    }
+    for (const timer of this.viewportTimers) {
+      window.clearTimeout(timer);
+    }
+    this.viewportTimers = [];
     this.terminal?.dispose();
     this.terminal = undefined;
   }

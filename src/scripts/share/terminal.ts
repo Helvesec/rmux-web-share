@@ -1,4 +1,3 @@
-import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
@@ -26,14 +25,13 @@ export interface TerminalChromePalette {
 export interface ShareTerminal {
   role: ShareRole;
   term: Terminal;
-  fit(): void;
+  syncViewport(): void;
   setRole(role: ShareRole): void;
   setTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void;
   write(data: Uint8Array): void;
   resize(cols: number, rows: number): void;
   dispose(): void;
   onData(callback: (data: string) => void): void;
-  onResize(callback: (size: { cols: number; rows: number }) => void): void;
   notice(text: string): void;
 }
 
@@ -46,9 +44,10 @@ export function openShareTerminal(
   userTheme?: TerminalThemePalette,
 ): ShareTerminal {
   const controller = new XtermShareTerminal(container, role, theme, userTheme);
-  controller.term.open(container);
+  controller.open();
   controller.bindLocalWheelScroll();
   controller.term.resize(cols, rows);
+  controller.syncViewport();
   if (role === 'operator') {
     controller.term.focus();
   }
@@ -60,7 +59,7 @@ class XtermShareTerminal implements ShareTerminal {
   role: ShareRole;
 
   private readonly decoder = new TextDecoder();
-  private readonly fitAddon = new FitAddon();
+  private readonly stage: HTMLDivElement;
   private readonly disposables: IDisposable[] = [];
 
   constructor(
@@ -71,7 +70,6 @@ class XtermShareTerminal implements ShareTerminal {
   ) {
     this.role = role;
     this.term = new Terminal(optionsForRole(role, theme));
-    this.term.loadAddon(this.fitAddon);
     this.term.loadAddon(
       new ImageAddon({
         enableSizeReports: false,
@@ -85,12 +83,28 @@ class XtermShareTerminal implements ShareTerminal {
     );
     this.term.loadAddon(new WebLinksAddon());
     container.replaceChildren();
+    this.stage = document.createElement('div');
+    this.stage.className = 'share-terminal-stage';
+    container.append(this.stage);
     this.setTheme(theme, userTheme);
     this.term.attachCustomKeyEventHandler(() => this.role !== 'read');
   }
 
-  fit(): void {
-    this.fitAddon.fit();
+  open(): void {
+    this.term.open(this.stage);
+  }
+
+  syncViewport(): void {
+    const viewport = this.container.getBoundingClientRect();
+    const natural = this.naturalSize();
+    if (viewport.width <= 0 || viewport.height <= 0 || !natural) {
+      return;
+    }
+    const scaleX = viewport.width / natural.width;
+    const scaleY = viewport.height / natural.height;
+    this.stage.style.width = `${natural.width}px`;
+    this.stage.style.height = `${natural.height}px`;
+    this.stage.style.transform = `scale(${scaleCss(scaleX)}, ${scaleCss(scaleY)})`;
   }
 
   setRole(role: ShareRole): void {
@@ -105,6 +119,7 @@ class XtermShareTerminal implements ShareTerminal {
     this.container.dataset.theme = theme;
     this.container.dataset.themeMode = terminalThemeMode(theme, userTheme);
     this.term.options.theme = themePalette(theme, userTheme);
+    this.syncViewport();
   }
 
   write(data: Uint8Array): void {
@@ -116,6 +131,7 @@ class XtermShareTerminal implements ShareTerminal {
       return;
     }
     this.term.resize(cols, rows);
+    this.syncViewport();
   }
 
   dispose(): void {
@@ -125,10 +141,6 @@ class XtermShareTerminal implements ShareTerminal {
 
   onData(callback: (data: string) => void): void {
     this.disposables.push(this.term.onData(callback));
-  }
-
-  onResize(callback: (size: { cols: number; rows: number }) => void): void {
-    this.disposables.push(this.term.onResize(callback));
   }
 
   notice(text: string): void {
@@ -154,6 +166,21 @@ class XtermShareTerminal implements ShareTerminal {
       dispose: () => this.container.removeEventListener('wheel', onWheel, { capture: true }),
     });
   }
+
+  private naturalSize(): { width: number; height: number } | undefined {
+    const screen = this.stage.querySelector<HTMLElement>('.xterm-screen');
+    const element = this.term.element;
+    const width = screen?.offsetWidth || element?.scrollWidth || this.stage.scrollWidth;
+    const height = screen?.offsetHeight || element?.scrollHeight || this.stage.scrollHeight;
+    if (width <= 0 || height <= 0) {
+      return undefined;
+    }
+    return { width, height };
+  }
+}
+
+function scaleCss(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(6) : '1';
 }
 
 export function isTerminalThemeName(value: string): value is TerminalThemeName {

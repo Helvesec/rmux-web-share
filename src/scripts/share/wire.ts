@@ -5,7 +5,6 @@ export const WEB_SHARE_CLIENT_CAPABILITIES = [
 ] as const;
 
 const INPUT_TEXT = 0x80;
-const RESIZE_REQUEST = 0x82;
 const ATTACH_INPUT = 0x83;
 const MAX_INPUT_BYTES = 4096;
 
@@ -54,18 +53,6 @@ function sendTextFrame(ws: ShareTransport, opcode: number, text: string): boolea
   return true;
 }
 
-export function sendResizeRequest(ws: ShareTransport, cols: number, rows: number): void {
-  const frame = new Uint8Array(5);
-  const safeCols = clampSize(cols);
-  const safeRows = clampSize(rows);
-  frame[0] = RESIZE_REQUEST;
-  frame[1] = (safeCols >> 8) & 0xff;
-  frame[2] = safeCols & 0xff;
-  frame[3] = (safeRows >> 8) & 0xff;
-  frame[4] = safeRows & 0xff;
-  ws.sendBinary(frame);
-}
-
 export function logoutSession(ws: ShareTransport): void {
   ws.sendText(JSON.stringify({ type: 'logout' }));
 }
@@ -95,8 +82,4 @@ export function closeMessage(code: number): string {
     default:
       return code ? `connection closed (${code})` : 'connection closed';
   }
-}
-
-function clampSize(value: number): number {
-  return Math.max(1, Math.min(9999, Math.floor(value)));
 }

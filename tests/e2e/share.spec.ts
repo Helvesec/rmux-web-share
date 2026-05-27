@@ -112,6 +112,24 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
 
+test('session viewer scales the terminal locally without sending resize frames', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'read';
+  });
+
+  await page.goto(`/#t=${readToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => scaledTerminalGap(page)).toEqual({ width: 0, height: 0 });
+  expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
+
+  await page.setViewportSize({ width: 1500, height: 840 });
+  await expect.poll(() => scaledTerminalGap(page)).toEqual({ width: 0, height: 0 });
+  expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
+});
+
 test('bursty encrypted output frames are decrypted in wire order', async ({ page }) => {
   await page.addInitScript(() => {
     const decrypt = SubtleCrypto.prototype.decrypt;
@@ -451,4 +469,24 @@ async function customProperty(page: import('@playwright/test').Page, name: strin
   return page.locator('.share-app').evaluate((element, property) => {
     return getComputedStyle(element).getPropertyValue(property).trim();
   }, name);
+}
+
+function isResizeFrame(frame: unknown): frame is number[] {
+  return Array.isArray(frame) && frame[0] === 0x82 && frame.length === 5;
+}
+
+async function scaledTerminalGap(page: import('@playwright/test').Page) {
+  return page.evaluate(() => {
+    const terminal = document.querySelector<HTMLElement>('[data-share-terminal]');
+    const stage = document.querySelector<HTMLElement>('.share-terminal-stage');
+    if (!terminal || !stage) {
+      return { width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY };
+    }
+    const terminalRect = terminal.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    return {
+      width: Math.round(Math.abs(terminalRect.width - stageRect.width)),
+      height: Math.round(Math.abs(terminalRect.height - stageRect.height)),
+    };
+  });
 }
