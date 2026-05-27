@@ -36,6 +36,7 @@ export interface ShareTerminal {
   resize(cols: number, rows: number): void;
   dispose(): void;
   onData(callback: (data: string) => void): void;
+  onMouseInput(callback: (data: string) => void): void;
   notice(text: string): void;
 }
 
@@ -161,6 +162,15 @@ class XtermShareTerminal implements ShareTerminal {
 
   write(data: Uint8Array): void {
     const text = this.decoder.decode(data, { stream: true });
+    if (this.scope === 'session') {
+      this.enqueue((done) => {
+        this.writeDecodedNow(this.projectSessionFrame(text), false, () => {
+          this.scrollToTop();
+          done();
+        });
+      });
+      return;
+    }
     const stickToBottom = this.stickToBottom;
     this.enqueue((done) => this.writeDecodedNow(text, stickToBottom, done));
   }
@@ -180,10 +190,6 @@ class XtermShareTerminal implements ShareTerminal {
       this.remoteRows = Math.max(MIN_TERMINAL_ROWS, rows);
       if (this.scope === 'session') {
         this.resizeSessionGrid();
-        if (this.lastSnapshotText !== undefined) {
-          this.writeSessionSnapshotNow(this.lastSnapshotText, done);
-          return;
-        }
         this.scrollToTop();
       } else {
         this.resizeTerm(this.remoteCols, this.remoteRows);
@@ -201,6 +207,25 @@ class XtermShareTerminal implements ShareTerminal {
 
   onData(callback: (data: string) => void): void {
     this.disposables.push(this.term.onData(callback));
+  }
+
+  onMouseInput(callback: (data: string) => void): void {
+    const onMouseDown = (event: MouseEvent) => {
+      if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
+        return;
+      }
+      const cell = this.cellFromMouseEvent(event);
+      if (!cell) {
+        return;
+      }
+      event.preventDefault();
+      this.term.focus();
+      callback(`\x1b[<0;${cell.col};${cell.row}M`);
+    };
+    this.stage.addEventListener('mousedown', onMouseDown);
+    this.disposables.push({
+      dispose: () => this.stage.removeEventListener('mousedown', onMouseDown),
+    });
   }
 
   notice(text: string): void {
@@ -265,38 +290,28 @@ class XtermShareTerminal implements ShareTerminal {
 
   private writeSessionSnapshotNow(text: string, done: () => void): void {
     this.resizeSessionGrid();
-    this.term.reset();
-    this.writeDecodedNow(this.projectSessionSnapshot(text), false, () => {
+    this.writeDecodedNow(this.projectSessionFrame(text), false, () => {
       this.scrollToTop();
       done();
     });
   }
 
-  private projectSessionSnapshot(text: string): string {
-    const statusRow = this.sessionStatusRow(text);
-    if (!statusRow || this.term.rows <= statusRow) {
-      return text;
-    }
-    const sourceRow = String(statusRow);
-    const targetRow = String(this.term.rows);
-    return text.replace(/\x1b\[([0-9;]*)([Hf])/g, (sequence, params: string, command: string) => {
-      const parts = params === '' ? ['1'] : params.split(';');
-      if (parts[0] !== sourceRow) {
-        return sequence;
-      }
-      parts[0] = targetRow;
-      return `\x1b[${parts.join(';')}${command}`;
+  private projectSessionFrame(text: string): string {
+    return projectRows(text, {
+      maxContentRow: Math.max(1, this.term.rows - 1),
+      statusRow: this.sessionStatusRow(text),
+      targetStatusRow: this.term.rows,
     });
   }
 
   private sessionStatusRow(text: string): number | undefined {
-    const rows = [...text.matchAll(/\x1b\[([0-9;]*)([Hf])/g)]
-      .map((match) => Number.parseInt(match[1].split(';')[0] || '1', 10))
-      .filter((row) => Number.isFinite(row) && row >= MIN_TERMINAL_ROWS);
+    const rows = cursorRows(text);
     if (!rows.length) {
       return undefined;
     }
-    return Math.max(...rows);
+    const candidates = [this.snapshotRows, this.remoteRows]
+      .filter((row) => row >= MIN_TERMINAL_ROWS && rows.includes(row));
+    return candidates.length ? Math.max(...candidates) : undefined;
   }
 
   private resizeSessionGrid(): boolean {
@@ -316,12 +331,7 @@ class XtermShareTerminal implements ShareTerminal {
         Math.floor(this.container.clientWidth / metrics.width),
         MIN_TERMINAL_COLS,
       ),
-      rows: Math.max(
-        this.remoteRows,
-        this.snapshotRows,
-        Math.floor(this.container.clientHeight / metrics.height),
-        MIN_TERMINAL_ROWS,
-      ),
+      rows: Math.max(Math.floor(this.container.clientHeight / metrics.height), MIN_TERMINAL_ROWS),
     };
   }
 
@@ -346,6 +356,24 @@ class XtermShareTerminal implements ShareTerminal {
     this.term.clearTextureAtlas();
     this.term.refresh(0, this.term.rows - 1);
     return true;
+  }
+
+  private cellFromMouseEvent(event: MouseEvent): { col: number; row: number } | undefined {
+    const metrics = this.cellMetrics();
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!metrics || !screen) {
+      return undefined;
+    }
+    const rect = screen.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      return undefined;
+    }
+    return {
+      col: Math.min(this.term.cols, Math.max(1, Math.floor(x / metrics.width) + 1)),
+      row: Math.min(this.term.rows, Math.max(1, Math.floor(y / metrics.height) + 1)),
+    };
   }
 }
 
@@ -458,6 +486,49 @@ function snapshotGeometry(text: string): { cols: number; rows: number } {
     index += 1;
   }
   return { cols: maxColumn, rows: maxRow };
+}
+
+function cursorRows(text: string): number[] {
+  return [...text.matchAll(/\x1b\[([0-9;]*)([Hf])/g)]
+    .map((match) => Number.parseInt(match[1].split(';')[0] || '1', 10))
+    .filter((row) => Number.isFinite(row) && row >= MIN_TERMINAL_ROWS);
+}
+
+function projectRows(
+  text: string,
+  options: { maxContentRow: number; statusRow?: number; targetStatusRow: number },
+): string {
+  let out = '';
+  let drop = false;
+  for (let index = 0; index < text.length;) {
+    if (text[index] === '\x1b') {
+      const parsed = parseCsiCursor(text, index);
+      if (parsed) {
+        if (parsed.row === options.statusRow) {
+          out += `\x1b[${options.targetStatusRow};${parsed.column + 1}H`;
+          drop = false;
+        } else if (parsed.row > options.maxContentRow) {
+          drop = true;
+        } else {
+          out += text.slice(index, parsed.next);
+          drop = false;
+        }
+        index = parsed.next;
+        continue;
+      }
+      const next = ansiSequenceEnd(text, index);
+      if (!drop) {
+        out += text.slice(index, next);
+      }
+      index = next > index ? next : index + 1;
+      continue;
+    }
+    if (!drop) {
+      out += text[index];
+    }
+    index += 1;
+  }
+  return out;
 }
 
 function parseCsiCursor(text: string, start: number): { row: number; column: number; next: number } | undefined {

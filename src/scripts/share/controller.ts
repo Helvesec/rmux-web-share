@@ -308,6 +308,7 @@ class ShareConnection {
       this.userTerminalTheme,
     );
     this.terminal.onData((data) => this.sendOperatorData(data));
+    this.terminal.onMouseInput((data) => this.sendOperatorData(data));
     this.view.bindControlsPassthrough((enabled) => {
       this.passControlsToPty = enabled;
       this.view.setControlsPassthrough(enabled);
@@ -334,7 +335,9 @@ class ShareConnection {
       this.scheduleTerminalViewportSync();
     } else if (opcode === OUTPUT_RAW) {
       this.terminal.write(payload);
-      this.scheduleTerminalViewportSync();
+      if (this.scope !== 'session') {
+        this.scheduleTerminalViewportSync();
+      }
     } else if (opcode === RESIZE_NOTIFY && payload.length === 4) {
       this.terminal.resize((payload[0] << 8) | payload[1], (payload[2] << 8) | payload[3]);
       this.scheduleTerminalViewportSync();
@@ -616,6 +619,7 @@ class ShareView {
 
   setReady(message: ReadyMessage): void {
     this.setRole(message.role);
+    this.terminal.dataset.scope = message.scope;
     this.setControlsInline(message.controls && message.scope === 'session' && message.role === 'operator', false);
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
     this.setOperatorConnected(Boolean(message.operator_connected));

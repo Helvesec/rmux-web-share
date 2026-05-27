@@ -200,6 +200,11 @@
   scrollbar-width: thin;
 }
 
+.share-terminal[data-scope='session'] {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .share-terminal-stage {
   display: flex;
   align-items: flex-start;

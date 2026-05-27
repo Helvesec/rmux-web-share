@@ -138,6 +138,7 @@ test('session viewer expands locally without sending resize frames', async ({ pa
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
     noTransform: true,
+    noVerticalOverflow: true,
     promptAtTop: true,
     statusAtBottom: true,
     growsBeyondSnapshotRows: true,
@@ -148,12 +149,81 @@ test('session viewer expands locally without sending resize frames', async ({ pa
   await page.setViewportSize({ width: 960, height: 560 });
   await expect.poll(() => terminalProjection(page)).toMatchObject({
     noTransform: true,
+    noVerticalOverflow: true,
     promptAtTop: true,
     statusAtBottom: true,
     growsBeyondSnapshotRows: true,
     singleStatusRow: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
+});
+
+test('session viewer clips tall remote snapshots to the browser height', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 420 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadySize = { cols: 80, rows: 55 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Htop-left prompt'
+      + '\x1b[40;1Hoffscreen pane content that must not create vertical browser scroll'
+      + '\x1b[55;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
+  });
+
+  await page.goto(`/#t=${readToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => terminalProjection(page)).toMatchObject({
+    noVerticalOverflow: true,
+    promptAtTop: true,
+    singleStatusRow: true,
+    statusAtBottom: true,
+  });
+});
+
+test('session viewer keeps the status row visible after a remote resize notice', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadySize = { cols: 120, rows: 32 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt'
+      + '\x1b[32;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
+    window.__rmuxSharePostSnapshotFrames = [
+      new Uint8Array([0x02, 0x00, 0xb4, 0x00, 0x40]).buffer,
+    ];
+  });
+
+  await page.goto(`/#t=${readToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => terminalProjection(page)).toMatchObject({
+    noVerticalOverflow: true,
+    promptAtTop: true,
+    singleStatusRow: true,
+    statusAtBottom: true,
+  });
+});
+
+test('session operator click sends a mouse event through the attach stream', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  await page.locator('.xterm').click({ position: { x: 520, y: 44 } });
+
+  await expect.poll(async () => (await sentMouseFrames(page)).length).toBeGreaterThan(0);
+  const mouse = (await sentMouseFrames(page)).at(-1);
+  expect(mouse).toMatch(/^\x1b\[<0;\d+;\d+M$/);
 });
 
 test('bursty encrypted output frames are decrypted in wire order', async ({ page }) => {
@@ -511,6 +581,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     if (!terminal || !stage) {
       return {
         growsBeyondSnapshotRows: false,
+        noVerticalOverflow: false,
         noTransform: false,
         promptAtTop: false,
         singleStatusRow: false,
@@ -521,10 +592,19 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     const statusRows = rows.filter((row) => row.includes('[ci] 0:bash*'));
     return {
       growsBeyondSnapshotRows: rows.length > 9,
+      noVerticalOverflow: terminal.scrollHeight <= terminal.clientHeight + 2,
       noTransform: transform === 'none',
       promptAtTop: rows[0]?.includes('prompt') ?? false,
       singleStatusRow: statusRows.length === 1,
       statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash* "very-long-hostname" 16:34 27-May-26') ?? false,
     };
   });
+}
+
+async function sentMouseFrames(page: import('@playwright/test').Page): Promise<string[]> {
+  const frames = await sentFrames(page);
+  return frames
+    .filter((frame): frame is number[] => Array.isArray(frame) && (frame[0] === 0x80 || frame[0] === 0x83))
+    .map((frame) => String.fromCharCode(...frame.slice(1)))
+    .filter((text) => text.startsWith('\x1b[<0;'));
 }
