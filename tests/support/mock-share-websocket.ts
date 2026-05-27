@@ -144,6 +144,11 @@ export function installMockShareWebSocket(): void {
       await this.dispatchEncryptedBinary(
         new Uint8Array([0x10, ...encoder.encode(window.__rmuxShareInitialSnapshot ?? 'hello from rmux')]),
       );
+      if (window.__rmuxShareSessionView) {
+        await this.dispatchEncryptedBinary(
+          new Uint8Array([0x11, ...encoder.encode(JSON.stringify(window.__rmuxShareSessionView))]),
+        );
+      }
       for (const frame of window.__rmuxSharePostSnapshotFrames ?? []) {
         await this.dispatchEncryptedBinary(new Uint8Array(frame));
       }
@@ -320,6 +325,19 @@ declare global {
     __rmuxShareReadyRole?: 'read' | 'operator';
     __rmuxShareReadyScope?: 'pane' | 'session';
     __rmuxShareReadySize?: { cols: number; rows: number };
+    __rmuxShareSessionView?: {
+      size: { cols: number; rows: number };
+      panes: Array<{
+        id: number;
+        x: number;
+        y: number;
+        cols: number;
+        rows: number;
+        history_size: number;
+        scroll_offset: number;
+        alternate_on: boolean;
+      }>;
+    };
     __rmuxShareRequirePin?: boolean;
     __rmuxShareShowViewers?: boolean;
     __rmuxShareSockets?: Array<{ sent: unknown[] }>;

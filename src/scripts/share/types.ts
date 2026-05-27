@@ -42,6 +42,25 @@ export interface ViewerCountMessage {
   viewers_connected: number;
 }
 
+export interface SessionPaneView {
+  id: number;
+  x: number;
+  y: number;
+  cols: number;
+  rows: number;
+  history_size: number;
+  scroll_offset: number;
+  alternate_on: boolean;
+}
+
+export interface SessionView {
+  size: {
+    cols: number;
+    rows: number;
+  };
+  panes: SessionPaneView[];
+}
+
 export interface TerminalThemePalette {
   foreground: string;
   background: string;

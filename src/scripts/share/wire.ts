@@ -57,6 +57,10 @@ export function logoutSession(ws: ShareTransport): void {
   ws.sendText(JSON.stringify({ type: 'logout' }));
 }
 
+export function scrollSessionPane(ws: ShareTransport, paneId: number, delta: number): void {
+  ws.sendText(JSON.stringify({ type: 'pane_scroll', pane_id: paneId, delta }));
+}
+
 export function closeMessage(code: number): string {
   switch (code) {
     case 1000:

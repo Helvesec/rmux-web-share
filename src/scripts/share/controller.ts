@@ -26,6 +26,7 @@ import {
 import type {
   ReadyMessage,
   ServerMessage,
+  SessionView,
   ShareParams,
   ShareRole,
   ShareScope,
@@ -38,6 +39,7 @@ import {
   authPayload,
   closeMessage,
   logoutSession,
+  scrollSessionPane,
   sendAttachInputText,
   sendInputText,
   WEB_SHARE_PROTOCOL_VERSION,
@@ -46,6 +48,7 @@ import {
 const OUTPUT_RAW = 0x01;
 const RESIZE_NOTIFY = 0x02;
 const SNAPSHOT_FULL = 0x10;
+const SESSION_VIEW = 0x11;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const CHROME_HIDDEN_STORAGE_KEY = 'rmux.share.chromeHidden';
 const PIN_RE = /^\d{6}$/;
@@ -309,6 +312,7 @@ class ShareConnection {
     );
     this.terminal.onData((data) => this.sendOperatorData(data));
     this.terminal.onMouseInput((data) => this.sendOperatorData(data));
+    this.terminal.onPaneScroll((paneId, delta) => this.sendPaneScroll(paneId, delta));
     this.view.bindControlsPassthrough((enabled) => {
       this.passControlsToPty = enabled;
       this.view.setControlsPassthrough(enabled);
@@ -332,6 +336,9 @@ class ShareConnection {
     const payload = frame.subarray(1);
     if (opcode === SNAPSHOT_FULL) {
       this.terminal.replace(payload);
+      this.scheduleTerminalViewportSync();
+    } else if (opcode === SESSION_VIEW) {
+      this.terminal.setSessionView(parseSessionView(payload));
       this.scheduleTerminalViewportSync();
     } else if (opcode === OUTPUT_RAW) {
       this.terminal.write(payload);
@@ -369,6 +376,13 @@ class ShareConnection {
     if (!send(socket, data)) {
       this.view.setStatus({ connected: true, detail: 'input too large', tone: 'error' });
     }
+  }
+
+  private sendPaneScroll(paneId: number, delta: number): void {
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session') {
+      return;
+    }
+    scrollSessionPane(this.transport, paneId, delta);
   }
 
   private detach(): void {
@@ -839,6 +853,14 @@ function setProofLink(link: HTMLAnchorElement, label: string, href: string): voi
 
 function shortSha(value: string | null): string {
   return value ? value.slice(0, 12) : 'unavailable';
+}
+
+function parseSessionView(payload: Uint8Array): SessionView {
+  const view = JSON.parse(new TextDecoder().decode(payload)) as SessionView;
+  if (!view || !Array.isArray(view.panes)) {
+    throw new Error('invalid session view');
+  }
+  return view;
 }
 
 function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {

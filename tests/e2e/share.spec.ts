@@ -417,6 +417,44 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
   await expect.poll(() => sentFrames(page)).toEqual(before);
 });
 
+test('session pane scrollbar requests pane scroll without shell input', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hscrollable pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        history_size: 120,
+        scroll_offset: 0,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${readToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.share-pane-scrollbar')).toHaveCount(1);
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 48, screen!.y + 64);
+  await page.mouse.wheel(0, -240);
+
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(0);
+  const scroll = (await paneScrollFrames(page)).at(-1);
+  expect(scroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(scroll!.delta).toBeLessThan(0);
+  expect(await sentInputFrameCount(page)).toBe(0);
+});
+
 test('toolbar visibility is a session preference', async ({ page }) => {
   const url = `/#t=${readToken}`;
   await page.goto(url);
@@ -559,6 +597,30 @@ test('invalid terminal theme in the URL is rejected', async ({ page }) => {
 
 async function sentFrames(page: import('@playwright/test').Page) {
   return page.evaluate(() => window.__rmuxShareSockets?.flatMap((socket) => socket.sent) ?? []);
+}
+
+async function paneScrollFrames(page: import('@playwright/test').Page): Promise<Array<{
+  type: 'pane_scroll';
+  pane_id: number;
+  delta: number;
+}>> {
+  const frames = await sentFrames(page);
+  return frames.flatMap((frame) => {
+    if (typeof frame !== 'string') {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(frame);
+      return parsed?.type === 'pane_scroll' ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+async function sentInputFrameCount(page: import('@playwright/test').Page): Promise<number> {
+  const frames = await sentFrames(page);
+  return frames.filter((frame) => Array.isArray(frame) && (frame[0] === 0x80 || frame[0] === 0x83)).length;
 }
 
 async function socketCount(page: import('@playwright/test').Page) {

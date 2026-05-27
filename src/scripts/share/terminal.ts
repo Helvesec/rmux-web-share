@@ -3,7 +3,14 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 
-import type { ShareRole, ShareScope, TerminalThemeName, TerminalThemePalette } from './types';
+import type {
+  SessionPaneView,
+  SessionView,
+  ShareRole,
+  ShareScope,
+  TerminalThemeName,
+  TerminalThemePalette,
+} from './types';
 
 export type { TerminalThemeName } from './types';
 export type TerminalThemeMode = 'dark' | 'light';
@@ -34,9 +41,11 @@ export interface ShareTerminal {
   replace(data: Uint8Array): void;
   write(data: Uint8Array): void;
   resize(cols: number, rows: number): void;
+  setSessionView(view: SessionView): void;
   dispose(): void;
   onData(callback: (data: string) => void): void;
   onMouseInput(callback: (data: string) => void): void;
+  onPaneScroll(callback: (paneId: number, delta: number) => void): void;
   notice(text: string): void;
 }
 
@@ -65,6 +74,7 @@ class XtermShareTerminal implements ShareTerminal {
 
   private readonly decoder = new TextDecoder();
   private readonly stage: HTMLDivElement;
+  private readonly scrollLayer: HTMLDivElement;
   private readonly disposables: IDisposable[] = [];
   private stickToBottom = true;
   private operationQueue = Promise.resolve();
@@ -74,6 +84,8 @@ class XtermShareTerminal implements ShareTerminal {
   private remoteRows = 0;
   private snapshotCols = 0;
   private snapshotRows = 0;
+  private sessionView?: SessionView;
+  private paneScrollHandler?: (paneId: number, delta: number) => void;
 
   constructor(
     private readonly container: HTMLElement,
@@ -99,6 +111,8 @@ class XtermShareTerminal implements ShareTerminal {
     container.replaceChildren();
     this.stage = document.createElement('div');
     this.stage.className = 'share-terminal-stage';
+    this.scrollLayer = document.createElement('div');
+    this.scrollLayer.className = 'share-pane-scroll-layer';
     container.append(this.stage);
     this.setTheme(theme, userTheme);
     this.term.attachCustomKeyEventHandler(() => this.role !== 'read');
@@ -107,6 +121,7 @@ class XtermShareTerminal implements ShareTerminal {
 
   open(): void {
     this.term.open(this.stage);
+    this.stage.append(this.scrollLayer);
   }
 
   syncViewport(): void {
@@ -162,7 +177,7 @@ class XtermShareTerminal implements ShareTerminal {
     const text = this.decoder.decode(data, { stream: true });
     if (this.scope === 'session') {
       this.enqueue((done) => {
-        this.writeDecodedNow(this.projectSessionFrame(text), false, () => {
+        this.writeDecodedNow(this.renderSessionFrame(text), false, () => {
           this.fitSessionStage();
           this.scrollToTopLeft();
           done();
@@ -203,6 +218,11 @@ class XtermShareTerminal implements ShareTerminal {
     });
   }
 
+  setSessionView(view: SessionView): void {
+    this.sessionView = view;
+    this.renderPaneScrollbars();
+  }
+
   dispose(): void {
     this.disposed = true;
     this.disposables.splice(0).forEach((disposable) => disposable.dispose());
@@ -232,6 +252,10 @@ class XtermShareTerminal implements ShareTerminal {
     });
   }
 
+  onPaneScroll(callback: (paneId: number, delta: number) => void): void {
+    this.paneScrollHandler = callback;
+  }
+
   notice(text: string): void {
     this.term.writeln(`\r\n${text}`);
   }
@@ -239,6 +263,15 @@ class XtermShareTerminal implements ShareTerminal {
   bindLocalWheelScroll(): void {
     const onWheel = (event: WheelEvent) => {
       if (!this.container.contains(event.target as Node | null)) {
+        return;
+      }
+      if (this.scope === 'session') {
+        const pane = this.paneFromMouseEvent(event);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (pane) {
+          this.sendPaneScroll(pane, event);
+        }
         return;
       }
       const { x, y } = wheelDeltaPixels(event, this.container.clientHeight);
@@ -299,14 +332,17 @@ class XtermShareTerminal implements ShareTerminal {
 
   private writeSessionSnapshotNow(text: string, done: () => void): void {
     this.resizeSessionGrid();
-    this.writeDecodedNow(this.projectSessionFrame(text), false, () => {
+    this.writeDecodedNow(this.renderSessionFrame(text), false, () => {
       this.fitSessionStage();
       this.scrollToTopLeft();
       done();
     });
   }
 
-  private projectSessionFrame(text: string): string {
+  private renderSessionFrame(text: string): string {
+    if (this.sessionView) {
+      return text;
+    }
     return projectRows(text, {
       maxContentRow: Math.max(1, this.term.rows - 1),
       statusRow: this.sessionStatusRow(text),
@@ -378,6 +414,7 @@ class XtermShareTerminal implements ShareTerminal {
     }
     const scale = Math.min(1, this.container.clientWidth / width, this.container.clientHeight / height);
     this.stage.style.transform = scale < 0.999 ? `scale(${scale})` : 'none';
+    this.renderPaneScrollbars();
   }
 
   private cellFromMouseEvent(event: MouseEvent): { col: number; row: number } | undefined {
@@ -400,6 +437,116 @@ class XtermShareTerminal implements ShareTerminal {
       col: Math.min(this.term.cols, Math.max(1, Math.floor(x / cellWidth) + 1)),
       row: Math.min(this.term.rows, Math.max(1, Math.floor(y / cellHeight) + 1)),
     };
+  }
+
+  private paneFromMouseEvent(event: MouseEvent): SessionPaneView | undefined {
+    const cell = this.cellFromMouseEvent(event);
+    if (!cell || !this.sessionView) {
+      return undefined;
+    }
+    const col = cell.col - 1;
+    const row = cell.row - 1;
+    return this.sessionView.panes.find((pane) => (
+      col >= pane.x
+      && col < pane.x + pane.cols
+      && row >= pane.y
+      && row < pane.y + pane.rows
+    ));
+  }
+
+  private sendPaneScroll(pane: SessionPaneView, event: WheelEvent): boolean {
+    if (!this.paneScrollHandler || pane.alternate_on || pane.history_size <= 0) {
+      return false;
+    }
+    const { y } = wheelDeltaPixels(event, this.container.clientHeight);
+    const metrics = this.cellMetrics();
+    const lineHeight = metrics?.height ?? WHEEL_PIXEL_LINE;
+    const lines = Math.max(1, Math.round(Math.abs(y) / Math.max(1, lineHeight)));
+    this.paneScrollHandler(pane.id, y < 0 ? -lines : lines);
+    return true;
+  }
+
+  private renderPaneScrollbars(): void {
+    if (this.scope !== 'session' || !this.sessionView) {
+      this.scrollLayer.replaceChildren();
+      return;
+    }
+    const metrics = this.cellMetrics();
+    if (!metrics) {
+      return;
+    }
+    const bars = this.sessionView.panes
+      .filter((pane) => pane.history_size > 0 && pane.rows > 0 && pane.cols > 0 && !pane.alternate_on)
+      .map((pane) => this.renderPaneScrollbar(pane, metrics));
+    this.scrollLayer.replaceChildren(...bars);
+  }
+
+  private renderPaneScrollbar(
+    pane: SessionPaneView,
+    metrics: { width: number; height: number },
+  ): HTMLDivElement {
+    const bar = document.createElement('div');
+    bar.className = 'share-pane-scrollbar';
+    const barWidth = Math.max(5, Math.min(10, metrics.width * 0.45));
+    const height = pane.rows * metrics.height;
+    const totalRows = pane.history_size + pane.rows;
+    const thumbHeight = Math.max(18, height * (pane.rows / Math.max(1, totalRows)));
+    const maxScroll = Math.max(1, pane.history_size);
+    const travel = Math.max(0, height - thumbHeight);
+    const thumbTop = travel * (1 - Math.min(maxScroll, pane.scroll_offset) / maxScroll);
+    bar.style.left = `${(pane.x + pane.cols) * metrics.width - barWidth}px`;
+    bar.style.top = `${pane.y * metrics.height}px`;
+    bar.style.width = `${barWidth}px`;
+    bar.style.height = `${height}px`;
+    const thumb = document.createElement('div');
+    thumb.className = 'share-pane-scrollbar-thumb';
+    thumb.style.height = `${thumbHeight}px`;
+    thumb.style.transform = `translateY(${thumbTop}px)`;
+    bar.append(thumb);
+    this.bindScrollbarDrag(bar, pane, height, thumbHeight);
+    return bar;
+  }
+
+  private bindScrollbarDrag(
+    bar: HTMLDivElement,
+    pane: SessionPaneView,
+    height: number,
+    thumbHeight: number,
+  ): void {
+    const update = (clientY: number) => {
+      const rect = bar.getBoundingClientRect();
+      const travel = Math.max(1, height - thumbHeight);
+      const y = Math.min(travel, Math.max(0, clientY - rect.top - thumbHeight / 2));
+      const nextOffset = Math.round((1 - y / travel) * pane.history_size);
+      this.requestPaneOffset(pane, nextOffset);
+    };
+    bar.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      bar.setPointerCapture(event.pointerId);
+      update(event.clientY);
+      const onMove = (move: PointerEvent) => update(move.clientY);
+      const onUp = () => {
+        bar.removeEventListener('pointermove', onMove);
+        bar.removeEventListener('pointerup', onUp);
+        bar.removeEventListener('pointercancel', onUp);
+      };
+      bar.addEventListener('pointermove', onMove);
+      bar.addEventListener('pointerup', onUp);
+      bar.addEventListener('pointercancel', onUp);
+    });
+  }
+
+  private requestPaneOffset(pane: SessionPaneView, nextOffset: number): void {
+    if (!this.paneScrollHandler) {
+      return;
+    }
+    const target = Math.max(0, Math.min(pane.history_size, nextOffset));
+    const current = Math.max(0, pane.scroll_offset);
+    if (target === current) {
+      return;
+    }
+    this.paneScrollHandler(pane.id, target > current ? -(target - current) : current - target);
   }
 }
 

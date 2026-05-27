@@ -206,6 +206,7 @@
 }
 
 .share-terminal-stage {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -215,6 +216,33 @@
   overflow: visible;
   transform-origin: 0 0;
   will-change: transform;
+}
+
+.share-pane-scroll-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.share-pane-scrollbar {
+  position: absolute;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--share-scrollbar-track) 76%, transparent);
+  opacity: 0.72;
+  pointer-events: auto;
+}
+
+.share-pane-scrollbar-thumb {
+  width: 100%;
+  min-height: 18px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--share-scrollbar) 92%, transparent);
+}
+
+.share-pane-scrollbar:hover,
+.share-pane-scrollbar:focus-within {
+  opacity: 1;
 }
 
 .share-terminal::-webkit-scrollbar {
