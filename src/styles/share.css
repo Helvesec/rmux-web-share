@@ -193,16 +193,44 @@
   min-width: 0;
   min-height: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: auto;
+  overflow-anchor: none;
+  scrollbar-color: var(--share-scrollbar) var(--share-scrollbar-track);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 .share-terminal-stage {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  overflow: hidden;
-  transform-origin: 0 100%;
-  will-change: transform;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.share-terminal::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.share-terminal::-webkit-scrollbar-track {
+  background: var(--share-scrollbar-track);
+}
+
+.share-terminal::-webkit-scrollbar-thumb {
+  min-width: 42px;
+  min-height: 42px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--share-scrollbar);
+  background-clip: content-box;
+}
+
+.share-terminal::-webkit-scrollbar-thumb:hover {
+  background: rgb(128 168 154 / 0.86);
+  background-clip: content-box;
 }
 
 .share-terminal-placeholder {
@@ -238,29 +266,6 @@
 .share-terminal .xterm-viewport {
   overflow: hidden !important;
   background: transparent;
-  scrollbar-color: var(--share-scrollbar) var(--share-scrollbar-track);
-  scrollbar-width: thin;
-}
-
-.share-terminal .xterm-viewport::-webkit-scrollbar {
-  width: 10px;
-}
-
-.share-terminal .xterm-viewport::-webkit-scrollbar-track {
-  background: var(--share-scrollbar-track);
-}
-
-.share-terminal .xterm-viewport::-webkit-scrollbar-thumb {
-  min-height: 42px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: var(--share-scrollbar);
-  background-clip: content-box;
-}
-
-.share-terminal .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgb(128 168 154 / 0.86);
-  background-clip: content-box;
 }
 
 .share-terminal[data-role='read'] .xterm-cursor,

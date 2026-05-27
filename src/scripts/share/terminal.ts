@@ -10,7 +10,7 @@ export type TerminalThemeMode = 'dark' | 'light';
 
 export const DEFAULT_TERMINAL_THEME: TerminalThemeName = 'user';
 const LIVE_SCROLLBACK_LINES = 2000;
-const WHEEL_PIXEL_LINE = 16;
+const BOTTOM_STICKY_THRESHOLD_PX = 8;
 const IMAGE_PIXEL_LIMIT = 4_194_304;
 const IMAGE_SEQUENCE_LIMIT = 8_000_000;
 const IMAGE_STORAGE_MB = 48;
@@ -45,7 +45,6 @@ export function openShareTerminal(
 ): ShareTerminal {
   const controller = new XtermShareTerminal(container, role, theme, userTheme);
   controller.open();
-  controller.bindLocalWheelScroll();
   controller.term.resize(cols, rows);
   controller.syncViewport();
   if (role === 'operator') {
@@ -61,6 +60,7 @@ class XtermShareTerminal implements ShareTerminal {
   private readonly decoder = new TextDecoder();
   private readonly stage: HTMLDivElement;
   private readonly disposables: IDisposable[] = [];
+  private stickToBottom = true;
 
   constructor(
     private readonly container: HTMLElement,
@@ -88,6 +88,7 @@ class XtermShareTerminal implements ShareTerminal {
     container.append(this.stage);
     this.setTheme(theme, userTheme);
     this.term.attachCustomKeyEventHandler(() => this.role !== 'read');
+    this.bindScrollAnchor();
   }
 
   open(): void {
@@ -95,15 +96,9 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   syncViewport(): void {
-    const viewport = this.container.getBoundingClientRect();
-    const natural = this.naturalSize();
-    if (viewport.width <= 0 || viewport.height <= 0 || !natural) {
-      return;
+    if (this.stickToBottom) {
+      this.scrollToBottom();
     }
-    const scale = Math.min(viewport.width / natural.width, viewport.height / natural.height);
-    this.stage.style.width = `${natural.width}px`;
-    this.stage.style.height = `${natural.height}px`;
-    this.stage.style.transform = `scale(${scaleCss(scale)})`;
   }
 
   setRole(role: ShareRole): void {
@@ -122,7 +117,12 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   write(data: Uint8Array): void {
-    this.term.write(this.decoder.decode(data, { stream: true }));
+    const stickToBottom = this.stickToBottom;
+    this.term.write(this.decoder.decode(data, { stream: true }), () => {
+      if (stickToBottom) {
+        this.scrollToBottom();
+      }
+    });
   }
 
   resize(cols: number, rows: number): void {
@@ -130,7 +130,7 @@ class XtermShareTerminal implements ShareTerminal {
       return;
     }
     this.term.resize(cols, rows);
-    this.syncViewport();
+    this.scrollToBottom();
   }
 
   dispose(): void {
@@ -146,40 +146,25 @@ class XtermShareTerminal implements ShareTerminal {
     this.term.writeln(`\r\n${text}`);
   }
 
-  bindLocalWheelScroll(): void {
-    const onWheel = (event: WheelEvent) => {
-      if (!this.container.contains(event.target as Node | null)) {
-        return;
-      }
-      const lines = wheelDeltaLines(event, this.term.rows);
-      if (lines === 0) {
-        return;
-      }
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      this.term.scrollLines(lines);
+  private bindScrollAnchor(): void {
+    const onScroll = () => {
+      this.stickToBottom = this.isNearBottom();
     };
-
-    this.container.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    this.container.addEventListener('scroll', onScroll, { passive: true });
     this.disposables.push({
-      dispose: () => this.container.removeEventListener('wheel', onWheel, { capture: true }),
+      dispose: () => this.container.removeEventListener('scroll', onScroll),
     });
   }
 
-  private naturalSize(): { width: number; height: number } | undefined {
-    const screen = this.stage.querySelector<HTMLElement>('.xterm-screen');
-    const element = this.term.element;
-    const width = screen?.offsetWidth || element?.scrollWidth || this.stage.scrollWidth;
-    const height = screen?.offsetHeight || element?.scrollHeight || this.stage.scrollHeight;
-    if (width <= 0 || height <= 0) {
-      return undefined;
-    }
-    return { width, height };
+  private scrollToBottom(): void {
+    this.container.scrollTop = this.container.scrollHeight;
+    this.stickToBottom = true;
   }
-}
 
-function scaleCss(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(6) : '1';
+  private isNearBottom(): boolean {
+    return this.container.scrollTop + this.container.clientHeight
+      >= this.container.scrollHeight - BOTTOM_STICKY_THRESHOLD_PX;
+  }
 }
 
 export function isTerminalThemeName(value: string): value is TerminalThemeName {
@@ -237,20 +222,6 @@ function optionsForRole(
     scrollback: LIVE_SCROLLBACK_LINES,
     theme: themePalette(theme),
   };
-}
-
-function wheelDeltaLines(event: WheelEvent, rows: number): number {
-  const unit = event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-    ? Math.max(1, rows)
-    : event.deltaMode === WheelEvent.DOM_DELTA_LINE
-      ? 1
-      : WHEEL_PIXEL_LINE;
-  const raw = event.deltaY / unit;
-  if (!Number.isFinite(raw) || raw === 0) {
-    return 0;
-  }
-  const lines = Math.trunc(raw) || Math.sign(raw);
-  return Math.max(-rows, Math.min(rows, lines));
 }
 
 function themePalette(

@@ -117,7 +117,7 @@ export function installMockShareWebSocket(): void {
         type: 'ready',
         protocol_version: 3,
         capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
-        pane_size: { cols: 24, rows: 6 },
+        pane_size: window.__rmuxShareReadySize ?? { cols: 24, rows: 6 },
         scope: window.__rmuxShareReadyScope ?? 'pane',
         share_id: 'abcdefgh',
         session_name: 'ci',
@@ -317,6 +317,7 @@ declare global {
     __rmuxShareReadyControls?: boolean;
     __rmuxShareReadyRole?: 'read' | 'operator';
     __rmuxShareReadyScope?: 'pane' | 'session';
+    __rmuxShareReadySize?: { cols: number; rows: number };
     __rmuxShareRequirePin?: boolean;
     __rmuxShareShowViewers?: boolean;
     __rmuxShareSockets?: Array<{ sent: unknown[] }>;

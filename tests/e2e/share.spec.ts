@@ -111,30 +111,29 @@ test('resize acknowledgement does not clear the initial snapshot', async ({ page
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
 
-test('session viewer fits the terminal locally without sending resize frames', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
+test('session viewer renders the exact remote grid without sending resize frames', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'read';
+    window.__rmuxShareReadySize = { cols: 140, rows: 40 };
   });
 
   await page.goto(`/#t=${readToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await expect.poll(() => fittedTerminal(page)).toMatchObject({
-    fitsWidth: true,
-    fitsHeight: true,
-    anchoredBottom: true,
-    uniformScale: true,
+  await expect.poll(() => exactTerminal(page)).toMatchObject({
+    scrollableWidth: true,
+    scrollableHeight: true,
+    noTransform: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 
-  await page.setViewportSize({ width: 1500, height: 840 });
-  await expect.poll(() => fittedTerminal(page)).toMatchObject({
-    fitsWidth: true,
-    fitsHeight: true,
-    anchoredBottom: true,
-    uniformScale: true,
+  await page.setViewportSize({ width: 960, height: 520 });
+  await expect.poll(() => exactTerminal(page)).toMatchObject({
+    scrollableWidth: true,
+    scrollableHeight: true,
+    noTransform: true,
   });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 });
@@ -485,21 +484,18 @@ function isResizeFrame(frame: unknown): frame is number[] {
   return Array.isArray(frame) && frame[0] === 0x82 && frame.length === 5;
 }
 
-async function fittedTerminal(page: import('@playwright/test').Page) {
+async function exactTerminal(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
     const terminal = document.querySelector<HTMLElement>('[data-share-terminal]');
     const stage = document.querySelector<HTMLElement>('.share-terminal-stage');
     if (!terminal || !stage) {
-      return { width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY };
+      return { scrollableWidth: false, scrollableHeight: false, noTransform: false };
     }
-    const terminalRect = terminal.getBoundingClientRect();
-    const stageRect = stage.getBoundingClientRect();
-    const transform = new DOMMatrixReadOnly(getComputedStyle(stage).transform);
+    const transform = getComputedStyle(stage).transform;
     return {
-      fitsWidth: stageRect.width <= terminalRect.width + 1,
-      fitsHeight: stageRect.height <= terminalRect.height + 1,
-      anchoredBottom: Math.abs(terminalRect.bottom - stageRect.bottom) <= 1,
-      uniformScale: Math.abs(transform.a - transform.d) < 0.001 && Math.abs(transform.b) < 0.001 && Math.abs(transform.c) < 0.001,
+      scrollableWidth: terminal.scrollWidth > terminal.clientWidth,
+      scrollableHeight: terminal.scrollHeight > terminal.clientHeight,
+      noTransform: transform === 'none',
     };
   });
 }
