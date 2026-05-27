@@ -130,7 +130,8 @@ test('session viewer keeps the remote grid local without sending resize frames',
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'spectator';
     window.__rmuxShareReadySize = { cols: 12, rows: 3 };
-    window.__rmuxShareInitialSnapshot = '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt\x1b[9;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
+    window.__rmuxShareInitialSnapshot = '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt'
+      + '\x1b[9;1H\x1b[30;42m[ci] 0:bash* "very-long-hostname" 16:34 27-May-26\x1b[0m';
   });
 
   await page.goto(`/#t=${spectatorToken}`);
@@ -142,6 +143,7 @@ test('session viewer keeps the remote grid local without sending resize frames',
     noScrollbars: true,
     promptAtTop: true,
     statusAtBottom: true,
+    statusGreen: true,
     rowCount: 9,
     singleStatusRow: true,
   });
@@ -154,6 +156,7 @@ test('session viewer keeps the remote grid local without sending resize frames',
     noScrollbars: true,
     promptAtTop: true,
     statusAtBottom: true,
+    statusGreen: true,
     rowCount: 9,
     singleStatusRow: true,
   });
@@ -702,6 +705,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
         scaledDown: false,
         singleStatusRow: false,
         statusAtBottom: false,
+        statusGreen: false,
       };
     }
     const transform = getComputedStyle(stage).transform;
@@ -709,6 +713,8 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     const terminalRect = terminal.getBoundingClientRect();
     const screenRect = document.querySelector<HTMLElement>('.xterm-screen')?.getBoundingClientRect();
     const statusRows = rows.filter((row) => row.includes('[ci] 0:bash*'));
+    const statusRow = Array.from(document.querySelectorAll<HTMLElement>('.xterm-rows > div'))
+      .find((row) => (row.textContent ?? '').includes('[ci] 0:bash*'));
     return {
       fitsViewport: screenRect
         ? screenRect.left >= terminalRect.left - 2
@@ -723,6 +729,12 @@ async function terminalProjection(page: import('@playwright/test').Page) {
       scaledDown: transform !== 'none',
       singleStatusRow: statusRows.length === 1,
       statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash* "very-long-hostname" 16:34 27-May-26') ?? false,
+      statusGreen: statusRow
+        ? Array.from(statusRow.querySelectorAll<HTMLElement>('span')).some((span) => {
+          const match = getComputedStyle(span).backgroundColor.match(/\d+/g)?.map(Number);
+          return match ? match[1] > match[0] + 20 && match[1] > match[2] + 20 : false;
+        })
+        : false,
     };
   });
 }
