@@ -9,8 +9,9 @@ export type { TerminalThemeName } from './types';
 export type TerminalThemeMode = 'dark' | 'light';
 
 export const DEFAULT_TERMINAL_THEME: TerminalThemeName = 'user';
-const LIVE_SCROLLBACK_LINES = 2000;
+const LIVE_SCROLLBACK_LINES = 0;
 const BOTTOM_STICKY_THRESHOLD_PX = 8;
+const WHEEL_PIXEL_LINE = 16;
 const IMAGE_PIXEL_LIMIT = 4_194_304;
 const IMAGE_SEQUENCE_LIMIT = 8_000_000;
 const IMAGE_STORAGE_MB = 48;
@@ -46,6 +47,7 @@ export function openShareTerminal(
 ): ShareTerminal {
   const controller = new XtermShareTerminal(container, role, theme, userTheme);
   controller.open();
+  controller.bindLocalWheelScroll();
   controller.term.resize(cols, rows);
   controller.syncViewport();
   if (role === 'operator') {
@@ -169,6 +171,26 @@ class XtermShareTerminal implements ShareTerminal {
     this.term.writeln(`\r\n${text}`);
   }
 
+  bindLocalWheelScroll(): void {
+    const onWheel = (event: WheelEvent) => {
+      if (!this.container.contains(event.target as Node | null)) {
+        return;
+      }
+      const { x, y } = wheelDeltaPixels(event, this.container.clientHeight);
+      if (x === 0 && y === 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.container.scrollLeft += x;
+      this.container.scrollTop += y;
+    };
+    this.container.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    this.disposables.push({
+      dispose: () => this.container.removeEventListener('wheel', onWheel, { capture: true }),
+    });
+  }
+
   private enqueue(operation: (done: () => void) => void): void {
     const run = () => new Promise<void>((resolve) => {
       if (this.disposed) {
@@ -245,7 +267,7 @@ function optionsForRole(
   return {
     allowProposedApi: false,
     alternateScrollMode: false,
-    convertEol: false,
+    convertEol: true,
     cursorBlink: role === 'operator',
     cursorStyle: role === 'operator' ? 'block' : 'underline',
     disableStdin: role === 'read',
@@ -258,6 +280,18 @@ function optionsForRole(
     // rmux streams PTY output for a concrete remote geometry. Client-side
     // reflow corrupts redraw-heavy terminal UIs during resize.
     windowsPty: { backend: 'winpty' },
+  };
+}
+
+function wheelDeltaPixels(event: WheelEvent, pageHeight: number): { x: number; y: number } {
+  const unit = event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+    ? Math.max(1, pageHeight)
+    : event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? WHEEL_PIXEL_LINE
+      : 1;
+  return {
+    x: event.deltaX * unit,
+    y: event.deltaY * unit,
   };
 }
 
