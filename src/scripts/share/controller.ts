@@ -33,7 +33,7 @@ import type {
   ViewerCountMessage,
 } from './types';
 import type { TerminalThemePalette } from './types';
-import { privacyToastContent, shareViewTemplate, titleCase } from './view-content';
+import { shareViewTemplate, titleCase } from './view-content';
 import {
   authPayload,
   closeMessage,
@@ -48,7 +48,6 @@ const RESIZE_NOTIFY = 0x02;
 const SNAPSHOT_FULL = 0x10;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const CHROME_HIDDEN_STORAGE_KEY = 'rmux.share.chromeHidden';
-const PRIVACY_TOAST_MS = 20_000;
 const PIN_RE = /^\d{6}$/;
 const PIN_REQUIRED_CLOSE_CODE = 4008;
 const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
@@ -320,9 +319,6 @@ class ShareConnection {
     this.view.setReady(message);
     this.view.setViewerCount(message);
     this.view.setControlsInline(this.controls, this.passControlsToPty);
-    if (this.params.disclaimer !== 'off') {
-      this.view.showPrivacyToast(this.params.endpoint);
-    }
     this.bindTerminalViewport();
   }
 
@@ -465,6 +461,7 @@ class ShareView {
   private readonly sessionActionsDialog: HTMLDialogElement;
   private readonly sessionActionsDetach: HTMLButtonElement;
   private readonly sessionActionsLogout: HTMLButtonElement;
+  private readonly sessionActionsProvenance: HTMLButtonElement;
   private readonly provenanceDialog: HTMLDialogElement;
   private readonly provenanceOpen: HTMLButtonElement;
   private readonly provenanceCommit: HTMLAnchorElement;
@@ -475,7 +472,6 @@ class ShareView {
   private readonly pinInput: HTMLInputElement;
   private readonly pinError: HTMLElement;
   private readonly meta: HTMLElement;
-  private readonly toast: HTMLElement;
   private connected = false;
   private canLogout = false;
   private viewerCountVisible = false;
@@ -485,7 +481,6 @@ class ShareView {
   private copyLinkHandler?: () => void;
   private controlsPassthroughHandler?: (enabled: boolean) => void;
   private controlsPassthrough = false;
-  private toastTimer?: number;
 
   private constructor(root: HTMLElement) {
     root.innerHTML = shareViewTemplate();
@@ -514,6 +509,7 @@ class ShareView {
     this.sessionActionsDialog = query(root, '[data-share-session-actions]');
     this.sessionActionsDetach = query(root, '[data-share-session-detach]');
     this.sessionActionsLogout = query(root, '[data-share-session-logout]');
+    this.sessionActionsProvenance = query(root, '[data-share-session-provenance]');
     this.provenanceDialog = query(root, '[data-share-provenance]');
     this.provenanceOpen = query(root, '[data-share-provenance-open]');
     this.provenanceCommit = query(root, '[data-share-provenance-commit]');
@@ -524,7 +520,6 @@ class ShareView {
     this.pinInput = query(root, '[data-share-pin]');
     this.pinError = query(root, '[data-share-pin-error]');
     this.meta = query(root, '[data-share-meta]');
-    this.toast = query(root, '[data-share-toast]');
     this.statusButton.addEventListener('click', () => this.openSessionActions());
     this.sessionActionsDetach.addEventListener('click', () => {
       this.sessionActionsDialog.close();
@@ -533,6 +528,10 @@ class ShareView {
     this.sessionActionsLogout.addEventListener('click', () => {
       this.sessionActionsDialog.close();
       this.logoutHandler?.();
+    });
+    this.sessionActionsProvenance.addEventListener('click', () => {
+      this.sessionActionsDialog.close();
+      void this.openProvenance();
     });
     this.reconnectConnect.addEventListener('click', () => this.reconnectHandler?.());
     this.reconnectCopy.addEventListener('click', () => this.copyLinkHandler?.());
@@ -704,25 +703,6 @@ class ShareView {
     this.status.textContent = this.connected ? 'Connected' : 'Disconnected';
     this.statusButton.dataset.tone = this.connected ? 'ok' : status.tone ?? 'idle';
     this.setTerminalPlaceholder(status);
-  }
-
-  showPrivacyToast(endpoint: string): void {
-    this.toast.replaceChildren(privacyToastContent(endpoint));
-    this.toast
-      .querySelector('[data-share-toast-provenance]')
-      ?.addEventListener('click', () => {
-        void this.openProvenance();
-      });
-    this.toast.hidden = false;
-    this.toast.dataset.visible = 'true';
-    if (this.toastTimer !== undefined) {
-      window.clearTimeout(this.toastTimer);
-    }
-    this.toastTimer = window.setTimeout(() => {
-      this.toast.hidden = true;
-      this.toast.dataset.visible = 'false';
-      this.toastTimer = undefined;
-    }, PRIVACY_TOAST_MS);
   }
 
   showError(message: string, status = 'error'): void {

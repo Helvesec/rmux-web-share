@@ -77,11 +77,11 @@ export function shareViewTemplate(): string {
           </div>
         </div>
       </section>
-      <aside class="share-toast" data-share-toast role="status" aria-live="polite" hidden></aside>
       <dialog class="share-session-actions" data-share-session-actions>
         <form method="dialog" class="share-session-actions-panel">
           <h1>Connection actions</h1>
           <p>Disconnect closes only this browser. Close rmux session stops the shared session for everyone.</p>
+          <button class="share-provenance-trigger" data-share-session-provenance type="button">Security & provenance</button>
           <div class="share-confirm-actions">
             <button data-share-session-detach type="button">Disconnect browser</button>
             <button data-share-session-logout class="danger" type="button">Close rmux session</button>
@@ -139,45 +139,6 @@ export function shareViewTemplate(): string {
       </dialog>
     </main>
   `;
-}
-
-export function privacyToastContent(endpoint: string): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  const icon = document.createElement('span');
-  icon.className = 'share-toast-icon';
-  icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = '🔒';
-
-  const body = document.createElement('span');
-  body.className = 'share-toast-body';
-  body.textContent = privacyToastMessage(endpoint);
-
-  const link = document.createElement('button');
-  link.type = 'button';
-  link.dataset.shareToastProvenance = '';
-  link.textContent = 'More info';
-
-  fragment.append(icon, body, link);
-  return fragment;
-}
-
-function privacyToastMessage(endpoint: string): string {
-  try {
-    const url = new URL(endpoint);
-    if (url.protocol === 'wss:') {
-      return `Your connection to ${url.host} is end-to-end encrypted.`;
-    }
-    if (isLoopbackHost(url.hostname)) {
-      return `Your local connection to ${url.host} is end-to-end encrypted.`;
-    }
-    return `Your connection to ${url.host} is end-to-end encrypted.`;
-  } catch {
-    return 'Your rmux web-share connection is end-to-end encrypted.';
-  }
-}
-
-function isLoopbackHost(host: string): boolean {
-  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
 }
 
 export function titleCase(role: ShareRole): string {

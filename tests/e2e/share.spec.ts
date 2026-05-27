@@ -26,8 +26,7 @@ test('read-only client connects immediately and receives the initial snapshot', 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'light');
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme-mode', 'light');
-  await expect(page.locator('[data-share-toast]')).toContainText('end-to-end encrypted');
-  await expect(page.locator('[data-share-toast]')).toContainText('More info');
+  await expect(page.locator('[data-share-toast]')).toHaveCount(0);
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
@@ -200,7 +199,8 @@ test('security provenance dialog displays build proof links', async ({ page }) =
 
   await page.goto(`/#t=${readToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await page.locator('[data-share-toast-provenance]').click();
+  await page.locator('[data-share-status-menu]').click();
+  await page.locator('[data-share-session-provenance]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
   await expect(page.locator('[data-share-provenance-statement]')).toContainText('builds are verifiable');
@@ -345,7 +345,7 @@ test('URL options can remove chrome and disclaimer', async ({ page }) => {
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-theme', 'dark');
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('dark');
   await expect(page.locator('[data-share-chrome-show]')).toBeHidden();
-  await expect(page.locator('[data-share-toast]')).toBeHidden();
+  await expect(page.locator('[data-share-toast]')).toHaveCount(0);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
@@ -393,7 +393,7 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await expect(page.locator('[data-share-toast]')).toBeHidden();
+  await expect(page.locator('[data-share-toast]')).toHaveCount(0);
   await expect(page.locator('.xterm')).toBeVisible();
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
