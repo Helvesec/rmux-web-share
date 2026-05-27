@@ -129,28 +129,30 @@ test('session viewer expands locally without sending resize frames', async ({ pa
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'read';
-    window.__rmuxShareReadySize = { cols: 24, rows: 12 };
-    window.__rmuxShareInitialSnapshot = '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt\x1b[6;1H[ci] 0:bash*';
+    window.__rmuxShareReadySize = { cols: 12, rows: 3 };
+    window.__rmuxShareInitialSnapshot = '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt\x1b[9;1H[ci] 0:bash* "very-long-hostname" 16:34 27-May-26';
   });
 
   await page.goto(`/#t=${readToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect.poll(() => terminalProjection(page)).toMatchObject({
-    noTransform: true,
-    promptAtTop: true,
-    statusAtBottom: true,
-    growsBeyondRemoteRows: true,
-  });
+      noTransform: true,
+      promptAtTop: true,
+      statusAtBottom: true,
+      growsBeyondSnapshotRows: true,
+      singleStatusRow: true,
+    });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 
   await page.setViewportSize({ width: 960, height: 560 });
   await expect.poll(() => terminalProjection(page)).toMatchObject({
-    noTransform: true,
-    promptAtTop: true,
-    statusAtBottom: true,
-    growsBeyondRemoteRows: true,
-  });
+      noTransform: true,
+      promptAtTop: true,
+      statusAtBottom: true,
+      growsBeyondSnapshotRows: true,
+      singleStatusRow: true,
+    });
   expect((await sentFrames(page)).some(isResizeFrame)).toBe(false);
 });
 
@@ -508,18 +510,21 @@ async function terminalProjection(page: import('@playwright/test').Page) {
       .map((row) => row.textContent ?? '');
     if (!terminal || !stage) {
       return {
-        growsBeyondRemoteRows: false,
+        growsBeyondSnapshotRows: false,
         noTransform: false,
         promptAtTop: false,
+        singleStatusRow: false,
         statusAtBottom: false,
       };
     }
     const transform = getComputedStyle(stage).transform;
+    const statusRows = rows.filter((row) => row.includes('[ci] 0:bash*'));
     return {
-      growsBeyondRemoteRows: rows.length > 6,
+      growsBeyondSnapshotRows: rows.length > 9,
       noTransform: transform === 'none',
       promptAtTop: rows[0]?.includes('prompt') ?? false,
-      statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash*') ?? false,
+      singleStatusRow: statusRows.length === 1,
+      statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash* "very-long-hostname" 16:34 27-May-26') ?? false,
     };
   });
 }

@@ -71,6 +71,8 @@ class XtermShareTerminal implements ShareTerminal {
   private lastSnapshotText?: string;
   private remoteCols = 0;
   private remoteRows = 0;
+  private snapshotCols = 0;
+  private snapshotRows = 0;
 
   constructor(
     private readonly container: HTMLElement,
@@ -146,6 +148,9 @@ class XtermShareTerminal implements ShareTerminal {
     this.enqueue((done) => {
       if (this.scope === 'session') {
         this.lastSnapshotText = text;
+        const snapshot = snapshotGeometry(text);
+        this.snapshotCols = Math.max(MIN_TERMINAL_COLS, snapshot.cols);
+        this.snapshotRows = Math.max(MIN_TERMINAL_ROWS, snapshot.rows);
         this.writeSessionSnapshotNow(text, done);
       } else {
         this.term.reset();
@@ -307,11 +312,13 @@ class XtermShareTerminal implements ShareTerminal {
     return {
       cols: Math.max(
         this.remoteCols,
+        this.snapshotCols,
         Math.floor(this.container.clientWidth / metrics.width),
         MIN_TERMINAL_COLS,
       ),
       rows: Math.max(
         this.remoteRows,
+        this.snapshotRows,
         Math.floor(this.container.clientHeight / metrics.height),
         MIN_TERMINAL_ROWS,
       ),
@@ -412,6 +419,78 @@ function wheelDeltaPixels(event: WheelEvent, pageHeight: number): { x: number; y
     x: event.deltaX * unit,
     y: event.deltaY * unit,
   };
+}
+
+function snapshotGeometry(text: string): { cols: number; rows: number } {
+  let row = 1;
+  let column = 0;
+  let maxColumn = 0;
+  let maxRow = 1;
+  for (let index = 0; index < text.length;) {
+    const char = text[index];
+    if (char === '\x1b') {
+      const parsed = parseCsiCursor(text, index);
+      if (parsed) {
+        row = parsed.row;
+        column = parsed.column;
+        maxRow = Math.max(maxRow, row);
+        index = parsed.next;
+        continue;
+      }
+      const next = ansiSequenceEnd(text, index);
+      index = next > index ? next : index + 1;
+      continue;
+    }
+    if (char === '\r') {
+      column = 0;
+      index += 1;
+      continue;
+    }
+    if (char === '\n') {
+      row += 1;
+      column = 0;
+      maxRow = Math.max(maxRow, row);
+      index += 1;
+      continue;
+    }
+    column += 1;
+    maxColumn = Math.max(maxColumn, column);
+    index += 1;
+  }
+  return { cols: maxColumn, rows: maxRow };
+}
+
+function parseCsiCursor(text: string, start: number): { row: number; column: number; next: number } | undefined {
+  if (text[start + 1] !== '[') {
+    return undefined;
+  }
+  let index = start + 2;
+  while (index < text.length && !isFinalByte(text.charCodeAt(index))) {
+    index += 1;
+  }
+  const command = text[index];
+  if (command !== 'H' && command !== 'f') {
+    return undefined;
+  }
+  const params = text.slice(start + 2, index).split(';');
+  const row = Math.max(1, Number.parseInt(params[0] || '1', 10));
+  const column = Math.max(0, Number.parseInt(params[1] || '1', 10) - 1);
+  return { row, column, next: index + 1 };
+}
+
+function ansiSequenceEnd(text: string, start: number): number {
+  if (text[start + 1] === '[') {
+    let index = start + 2;
+    while (index < text.length && !isFinalByte(text.charCodeAt(index))) {
+      index += 1;
+    }
+    return Math.min(index + 1, text.length);
+  }
+  return Math.min(start + 2, text.length);
+}
+
+function isFinalByte(code: number): boolean {
+  return code >= 0x40 && code <= 0x7e;
 }
 
 function themePalette(
