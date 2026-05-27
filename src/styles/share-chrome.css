@@ -335,52 +335,6 @@
   transform: translateY(-2px) rotate(45deg);
 }
 
-.share-controls-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 34px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--share-muted);
-  font-size: 13px;
-  font-weight: 720;
-  white-space: nowrap;
-}
-
-.share-controls-inline[hidden] {
-  display: none;
-}
-
-.share-controls-copy {
-  color: var(--share-muted);
-}
-
-.share-controls-toggle {
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--share-border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--share-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 740;
-}
-
-.share-controls-toggle:hover,
-.share-controls-toggle:focus-visible {
-  border-color: color-mix(in srgb, var(--share-text) 48%, transparent);
-  outline: none;
-}
-
-.share-controls-inline[data-passthrough='pty'] .share-controls-toggle {
-  border-color: color-mix(in srgb, var(--share-warn) 58%, transparent);
-  color: var(--share-warn);
-}
-
 .share-chrome-button {
   display: inline-grid;
   width: 40px;
@@ -525,17 +479,6 @@
     min-width: 116px;
   }
 
-  .share-controls-inline {
-    flex: 1 1 180px;
-    min-width: 0;
-    justify-content: space-between;
-  }
-
-  .share-controls-toggle {
-    flex: 0 0 auto;
-    min-width: 84px;
-  }
-
   .share-theme-control {
     margin-left: auto;
   }
@@ -572,12 +515,6 @@
   .share-role-badge {
     order: 1;
     flex: 1 1 128px;
-  }
-
-  .share-controls-inline {
-    order: 3;
-    flex: 1 0 100%;
-    width: 100%;
   }
 
   .share-viewer-count {

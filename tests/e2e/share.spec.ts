@@ -370,38 +370,18 @@ test('session operator can logout the shared session from the status menu', asyn
   await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
 });
 
-test('session operator without controls cannot logout from the status menu', async ({ page }) => {
-  await page.addInitScript(() => {
-    window.__rmuxShareReadyScope = 'session';
-  });
-  await page.goto(`/#t=${operatorToken}`);
-
-  await page.locator('[data-share-status-menu]').click();
-  await expect(page.locator('[data-share-session-actions]')).toBeVisible();
-  await expect(page.locator('[data-share-session-detach]')).toBeVisible();
-  await expect(page.locator('[data-share-session-logout]')).toBeHidden();
-  await expect.poll(() => logoutFrameCount(page)).toBe(0);
-});
-
-test('session controls send attach input until pass-through is enabled', async ({ page }) => {
+test('writable session operators send attach input without a controls toggle', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyControls = true;
   });
   await page.goto(`/#t=${operatorToken}`);
 
-  await expect(page.locator('[data-share-controls]')).toBeVisible();
-  await expect(page.locator('[data-share-controls]')).toContainText('Controls');
-  await expect(page.locator('[data-share-controls-passthrough]')).toHaveText('rmux keys');
+  await expect(page.locator('[data-share-controls]')).toHaveCount(0);
+  await expect(page.locator('[data-share-controls-passthrough]')).toHaveCount(0);
   await page.locator('.xterm').click();
   await page.keyboard.type('x');
   await expect.poll(() => sentFrames(page)).toContainEqual([0x83, 120]);
-
-  await page.locator('[data-share-controls-passthrough]').click();
-  await expect(page.locator('[data-share-controls]')).toHaveAttribute('data-passthrough', 'pty');
-  await expect(page.locator('[data-share-controls-passthrough]')).toHaveText('PTY keys');
-  await page.keyboard.type('y');
-  await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 121]);
 });
 
 test('mouse wheel scroll stays local and does not send shell input', async ({ page }) => {

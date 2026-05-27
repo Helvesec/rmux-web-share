@@ -3,7 +3,7 @@ import type { ShareRole } from './types';
 
 export function shareViewTemplate(): string {
   return `
-    <main class="share-app" data-chrome="visible" data-navbar="visible" data-operator="free" data-role="read" data-controls="disabled" data-terminal-mode="dark" data-terminal-theme="user">
+    <main class="share-app" data-chrome="visible" data-navbar="visible" data-operator="free" data-role="read" data-terminal-mode="dark" data-terminal-theme="user">
       <header class="share-topbar">
         <div class="share-brand">
           <a class="share-brand-home" href="https://rmux.io/" aria-label="RMUX">
@@ -32,10 +32,6 @@ export function shareViewTemplate(): string {
               <circle cx="12" cy="12" r="2.8" />
             </svg>
             <span data-share-viewers-count>0</span>
-          </span>
-          <span class="share-controls-inline" data-share-controls hidden>
-            <span class="share-controls-copy">Controls</span>
-            <button class="share-controls-toggle" data-share-controls-passthrough type="button" aria-pressed="false">rmux keys</button>
           </span>
           <label class="share-theme-control">
             <span class="share-visually-hidden">Terminal theme</span>

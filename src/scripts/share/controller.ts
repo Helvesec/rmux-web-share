@@ -136,8 +136,7 @@ class ShareConnection {
   private terminal?: ShareTerminal;
   private userTerminalTheme?: TerminalThemePalette;
   private scope: ShareScope = 'pane';
-  private controls = false;
-  private passControlsToPty = false;
+  private sessionControls = false;
   private viewportHandler?: () => void;
   private viewportObserver?: ResizeObserver;
   private viewportRaf?: number;
@@ -295,8 +294,7 @@ class ShareConnection {
     this.view.hideReconnect();
     this.role = message.role;
     this.scope = message.scope;
-    this.controls = message.controls && message.scope === 'session' && message.role === 'operator';
-    this.passControlsToPty = false;
+    this.sessionControls = message.controls && message.scope === 'session' && message.role === 'operator';
     this.userTerminalTheme = message.terminal_palette;
     this.view.setViewerCountMode(message.show_viewers);
     this.view.setTerminalTheme(this.terminalTheme(), this.userTerminalTheme);
@@ -313,18 +311,12 @@ class ShareConnection {
     this.terminal.onData((data) => this.sendOperatorData(data));
     this.terminal.onMouseInput((data) => this.sendOperatorData(data));
     this.terminal.onPaneScroll((paneId, delta) => this.sendPaneScroll(paneId, delta));
-    this.view.bindControlsPassthrough((enabled) => {
-      this.passControlsToPty = enabled;
-      this.view.setControlsPassthrough(enabled);
-      this.terminal?.term.focus();
-    });
     this.view.bindSessionActions({
       detach: () => this.detach(),
       logout: () => this.logout(),
     });
     this.view.setReady(message);
     this.view.setViewerCount(message);
-    this.view.setControlsInline(this.controls, this.passControlsToPty);
     this.bindTerminalViewport();
   }
 
@@ -372,7 +364,7 @@ class ShareConnection {
     if (!socket) {
       return;
     }
-    const send = this.controls && !this.passControlsToPty ? sendAttachInputText : sendInputText;
+    const send = this.sessionControls ? sendAttachInputText : sendInputText;
     if (!send(socket, data)) {
       this.view.setStatus({ connected: true, detail: 'input too large', tone: 'error' });
     }
@@ -395,7 +387,7 @@ class ShareConnection {
 
   private logout(): void {
     const socket = this.openOperatorSocket();
-    if (!socket || this.scope !== 'session' || !this.controls) {
+    if (!socket || this.scope !== 'session' || !this.sessionControls) {
       return;
     }
     this.view.setStatus({ connected: true, detail: 'closing session', tone: 'warn' });
@@ -471,8 +463,6 @@ class ShareView {
   private readonly chromeShow: HTMLButtonElement;
   private readonly viewers: HTMLElement;
   private readonly viewersCount: HTMLElement;
-  private readonly controlsInline: HTMLElement;
-  private readonly controlsPassthroughButton: HTMLButtonElement;
   private readonly statusButton: HTMLButtonElement;
   private readonly confirmDialog: HTMLDialogElement;
   private readonly confirmTitle: HTMLElement;
@@ -500,8 +490,6 @@ class ShareView {
   private logoutHandler?: () => void;
   private reconnectHandler?: () => void;
   private copyLinkHandler?: () => void;
-  private controlsPassthroughHandler?: (enabled: boolean) => void;
-  private controlsPassthrough = false;
 
   private constructor(root: HTMLElement) {
     root.innerHTML = shareViewTemplate();
@@ -519,8 +507,6 @@ class ShareView {
     this.chromeShow = query(root, '[data-share-chrome-show]');
     this.viewers = query(root, '[data-share-viewers]');
     this.viewersCount = query(root, '[data-share-viewers-count]');
-    this.controlsInline = query(root, '[data-share-controls]');
-    this.controlsPassthroughButton = query(root, '[data-share-controls-passthrough]');
     this.statusButton = query(root, '[data-share-status-menu]');
     this.confirmDialog = query(root, '[data-share-confirm]');
     this.confirmTitle = query(root, '[data-share-confirm-title]');
@@ -606,14 +592,6 @@ class ShareView {
     this.copyLinkHandler = handlers.copyLink;
   }
 
-  bindControlsPassthrough(handler: (enabled: boolean) => void): void {
-    this.controlsPassthroughHandler = handler;
-    this.controlsPassthroughButton.onclick = () => {
-      const next = !this.controlsPassthrough;
-      this.controlsPassthroughHandler?.(next);
-    };
-  }
-
   bindTerminalTheme(handler: (theme: TerminalThemeName) => void): void {
     this.themeSelect.addEventListener('change', () => {
       if (isTerminalThemeName(this.themeSelect.value)) {
@@ -634,7 +612,6 @@ class ShareView {
   setReady(message: ReadyMessage): void {
     this.setRole(message.role);
     this.terminal.dataset.scope = message.scope;
-    this.setControlsInline(message.controls && message.scope === 'session' && message.role === 'operator', false);
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
     this.setOperatorConnected(Boolean(message.operator_connected));
     const label = [message.session_name, message.pane_label].filter(Boolean).join(' ');
@@ -646,20 +623,6 @@ class ShareView {
     this.role.textContent = titleCase(role);
     this.terminal.dataset.role = role;
     this.rootDataset('role', role);
-  }
-
-  setControlsInline(visible: boolean, passthrough: boolean): void {
-    this.controlsPassthrough = passthrough;
-    this.controlsInline.hidden = !visible;
-    this.rootDataset('controls', visible ? 'enabled' : 'disabled');
-    this.setControlsPassthrough(passthrough);
-  }
-
-  setControlsPassthrough(enabled: boolean): void {
-    this.controlsPassthrough = enabled;
-    this.controlsInline.dataset.passthrough = enabled ? 'pty' : 'rmux';
-    this.controlsPassthroughButton.textContent = enabled ? 'PTY keys' : 'rmux keys';
-    this.controlsPassthroughButton.setAttribute('aria-pressed', String(enabled));
   }
 
   setSessionActions(canLogout: boolean): void {
