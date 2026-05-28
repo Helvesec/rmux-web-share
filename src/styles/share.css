@@ -188,6 +188,20 @@
   scrollbar-gutter: auto;
 }
 
+.share-app[data-connected='false'] .share-terminal {
+  filter: grayscale(0.78);
+  opacity: 0.48;
+}
+
+.share-app[data-connected='false'] .share-terminal::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgb(7 12 13 / 0.2);
+  content: '';
+  pointer-events: none;
+}
+
 .share-terminal-stage {
   position: relative;
   display: flex;

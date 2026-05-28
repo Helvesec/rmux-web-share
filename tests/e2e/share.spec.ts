@@ -295,7 +295,7 @@ test('session operator toolbar sends typed controls and window actions', async (
     window.__rmuxShareInitialSnapshot =
       '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
       + '\x1b[1;42Hright pane'
-      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+      + '\x1b[24;1H[ci] 0:bash* 1:logs "host" 16:34 27-May-26';
     window.__rmuxShareSessionView = {
       size: { cols: 80, rows: 24 },
       panes: [
@@ -335,22 +335,32 @@ test('session operator toolbar sends typed controls and window actions', async (
   expect(screen).not.toBeNull();
   expect(prompt).not.toBeNull();
   expect(prompt!.x).toBeGreaterThan(screen!.x + screen!.width * 0.45);
-  await page.mouse.move(screen!.x + 40, screen!.y + screen!.height - 6);
+  const bashLabelX = screen!.x + screen!.width * (8 / 80);
+  const logsLabelX = screen!.x + screen!.width * (16 / 80);
+  const statusY = screen!.y + screen!.height - 6;
+  await page.mouse.move(logsLabelX, statusY);
   await expect(page.locator('.share-terminal-stage')).toHaveAttribute('data-window-actions', 'true');
   await expect(page.locator('.xterm-screen')).toHaveCSS('cursor', 'context-menu');
-  await page.mouse.click(screen!.x + 48, screen!.y + screen!.height - 6, { button: 'right' });
-  await expect(page.locator('[data-share-window-actions]')).toBeVisible();
+  await page.mouse.click(logsLabelX, statusY);
 
-  await page.locator('[data-share-window-list] button').filter({ hasText: '1:logs' }).click();
-  await page.locator('[data-share-window-name]').fill('build');
-  await page.locator('[data-share-window-rename]').click();
+  await page.mouse.click(bashLabelX, statusY, { button: 'right' });
+  await expect(page.locator('[data-share-window-menu]')).toBeVisible();
+  await page.locator('[data-share-window-edit]').click();
+
+  await page.mouse.click(bashLabelX, statusY, { button: 'right' });
+  await page.locator('[data-share-window-new]').click();
+
+  await page.mouse.click(bashLabelX, statusY, { button: 'right' });
   await page.locator('[data-share-window-kill]').click();
   await expect.poll(() => jsonFrames(page)).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ type: 'select_window', window_index: 1 }),
-      expect.objectContaining({ type: 'rename_window', window_index: 1, name: 'build' }),
-      expect.objectContaining({ type: 'kill_window', window_index: 1 }),
+      expect.objectContaining({ type: 'select_window', window_index: 0 }),
+      expect.objectContaining({ type: 'kill_window', window_index: 0 }),
     ]),
+  );
+  await expect.poll(() => sentFrames(page)).toEqual(
+    expect.arrayContaining([[0x83, 0x02, 0x2c]]),
   );
 });
 
@@ -480,7 +490,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
 
   await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await page.locator('[data-share-status-menu]').click();
+  await page.locator('[data-share-session-menu]').click();
   await page.locator('[data-share-session-provenance]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
@@ -490,7 +500,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
   await expect(page.locator('[data-share-provenance-cloudflare]')).toHaveText('rmux-web-share');
 });
 
-test('operator sends xterm data and can open session actions', async ({ page }) => {
+test('operator sends xterm data and can open connection actions from exit', async ({ page }) => {
   await page.goto(`/#t=${operatorToken}`);
 
   await expect(page.locator('.share-role-badge')).toBeHidden();
@@ -498,7 +508,7 @@ test('operator sends xterm data and can open session actions', async ({ page }) 
   await page.keyboard.type('x');
   await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 120]);
 
-  await page.locator('[data-share-status-menu]').click();
+  await page.locator('[data-share-session-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
   await expect(page.locator('[data-share-session-detach]')).toBeVisible();
   await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect browser');
@@ -521,7 +531,7 @@ test('operator can disconnect, copy the sanitized link, and reconnect from the s
   await expect.poll(() => socketCount(page)).toBe(1);
   await expect.poll(() => new URL(page.url()).hash).toBe('');
 
-  await page.locator('[data-share-status-menu]').click();
+  await page.locator('[data-share-session-menu]').click();
   await page.locator('[data-share-session-detach]').click();
 
   await expect(page.locator('[data-share-reconnect]')).toBeVisible();
@@ -541,14 +551,14 @@ test('operator can disconnect, copy the sanitized link, and reconnect from the s
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
-test('session operator can logout the shared session from the status menu', async ({ page }) => {
+test('session operator can logout the shared session from the exit menu', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyControls = true;
   });
   await page.goto(`/#t=${operatorToken}`);
 
-  await page.locator('[data-share-status-menu]').click();
+  await page.locator('[data-share-session-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
   await expect(page.locator('[data-share-session-logout]')).toBeVisible();
   await page.locator('[data-share-session-logout]').click();
@@ -621,17 +631,11 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
   expect(await sentInputFrameCount(page)).toBe(0);
 });
 
-test('toolbar visibility is a session preference', async ({ page }) => {
+test('toolbar remains visible by default across reloads', async ({ page }) => {
   const url = `/#t=${spectatorToken}`;
   await page.goto(url);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-
-  await page.locator('[data-share-chrome-hide]').click();
-  await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
   await page.reload();
-  await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
-
-  await page.locator('[data-share-chrome-show]').click();
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'visible');
 });
 

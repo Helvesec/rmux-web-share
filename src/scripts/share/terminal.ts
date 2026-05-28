@@ -53,6 +53,7 @@ export interface ShareTerminal {
   onPaneSelect(callback: (paneId: number) => void): void;
   onPaneResize(callback: (paneId: number, direction: PaneResizeDirection, cells: number) => void): void;
   onPaneScroll(callback: (paneId: number, delta: number) => void): void;
+  onWindowSelect(callback: (windowIndex: number) => void): void;
   onWindowMenu(callback: (windowIndex: number, x: number, y: number) => void): void;
   notice(text: string): void;
 }
@@ -163,9 +164,14 @@ class XtermShareTerminal implements ShareTerminal {
     if (this.scope === 'session') {
       this.enqueue((done) => {
         this.rememberOperatorFitSize();
-        this.resizeSessionGrid();
+        const resized = this.resizeSessionGrid();
+        if (resized && this.lastSnapshotText !== undefined && this.snapshotFitsTerminal()) {
+          this.writeSessionSnapshotFrame(this.lastSnapshotText, done);
+          return;
+        }
         this.fitSessionStage();
         this.scrollToTopLeft();
+        this.refreshTerminalFrame();
         done();
       });
       return;
@@ -199,6 +205,7 @@ class XtermShareTerminal implements ShareTerminal {
     this.container.dataset.themeMode = terminalThemeMode(theme, userTheme);
     this.term.options.theme = themePalette(theme, userTheme);
     if (this.term.element) {
+      this.refreshTerminalFrame();
       this.syncViewport();
     }
   }
@@ -361,6 +368,26 @@ class XtermShareTerminal implements ShareTerminal {
     this.paneScrollHandler = callback;
   }
 
+  onWindowSelect(callback: (windowIndex: number) => void): void {
+    const onMouseDown = (event: MouseEvent) => {
+      if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
+        return;
+      }
+      const window = this.windowFromStatusEvent(event);
+      if (!window) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.term.focus();
+      callback(window.index);
+    };
+    this.stage.addEventListener('mousedown', onMouseDown);
+    this.disposables.push({
+      dispose: () => this.stage.removeEventListener('mousedown', onMouseDown),
+    });
+  }
+
   onWindowMenu(callback: (windowIndex: number, x: number, y: number) => void): void {
     const onContextMenu = (event: MouseEvent) => {
       if (this.scope !== 'session' || this.role !== 'operator') {
@@ -479,20 +506,26 @@ class XtermShareTerminal implements ShareTerminal {
 
   private writeSessionSnapshotNow(text: string, done: () => void): void {
     this.resizeSessionGrid();
+    this.writeSessionSnapshotFrame(text, done);
+  }
+
+  private writeSessionSnapshotFrame(text: string, done: () => void): void {
     this.writeDecodedNow(this.renderSessionFrame(text), false, () => {
       this.fitSessionStage();
       this.scrollToTopLeft();
+      this.refreshTerminalFrame();
       done();
     });
   }
 
   private renderSessionFrame(text: string): string {
-    if (this.sessionView) {
+    const statusRow = this.sessionStatusRow(text);
+    if (!statusRow) {
       return text;
     }
     return projectRows(text, {
       maxContentRow: Math.max(1, this.term.rows - 1),
-      statusRow: this.sessionStatusRow(text),
+      statusRow,
       targetStatusRow: this.term.rows,
     });
   }
@@ -501,6 +534,12 @@ class XtermShareTerminal implements ShareTerminal {
     const rows = cursorRows(text);
     if (!rows.length) {
       return undefined;
+    }
+    const canonical = [this.sessionView?.size.rows, this.remoteRows]
+      .filter((row): row is number => typeof row === 'number' && row >= MIN_TERMINAL_ROWS)
+      .find((row) => rows.includes(row));
+    if (canonical) {
+      return canonical;
     }
     const candidates = [this.snapshotRows, this.remoteRows]
       .filter((row) => row >= MIN_TERMINAL_ROWS && rows.includes(row));
@@ -513,8 +552,12 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private sessionGridSize(): { cols: number; rows: number } {
-    if (this.role === 'operator' && this.operatorCols > 0 && this.operatorRows > 0) {
+    if (this.shouldUseOperatorGrid()) {
       return { cols: this.operatorCols, rows: this.operatorRows };
+    }
+    const renderSize = this.sessionRenderSize();
+    if (renderSize) {
+      return renderSize;
     }
     return {
       cols: Math.max(
@@ -522,6 +565,38 @@ class XtermShareTerminal implements ShareTerminal {
         this.snapshotCols,
         MIN_TERMINAL_COLS,
       ),
+      rows: Math.max(this.remoteRows, this.snapshotRows, MIN_TERMINAL_ROWS),
+    };
+  }
+
+  private shouldUseOperatorGrid(): boolean {
+    if (this.role !== 'operator' || this.operatorCols <= 0 || this.operatorRows <= 0) {
+      return false;
+    }
+    const renderSize = this.sessionRenderSize();
+    if (!renderSize) {
+      return true;
+    }
+    return renderSize.rows === this.operatorRows && renderSize.cols <= this.operatorCols + 1;
+  }
+
+  private snapshotFitsTerminal(): boolean {
+    const renderSize = this.sessionRenderSize();
+    if (!renderSize) {
+      return true;
+    }
+    return renderSize.rows <= this.term.rows && renderSize.cols <= this.term.cols + 1;
+  }
+
+  private sessionRenderSize(): { cols: number; rows: number } | undefined {
+    if (this.sessionView) {
+      return this.sessionView.size;
+    }
+    if (this.snapshotRows <= 0 || this.snapshotCols <= 0) {
+      return undefined;
+    }
+    return {
+      cols: Math.max(this.remoteCols, this.snapshotCols, MIN_TERMINAL_COLS),
       rows: Math.max(this.remoteRows, this.snapshotRows, MIN_TERMINAL_ROWS),
     };
   }
@@ -556,9 +631,18 @@ class XtermShareTerminal implements ShareTerminal {
       return false;
     }
     this.term.resize(cols, rows);
-    this.term.clearTextureAtlas();
-    this.term.refresh(0, this.term.rows - 1);
+    this.refreshTerminalFrame();
     return true;
+  }
+
+  private refreshTerminalFrame(): void {
+    this.term.clearTextureAtlas();
+    this.term.refresh(0, Math.max(0, this.term.rows - 1));
+    window.requestAnimationFrame(() => {
+      if (!this.disposed) {
+        this.term.refresh(0, Math.max(0, this.term.rows - 1));
+      }
+    });
   }
 
   private fitSessionStage(): void {
@@ -705,12 +789,19 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private windowFromStatusEvent(event: MouseEvent): SessionWindowView | undefined {
-    const point = this.sessionPointFromMouseEvent(event);
+    const cell = this.cellFromMouseEvent(event);
     const windows = this.sessionView?.windows;
-    if (!point || !windows?.length || point.row < this.sessionView!.size.rows - 1) {
+    if (!cell || !windows?.length || cell.row < this.term.rows) {
       return undefined;
     }
-    return windows.find((window) => window.active) ?? windows[0];
+    const text = this.statusRowText();
+    const col = cell.col - 1;
+    return windows.find((window) => windowStatusLabelContains(text, window, col));
+  }
+
+  private statusRowText(): string {
+    const rows = Array.from(this.term.element?.querySelectorAll<HTMLElement>('.xterm-rows > div') ?? []);
+    return rows.at(-1)?.textContent ?? '';
   }
 
   private dividerFromMouseEvent(event: MouseEvent): PaneDivider | undefined {
@@ -1027,6 +1118,17 @@ function projectCell(cell: number, fromSize: number, toSize: number): number {
     return cell;
   }
   return Math.min(toSize - 1, Math.max(0, Math.floor(cell * toSize / fromSize)));
+}
+
+function windowStatusLabelContains(text: string, window: SessionWindowView, col: number): boolean {
+  if (col < 0 || !text) {
+    return false;
+  }
+  const labels = [`${window.index}:${window.name}${window.active ? '*' : ''}`, `${window.index}:${window.name}`];
+  return labels.some((label) => {
+    const start = text.indexOf(label);
+    return start >= 0 && col >= start && col < start + label.length;
+  });
 }
 
 function integralDelta(value: number): number {

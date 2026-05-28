@@ -3,7 +3,7 @@ import type { ShareRole } from './types';
 
 export function shareViewTemplate(): string {
   return `
-    <main class="share-app" data-chrome="visible" data-navbar="visible" data-operator="free" data-role="spectator" data-terminal-mode="dark" data-terminal-theme="user">
+    <main class="share-app" data-chrome="visible" data-navbar="visible" data-connected="false" data-operator="free" data-role="spectator" data-terminal-mode="dark" data-terminal-theme="user">
       <header class="share-topbar">
         <div class="share-brand">
           <a class="share-brand-home" href="https://rmux.io/" aria-label="RMUX">
@@ -56,9 +56,7 @@ export function shareViewTemplate(): string {
             </svg>
             <span data-share-viewers-count>0</span>
           </span>
-          <button class="share-status" data-share-status-menu type="button" data-tone="idle" aria-haspopup="dialog" aria-label="Connection actions" title="Disconnected">
-            <span data-share-status>Disconnected</span>
-          </button>
+          <span class="share-visually-hidden" data-share-status>Disconnected</span>
           <label class="share-theme-control">
             <span class="share-visually-hidden">Terminal theme</span>
             <svg class="share-theme-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
@@ -72,14 +70,17 @@ export function shareViewTemplate(): string {
             </select>
           </label>
           <span class="share-operator-state" aria-hidden="true"></span>
-          <button class="share-chrome-button share-chrome-hide" data-share-chrome-hide type="button" aria-label="Hide toolbar" title="Hide toolbar">
-            <span aria-hidden="true"></span>
+          <button class="share-exit-button" data-share-session-menu type="button" aria-haspopup="dialog" aria-label="Connection actions" title="Connection actions">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M10 5H6.5A2.5 2.5 0 0 0 4 7.5v9A2.5 2.5 0 0 0 6.5 19H10" />
+              <path d="M15 8l4 4-4 4" />
+              <path d="M9 12h10" />
+            </svg>
           </button>
         </div>
       </header>
-      <button class="share-chrome-button share-chrome-show" data-share-chrome-show type="button" aria-label="Show toolbar" title="Show toolbar">
-        <span aria-hidden="true"></span>
-      </button>
+      <button class="share-chrome-button share-chrome-hide" data-share-chrome-hide type="button" hidden></button>
+      <button class="share-chrome-button share-chrome-show" data-share-chrome-show type="button" hidden></button>
       <section class="share-terminal-shell" aria-label="Shared terminal">
         <div class="share-terminal" data-share-terminal>
           <div class="share-terminal-placeholder" data-share-terminal-placeholder data-tone="idle">waiting</div>
@@ -106,21 +107,11 @@ export function shareViewTemplate(): string {
           </div>
         </form>
       </dialog>
-      <dialog class="share-window-actions" data-share-window-actions>
-        <form method="dialog" class="share-window-actions-panel">
-          <h1>Windows</h1>
-          <div class="share-window-list" data-share-window-list></div>
-          <label class="share-window-rename">
-            <span>Rename selected window</span>
-            <input data-share-window-name maxlength="128" autocomplete="off" />
-          </label>
-          <div class="share-confirm-actions">
-            <button data-share-window-new type="button">New window</button>
-            <button data-share-window-rename type="button">Rename</button>
-            <button data-share-window-kill class="danger" type="button">Close window</button>
-          </div>
-        </form>
-      </dialog>
+      <div class="share-window-menu" data-share-window-menu role="menu" hidden>
+        <button data-share-window-new type="button" role="menuitem">Nouveau</button>
+        <button data-share-window-edit type="button" role="menuitem">Edit</button>
+        <button data-share-window-kill class="danger" type="button" role="menuitem">Supprimer</button>
+      </div>
       <dialog class="share-confirm" data-share-confirm>
         <form method="dialog" class="share-confirm-panel">
           <h1 data-share-confirm-title></h1>
