@@ -67,7 +67,7 @@ const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
-  canShowToolbar: boolean;
+  toolbarHidden: boolean;
 }
 
 export function startShareApp(root: HTMLElement): void {
@@ -330,7 +330,7 @@ class ShareConnection {
       this.view.openTerminalMenu(x, y, {
         canCopy: Boolean(this.terminal?.selection()),
         canPaste: this.role === 'operator' && typeof navigator.clipboard?.readText === 'function',
-        canShowToolbar: this.view.toolbarHidden(),
+        toolbarHidden: this.view.toolbarHidden(),
       });
     });
     this.view.bindSessionActions({
@@ -340,7 +340,7 @@ class ShareConnection {
     this.view.bindTerminalActions({
       copy: () => this.copyTerminalSelection(),
       paste: () => this.pasteIntoTerminal(),
-      showToolbar: () => this.showToolbar(),
+      toggleToolbar: () => this.toggleToolbar(),
     });
     this.view.bindSessionControls({
       splitHorizontal: () => this.splitPane('horizontal'),
@@ -501,8 +501,8 @@ class ShareConnection {
     }
   }
 
-  private showToolbar(): void {
-    this.view.showToolbar();
+  private toggleToolbar(): void {
+    this.view.toggleToolbar();
     this.terminal?.syncViewport();
   }
 
@@ -637,6 +637,7 @@ class ShareView {
   private readonly terminalCopy: HTMLButtonElement;
   private readonly terminalPaste: HTMLButtonElement;
   private readonly terminalShowToolbar: HTMLButtonElement;
+  private readonly terminalToolbarLabel: HTMLElement;
   private readonly terminalProvenance: HTMLButtonElement;
   private readonly confirmDialog: HTMLDialogElement;
   private readonly confirmTitle: HTMLElement;
@@ -644,7 +645,6 @@ class ShareView {
   private readonly confirmConnect: HTMLButtonElement;
   private readonly confirmCancel: HTMLButtonElement;
   private readonly sessionActionsDialog: HTMLDialogElement;
-  private readonly sessionActionsCancel: HTMLButtonElement;
   private readonly sessionActionsClose: HTMLButtonElement;
   private readonly sessionActionsDetach: HTMLButtonElement;
   private readonly sessionActionsLogout: HTMLButtonElement;
@@ -668,7 +668,7 @@ class ShareView {
   private logoutHandler?: () => void;
   private copyTerminalHandler?: () => void | Promise<void>;
   private pasteTerminalHandler?: () => void | Promise<void>;
-  private showToolbarHandler?: () => void;
+  private toggleToolbarHandler?: () => void;
   private splitHorizontalHandler?: () => void;
   private splitVerticalHandler?: () => void;
   private newWindowHandler?: () => void;
@@ -708,6 +708,7 @@ class ShareView {
     this.terminalCopy = query(root, '[data-share-terminal-copy]');
     this.terminalPaste = query(root, '[data-share-terminal-paste]');
     this.terminalShowToolbar = query(root, '[data-share-terminal-show-toolbar]');
+    this.terminalToolbarLabel = query(root, '[data-share-terminal-toolbar-label]');
     this.terminalProvenance = query(root, '[data-share-terminal-provenance]');
     this.confirmDialog = query(root, '[data-share-confirm]');
     this.confirmTitle = query(root, '[data-share-confirm-title]');
@@ -715,7 +716,6 @@ class ShareView {
     this.confirmConnect = query(root, '[data-share-confirm-connect]');
     this.confirmCancel = query(root, '[data-share-confirm-cancel]');
     this.sessionActionsDialog = query(root, '[data-share-session-actions]');
-    this.sessionActionsCancel = query(root, '[data-share-session-cancel]');
     this.sessionActionsClose = query(root, '[data-share-session-close]');
     this.sessionActionsDetach = query(root, '[data-share-session-detach]');
     this.sessionActionsLogout = query(root, '[data-share-session-logout]');
@@ -765,13 +765,12 @@ class ShareView {
     });
     this.terminalShowToolbar.addEventListener('click', () => {
       this.closeTerminalMenu();
-      this.showToolbarHandler?.();
+      this.toggleToolbarHandler?.();
     });
     this.terminalProvenance.addEventListener('click', () => {
       this.closeTerminalMenu();
       void this.openProvenance();
     });
-    this.sessionActionsCancel.addEventListener('click', () => this.sessionActionsDialog.close());
     this.sessionActionsClose.addEventListener('click', () => this.sessionActionsDialog.close());
     this.sessionActionsDetach.addEventListener('click', () => {
       this.sessionActionsDialog.close();
@@ -854,11 +853,11 @@ class ShareView {
   bindTerminalActions(handlers: {
     copy: () => void | Promise<void>;
     paste: () => void | Promise<void>;
-    showToolbar: () => void;
+    toggleToolbar: () => void;
   }): void {
     this.copyTerminalHandler = handlers.copy;
     this.pasteTerminalHandler = handlers.paste;
-    this.showToolbarHandler = handlers.showToolbar;
+    this.toggleToolbarHandler = handlers.toggleToolbar;
   }
 
   bindTerminalTheme(handler: (theme: TerminalThemeName) => void): void {
@@ -943,6 +942,14 @@ class ShareView {
     this.setChromeHidden(false);
   }
 
+  toggleToolbar(): void {
+    if (this.toolbarHidden()) {
+      this.showToolbar();
+    } else {
+      this.setChromeHidden(true);
+    }
+  }
+
   toolbarHidden(): boolean {
     return this.app.dataset.navbar === 'off' || this.app.dataset.chrome === 'hidden';
   }
@@ -1004,7 +1011,8 @@ class ShareView {
     this.closeWindowMenu();
     this.terminalCopy.disabled = !state.canCopy;
     this.terminalPaste.disabled = !state.canPaste;
-    this.terminalShowToolbar.hidden = !state.canShowToolbar;
+    this.terminalShowToolbar.hidden = false;
+    this.terminalToolbarLabel.textContent = state.toolbarHidden ? 'Show toolbar' : 'Hide toolbar';
     this.terminalMenu.hidden = false;
     const rect = this.terminalMenu.getBoundingClientRect();
     const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);

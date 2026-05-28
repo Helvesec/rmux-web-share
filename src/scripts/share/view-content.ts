@@ -106,7 +106,6 @@ export function shareViewTemplate(): string {
           </div>
           <p>Disconnect closes only this browser. The rmux session keeps running.</p>
           <div class="share-confirm-actions">
-            <button data-share-session-cancel type="button">Cancel</button>
             <button data-share-session-detach class="primary" type="button">Disconnect</button>
             <button data-share-session-logout class="danger" type="button">Close rmux session</button>
           </div>
@@ -136,7 +135,7 @@ export function shareViewTemplate(): string {
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
             <path d="M5 8h14M8 12h8M10 16h4" />
           </svg>
-          <span>Show toolbar</span>
+          <span data-share-terminal-toolbar-label>Show toolbar</span>
         </button>
         <div class="share-menu-separator" role="separator"></div>
         <button data-share-terminal-provenance type="button" role="menuitem">

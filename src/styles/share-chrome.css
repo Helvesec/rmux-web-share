@@ -248,6 +248,10 @@
   text-align: left;
 }
 
+.share-terminal-menu button {
+  border-bottom: 0;
+}
+
 .share-window-menu button {
   display: block;
 }
@@ -285,8 +289,8 @@
 
 .share-menu-separator {
   height: 1px;
-  margin: 4px 0;
-  background: rgb(38 71 57 / 0.16);
+  margin: 5px 12px;
+  background: color-mix(in srgb, var(--share-dialog-text) 12%, transparent);
 }
 
 .share-window-menu button.danger:hover,

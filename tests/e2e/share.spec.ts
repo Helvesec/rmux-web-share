@@ -517,6 +517,7 @@ test('operator sends xterm data and can open the disconnect dialog from exit', a
   await expect(page.locator('[data-share-session-detach]')).toBeVisible();
   await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect');
   await expect(page.locator('[data-share-session-release]')).toHaveCount(0);
+  await expect(page.locator('[data-share-session-cancel]')).toHaveCount(0);
   await expect(page.locator('[data-share-session-provenance]')).toHaveCount(0);
   await expect(page.locator('[data-share-session-logout]')).toBeHidden();
   await page.locator('[data-share-session-close]').click();
@@ -546,9 +547,14 @@ test('terminal context menu exposes terminal actions without opening window acti
   await expect(page.locator('[data-share-window-menu]')).toBeHidden();
   await expect(page.locator('[data-share-terminal-copy]')).toBeDisabled();
   await expect(page.locator('[data-share-terminal-paste]')).toBeEnabled();
+  await expect(page.locator('[data-share-terminal-toolbar-label]')).toHaveText('Hide toolbar');
 
   await page.locator('[data-share-terminal-paste]').click();
   await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 112, 119, 100]);
+
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await page.locator('[data-share-terminal-show-toolbar]').click();
+  await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
 });
 
 test('operator can disconnect, copy the sanitized link, and reconnect from the same tab', async ({ page }) => {
@@ -688,6 +694,7 @@ test('URL options can remove chrome and disclaimer', async ({ page }) => {
   expect(screen).not.toBeNull();
   await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
   await expect(page.locator('[data-share-terminal-show-toolbar]')).toBeVisible();
+  await expect(page.locator('[data-share-terminal-toolbar-label]')).toHaveText('Show toolbar');
   await page.locator('[data-share-terminal-show-toolbar]').click();
   await expect(page.locator('.share-app')).toHaveAttribute('data-navbar', 'visible');
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'visible');

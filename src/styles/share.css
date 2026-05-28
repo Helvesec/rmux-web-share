@@ -176,11 +176,40 @@
   min-width: 0;
   min-height: 0;
   padding: 0;
+  border: 1px solid color-mix(in srgb, var(--share-border) 72%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--share-bg) 94%, var(--share-text) 3%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--share-text) 7%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--share-bg) 68%, transparent);
   overflow: auto;
   overflow-anchor: none;
   scrollbar-color: var(--share-scrollbar) var(--share-scrollbar-track);
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+}
+
+.share-app[data-terminal-mode='light'] .share-terminal {
+  background: color-mix(in srgb, var(--share-bg) 97%, #ffffff 4%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.54),
+    inset 0 0 0 1px rgb(16 33 26 / 0.03);
+}
+
+.share-app[data-terminal-theme='user'][data-client-palette='present'] .share-terminal {
+  background: color-mix(in srgb, var(--share-client-bg) 96%, var(--share-client-fg) 3%);
+}
+
+.share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='dark'] .share-terminal {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--share-client-fg) 7%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--share-client-bg) 68%, transparent);
+}
+
+.share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='light'] .share-terminal {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.54),
+    inset 0 0 0 1px rgb(16 33 26 / 0.03);
 }
 
 .share-terminal[data-scope='session'] {
