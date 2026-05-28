@@ -228,6 +228,37 @@
   user-select: none;
 }
 
+.share-pane-focus-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.share-pane-active-prompt {
+  position: absolute;
+  border-radius: 2px;
+  background: var(--share-ok);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--share-ok) 22%, transparent),
+    0 0 14px color-mix(in srgb, var(--share-ok) 48%, transparent);
+  opacity: 0.95;
+  transform: translateX(-1px);
+  animation: share-active-prompt-blink 1.05s steps(2, start) infinite;
+}
+
+@keyframes share-active-prompt-blink {
+  50% {
+    opacity: 0.18;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-pane-active-prompt {
+    animation: none;
+  }
+}
+
 .share-pane-scroll-layer {
   position: absolute;
   inset: 0;

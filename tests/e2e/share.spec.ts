@@ -299,8 +299,8 @@ test('session operator toolbar sends typed controls and window actions', async (
     window.__rmuxShareSessionView = {
       size: { cols: 80, rows: 24 },
       panes: [
-        { id: 1, x: 0, y: 0, cols: 40, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
-        { id: 2, x: 41, y: 0, cols: 39, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, active: false, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
       ],
       windows: [
         { index: 0, name: 'bash', active: true },
@@ -315,6 +315,7 @@ test('session operator toolbar sends typed controls and window actions', async (
   await expect(page.locator('[data-share-split-vertical]')).toHaveAttribute('title', 'Split down');
   await expect(page.locator('[data-share-new-window]')).toHaveAttribute('title', 'New window');
   await expect(page.locator('[data-share-kill-pane]')).toHaveAttribute('title', 'Close active pane');
+  await expect(page.locator('.share-pane-active-prompt')).toHaveCount(1);
 
   await page.locator('[data-share-split-horizontal]').click();
   await page.locator('[data-share-split-vertical]').click();
@@ -330,7 +331,10 @@ test('session operator toolbar sends typed controls and window actions', async (
   );
 
   const screen = await page.locator('.xterm-screen').boundingBox();
+  const prompt = await page.locator('.share-pane-active-prompt').boundingBox();
   expect(screen).not.toBeNull();
+  expect(prompt).not.toBeNull();
+  expect(prompt!.x).toBeGreaterThan(screen!.x + screen!.width * 0.45);
   await page.mouse.move(screen!.x + 40, screen!.y + screen!.height - 6);
   await expect(page.locator('.share-terminal-stage')).toHaveAttribute('data-window-actions', 'true');
   await expect(page.locator('.xterm-screen')).toHaveCSS('cursor', 'context-menu');

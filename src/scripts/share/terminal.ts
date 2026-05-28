@@ -102,6 +102,7 @@ class XtermShareTerminal implements ShareTerminal {
   private readonly decoder = new TextDecoder();
   private readonly stage: HTMLDivElement;
   private readonly scrollLayer: HTMLDivElement;
+  private readonly focusLayer: HTMLDivElement;
   private readonly disposables: IDisposable[] = [];
   private stickToBottom = true;
   private operationQueue = Promise.resolve();
@@ -142,6 +143,8 @@ class XtermShareTerminal implements ShareTerminal {
     container.replaceChildren();
     this.stage = document.createElement('div');
     this.stage.className = 'share-terminal-stage';
+    this.focusLayer = document.createElement('div');
+    this.focusLayer.className = 'share-pane-focus-layer';
     this.scrollLayer = document.createElement('div');
     this.scrollLayer.className = 'share-pane-scroll-layer';
     container.append(this.stage);
@@ -152,6 +155,7 @@ class XtermShareTerminal implements ShareTerminal {
 
   open(): void {
     this.term.open(this.stage);
+    this.stage.append(this.focusLayer);
     this.stage.append(this.scrollLayer);
   }
 
@@ -237,6 +241,7 @@ class XtermShareTerminal implements ShareTerminal {
       if (stickToBottom) {
         this.scrollToBottom();
       }
+      this.renderActivePanePrompt();
       done();
     });
   }
@@ -263,6 +268,7 @@ class XtermShareTerminal implements ShareTerminal {
 
   setSessionView(view: SessionView): void {
     this.sessionView = view;
+    this.renderActivePanePrompt();
     this.renderPaneScrollbars();
   }
 
@@ -570,7 +576,68 @@ class XtermShareTerminal implements ShareTerminal {
     }
     const scale = Math.min(1, this.container.clientWidth / width, this.container.clientHeight / height);
     this.stage.style.transform = scale < 0.999 ? `scale(${scale})` : 'none';
+    this.renderActivePanePrompt();
     this.renderPaneScrollbars();
+  }
+
+  private renderActivePanePrompt(): void {
+    if (this.scope !== 'session' || !this.sessionView) {
+      this.focusLayer.replaceChildren();
+      return;
+    }
+    const pane = this.activeSessionPane();
+    const metrics = this.sessionCellPixels();
+    if (!pane || !metrics) {
+      this.focusLayer.replaceChildren();
+      return;
+    }
+    const point = this.activePromptPoint(pane);
+    const prompt = document.createElement('div');
+    prompt.className = 'share-pane-active-prompt';
+    prompt.title = 'Active pane';
+    prompt.style.left = `${point.col * metrics.width}px`;
+    prompt.style.top = `${point.row * metrics.height}px`;
+    prompt.style.width = `${Math.max(3, metrics.width * 0.24)}px`;
+    prompt.style.height = `${Math.max(10, metrics.height)}px`;
+    this.focusLayer.replaceChildren(prompt);
+  }
+
+  private activeSessionPane(): SessionPaneView | undefined {
+    const panes = this.sessionView?.panes ?? [];
+    return panes.find((pane) => pane.active) ?? (panes.length === 1 ? panes[0] : undefined);
+  }
+
+  private activePromptPoint(pane: SessionPaneView): SessionPoint {
+    if (!this.sessionView) {
+      return { col: pane.x, row: pane.y };
+    }
+    const cursor = this.term.buffer.active;
+    const cursorPoint = {
+      col: projectCell(cursor.cursorX, this.term.cols, this.sessionView.size.cols),
+      row: projectCell(cursor.cursorY, this.term.rows, this.sessionView.size.rows),
+    };
+    if (
+      cursorPoint.col >= pane.x
+      && cursorPoint.col < pane.x + pane.cols
+      && cursorPoint.row >= pane.y
+      && cursorPoint.row < pane.y + pane.rows
+    ) {
+      return cursorPoint;
+    }
+    return { col: pane.x, row: pane.y };
+  }
+
+  private sessionCellPixels(): { width: number; height: number } | undefined {
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!screen || !this.sessionView) {
+      return undefined;
+    }
+    const width = screen.clientWidth / Math.max(1, this.sessionView.size.cols);
+    const height = screen.clientHeight / Math.max(1, this.sessionView.size.rows);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return undefined;
+    }
+    return { width, height };
   }
 
   private cellFromMouseEvent(event: MouseEvent): { col: number; row: number } | undefined {

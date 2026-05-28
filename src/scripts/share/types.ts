@@ -52,6 +52,7 @@ export interface SessionPaneView {
   y: number;
   cols: number;
   rows: number;
+  active?: boolean;
   history_size: number;
   scroll_offset: number;
   alternate_on: boolean;
