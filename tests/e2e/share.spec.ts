@@ -490,8 +490,11 @@ test('security provenance dialog displays build proof links', async ({ page }) =
 
   await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await page.locator('[data-share-session-menu]').click();
-  await page.locator('[data-share-session-provenance]').click();
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await expect(page.locator('[data-share-terminal-menu]')).toBeVisible();
+  await page.locator('[data-share-terminal-provenance]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
   await expect(page.locator('[data-share-provenance-statement]')).toContainText('builds are verifiable');
@@ -500,7 +503,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
   await expect(page.locator('[data-share-provenance-cloudflare]')).toHaveText('rmux-web-share');
 });
 
-test('operator sends xterm data and can open connection actions from exit', async ({ page }) => {
+test('operator sends xterm data and can open the disconnect dialog from exit', async ({ page }) => {
   await page.goto(`/#t=${operatorToken}`);
 
   await expect(page.locator('.share-role-badge')).toBeHidden();
@@ -510,10 +513,42 @@ test('operator sends xterm data and can open connection actions from exit', asyn
 
   await page.locator('[data-share-session-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
+  await expect(page.locator('[data-share-session-actions] h1')).toHaveText('Disconnect');
   await expect(page.locator('[data-share-session-detach]')).toBeVisible();
-  await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect browser');
+  await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect');
   await expect(page.locator('[data-share-session-release]')).toHaveCount(0);
+  await expect(page.locator('[data-share-session-provenance]')).toHaveCount(0);
   await expect(page.locator('[data-share-session-logout]')).toBeHidden();
+  await page.locator('[data-share-session-close]').click();
+  await expect(page.locator('[data-share-session-actions]')).toBeHidden();
+});
+
+test('terminal context menu exposes terminal actions without opening window actions', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: async () => 'pwd',
+        writeText: async (text: string) => {
+          (window as unknown as { __rmuxCopiedTerminal?: string }).__rmuxCopiedTerminal = text;
+        },
+      },
+    });
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+
+  await expect(page.locator('[data-share-terminal-menu]')).toBeVisible();
+  await expect(page.locator('[data-share-window-menu]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal-copy]')).toBeDisabled();
+  await expect(page.locator('[data-share-terminal-paste]')).toBeEnabled();
+
+  await page.locator('[data-share-terminal-paste]').click();
+  await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 112, 119, 100]);
 });
 
 test('operator can disconnect, copy the sanitized link, and reconnect from the same tab', async ({ page }) => {
@@ -647,9 +682,15 @@ test('URL options can remove chrome and disclaimer', async ({ page }) => {
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-theme', 'dark');
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('dark');
-  await expect(page.locator('[data-share-chrome-show]')).toBeHidden();
   await expect(page.locator('[data-share-toast]')).toHaveCount(0);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await expect(page.locator('[data-share-terminal-show-toolbar]')).toBeVisible();
+  await page.locator('[data-share-terminal-show-toolbar]').click();
+  await expect(page.locator('.share-app')).toHaveAttribute('data-navbar', 'visible');
+  await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'visible');
 });
 
 test('pin-protected shares ask for the out-of-band pairing code after auth challenge', async ({ page }) => {

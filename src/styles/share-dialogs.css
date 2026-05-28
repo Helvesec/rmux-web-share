@@ -28,6 +28,13 @@
   color: var(--share-dialog-text);
 }
 
+.share-dialog-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .share-confirm h1,
 .share-session-actions h1,
 .share-provenance h1 {
@@ -109,6 +116,23 @@
   text-align: left;
 }
 
+.share-dialog-close {
+  display: inline-grid;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+}
+
+.share-dialog-close svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 .share-provenance {
   width: min(560px, calc(100vw - 32px));
 }
@@ -167,6 +191,17 @@
   font: inherit;
 }
 
+.share-confirm button:not(.share-provenance-trigger):hover,
+.share-confirm button:not(.share-provenance-trigger):focus-visible,
+.share-session-actions button:not(.share-provenance-trigger):hover,
+.share-session-actions button:not(.share-provenance-trigger):focus-visible,
+.share-provenance button:hover,
+.share-provenance button:focus-visible {
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, transparent);
+  background: color-mix(in srgb, var(--share-dialog-button-bg) 72%, var(--share-dialog-button-primary-bg));
+  outline: none;
+}
+
 .share-confirm button.primary {
   border-color: var(--share-dialog-button-primary-border);
   background: var(--share-dialog-button-primary-bg);
@@ -174,11 +209,24 @@
   font-weight: 700;
 }
 
+.share-confirm button.primary:hover,
+.share-confirm button.primary:focus-visible,
+.share-session-actions button.primary:hover,
+.share-session-actions button.primary:focus-visible {
+  background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 76%, white);
+}
+
 .share-session-actions button.danger {
   border-color: rgb(177 61 61 / 0.44);
   background: #ffe4e4;
   color: #842121;
   font-weight: 760;
+}
+
+.share-session-actions button.danger:hover,
+.share-session-actions button.danger:focus-visible {
+  border-color: rgb(177 61 61 / 0.7);
+  background: #ffd1d1;
 }
 
 @media (max-width: 480px) {

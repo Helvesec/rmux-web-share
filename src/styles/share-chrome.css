@@ -23,43 +23,6 @@
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.12);
 }
 
-.share-topbar::before {
-  position: absolute;
-  left: 50%;
-  bottom: -15px;
-  z-index: 1;
-  width: 74px;
-  height: 15px;
-  border-right: 1px solid rgb(24 33 30 / 0.14);
-  border-bottom: 1px solid rgb(24 33 30 / 0.14);
-  border-left: 1px solid rgb(24 33 30 / 0.14);
-  border-radius: 0 0 18px 18px;
-  background: inherit;
-  content: '';
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-
-.share-app[data-terminal-mode='dark'] .share-topbar::before,
-.share-app:not([data-terminal-mode='light']) .share-topbar::before {
-  border-color: rgb(255 255 255 / 0.12);
-}
-
-.share-topbar::after {
-  position: absolute;
-  left: 50%;
-  bottom: -8px;
-  z-index: 2;
-  width: 10px;
-  height: 10px;
-  border-top: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-  content: '';
-  opacity: 0.42;
-  pointer-events: none;
-  transform: translateX(-50%) rotate(45deg);
-}
-
 .share-app[data-chrome='hidden'] .share-topbar,
 .share-app[data-navbar='off'] .share-topbar {
   display: none;
@@ -155,7 +118,6 @@
 }
 
 .share-icon-button,
-.share-chrome-button,
 .share-exit-button,
 .share-role-badge,
 .share-theme-control,
@@ -175,7 +137,6 @@
 }
 
 .share-icon-button,
-.share-chrome-button,
 .share-exit-button {
   appearance: none;
   cursor: pointer;
@@ -198,8 +159,6 @@
 .share-icon-button:focus-visible,
 .share-exit-button:hover,
 .share-exit-button:focus-visible,
-.share-chrome-button:hover,
-.share-chrome-button:focus-visible,
 .share-theme-control:focus-within,
 .share-theme-control:hover {
   color: color-mix(in srgb, currentColor 72%, var(--share-ok));
@@ -253,53 +212,12 @@
   color: #111816;
 }
 
-.share-chrome-button span {
-  width: 18px;
-  height: 18px;
-  border-top: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-}
-
-.share-chrome-button[hidden] {
-  display: none;
-}
-
-.share-chrome-hide span {
-  transform: translateY(5px) rotate(45deg);
-}
-
-.share-chrome-show {
-  display: none;
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 4;
-  background: rgb(248 248 246 / 0.84);
-  backdrop-filter: blur(12px) saturate(140%);
-}
-
-.share-app[data-terminal-mode='dark'] .share-chrome-show,
-.share-app:not([data-terminal-mode='light']) .share-chrome-show {
-  background: rgb(12 16 15 / 0.84);
-}
-
-.share-chrome-show span {
-  transform: translateY(-4px) rotate(225deg);
-}
-
-.share-app[data-chrome='hidden'] .share-chrome-show {
-  display: inline-grid;
-}
-
-.share-app[data-navbar='off'] .share-chrome-show {
-  display: none;
-}
-
-.share-window-menu {
+.share-window-menu,
+.share-terminal-menu {
   position: fixed;
   z-index: 20;
   display: grid;
-  min-width: 148px;
+  min-width: 170px;
   overflow: hidden;
   border: 1px solid rgb(38 71 57 / 0.24);
   border-radius: 7px;
@@ -308,11 +226,17 @@
   box-shadow: 0 14px 34px rgb(0 0 0 / 0.22);
 }
 
-.share-window-menu[hidden] {
+.share-window-menu[hidden],
+.share-terminal-menu[hidden] {
   display: none;
 }
 
-.share-window-menu button {
+.share-window-menu button,
+.share-terminal-menu button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   height: 36px;
   padding: 0 14px;
   border: 0;
@@ -324,30 +248,51 @@
   text-align: left;
 }
 
-.share-window-menu button:last-child {
+.share-window-menu button {
+  display: block;
+}
+
+.share-window-menu button:last-child,
+.share-terminal-menu button:last-child {
   border-bottom: 0;
 }
 
 .share-window-menu button:hover,
-.share-window-menu button:focus-visible {
+.share-window-menu button:focus-visible,
+.share-terminal-menu button:hover,
+.share-terminal-menu button:focus-visible {
   background: color-mix(in srgb, var(--share-ok) 16%, transparent);
   outline: none;
+}
+
+.share-terminal-menu button:disabled {
+  color: color-mix(in srgb, var(--share-dialog-text) 44%, transparent);
+  cursor: not-allowed;
+}
+
+.share-terminal-menu button:disabled:hover {
+  background: transparent;
+}
+
+.share-terminal-menu svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.share-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: rgb(38 71 57 / 0.16);
 }
 
 .share-window-menu button.danger:hover,
 .share-window-menu button.danger:focus-visible {
   background: #ffe4e4;
   color: #842121;
-}
-
-.share-window-rename input {
-  min-height: 38px;
-  padding: 0 10px;
-  border: 1px solid rgb(32 55 45 / 0.2);
-  border-radius: 6px;
-  background: var(--share-dialog-field-bg);
-  color: var(--share-dialog-text);
-  font: inherit;
 }
 
 @media (max-width: 920px) {

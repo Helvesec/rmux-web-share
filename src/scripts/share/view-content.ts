@@ -70,7 +70,7 @@ export function shareViewTemplate(): string {
             </select>
           </label>
           <span class="share-operator-state" aria-hidden="true"></span>
-          <button class="share-exit-button" data-share-session-menu type="button" aria-haspopup="dialog" aria-label="Connection actions" title="Connection actions">
+          <button class="share-exit-button" data-share-session-menu type="button" aria-haspopup="dialog" aria-label="Disconnect" title="Disconnect">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
               <path d="M10 5H6.5A2.5 2.5 0 0 0 4 7.5v9A2.5 2.5 0 0 0 6.5 19H10" />
               <path d="M15 8l4 4-4 4" />
@@ -79,9 +79,7 @@ export function shareViewTemplate(): string {
           </button>
         </div>
       </header>
-      <button class="share-chrome-button share-chrome-hide" data-share-chrome-hide type="button" hidden></button>
-      <button class="share-chrome-button share-chrome-show" data-share-chrome-show type="button" hidden></button>
-      <section class="share-terminal-shell" aria-label="Shared terminal">
+      <section class="share-terminal-shell" data-share-terminal-shell aria-label="Shared terminal">
         <div class="share-terminal" data-share-terminal>
           <div class="share-terminal-placeholder" data-share-terminal-placeholder data-tone="idle">waiting</div>
         </div>
@@ -98,19 +96,56 @@ export function shareViewTemplate(): string {
       </section>
       <dialog class="share-session-actions" data-share-session-actions>
         <form method="dialog" class="share-session-actions-panel">
-          <h1>Connection actions</h1>
-          <p>Disconnect closes only this browser. Close rmux session stops the shared session for everyone.</p>
-          <button class="share-provenance-trigger" data-share-session-provenance type="button">Security & provenance</button>
+          <div class="share-dialog-header">
+            <h1>Disconnect</h1>
+            <button class="share-dialog-close" data-share-session-close type="button" aria-label="Close" title="Close">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
+          <p>Disconnect closes only this browser. The rmux session keeps running.</p>
           <div class="share-confirm-actions">
-            <button data-share-session-detach type="button">Disconnect browser</button>
+            <button data-share-session-cancel type="button">Cancel</button>
+            <button data-share-session-detach class="primary" type="button">Disconnect</button>
             <button data-share-session-logout class="danger" type="button">Close rmux session</button>
           </div>
         </form>
       </dialog>
       <div class="share-window-menu" data-share-window-menu role="menu" hidden>
-        <button data-share-window-new type="button" role="menuitem">Nouveau</button>
+        <button data-share-window-new type="button" role="menuitem">New</button>
         <button data-share-window-edit type="button" role="menuitem">Edit</button>
-        <button data-share-window-kill class="danger" type="button" role="menuitem">Supprimer</button>
+        <button data-share-window-kill class="danger" type="button" role="menuitem">Delete</button>
+      </div>
+      <div class="share-terminal-menu" data-share-terminal-menu role="menu" hidden>
+        <button data-share-terminal-copy type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <rect x="8" y="8" width="10" height="10" rx="1.5" />
+            <path d="M6 16H5.5A1.5 1.5 0 0 1 4 14.5v-9A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5V6" />
+          </svg>
+          <span>Copy</span>
+        </button>
+        <button data-share-terminal-paste type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M9 5h6l1 2h2v13H6V7h2l1-2Z" />
+            <path d="M9 11h6M9 15h5" />
+          </svg>
+          <span>Paste</span>
+        </button>
+        <button data-share-terminal-show-toolbar type="button" role="menuitem" hidden>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M5 8h14M8 12h8M10 16h4" />
+          </svg>
+          <span>Show toolbar</span>
+        </button>
+        <div class="share-menu-separator" role="separator"></div>
+        <button data-share-terminal-provenance type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M12 3l8 4v5c0 5-3.4 7.8-8 9-4.6-1.2-8-4-8-9V7l8-4Z" />
+            <path d="M9.5 12l1.8 1.8 3.7-4" />
+          </svg>
+          <span>Security & provenance</span>
+        </button>
       </div>
       <dialog class="share-confirm" data-share-confirm>
         <form method="dialog" class="share-confirm-panel">

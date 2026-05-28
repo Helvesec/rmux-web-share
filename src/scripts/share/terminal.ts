@@ -53,8 +53,10 @@ export interface ShareTerminal {
   onPaneSelect(callback: (paneId: number) => void): void;
   onPaneResize(callback: (paneId: number, direction: PaneResizeDirection, cells: number) => void): void;
   onPaneScroll(callback: (paneId: number, delta: number) => void): void;
+  onTerminalMenu(callback: (x: number, y: number) => void): void;
   onWindowSelect(callback: (windowIndex: number) => void): void;
   onWindowMenu(callback: (windowIndex: number, x: number, y: number) => void): void;
+  selection(): string;
   notice(text: string): void;
 }
 
@@ -368,6 +370,22 @@ class XtermShareTerminal implements ShareTerminal {
     this.paneScrollHandler = callback;
   }
 
+  onTerminalMenu(callback: (x: number, y: number) => void): void {
+    const onContextMenu = (event: MouseEvent) => {
+      if (this.windowFromStatusEvent(event) || this.dividerFromMouseEvent(event)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.term.focus();
+      callback(event.clientX, event.clientY);
+    };
+    this.stage.addEventListener('contextmenu', onContextMenu);
+    this.disposables.push({
+      dispose: () => this.stage.removeEventListener('contextmenu', onContextMenu),
+    });
+  }
+
   onWindowSelect(callback: (windowIndex: number) => void): void {
     const onMouseDown = (event: MouseEvent) => {
       if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
@@ -428,6 +446,10 @@ class XtermShareTerminal implements ShareTerminal {
 
   notice(text: string): void {
     this.term.writeln(`\r\n${text}`);
+  }
+
+  selection(): string {
+    return this.term.getSelection();
   }
 
   bindLocalWheelScroll(): void {
