@@ -1,5 +1,6 @@
 .share-confirm,
 .share-session-actions,
+.share-window-actions,
 .share-provenance {
   width: min(420px, calc(100vw - 32px));
   padding: 0;
@@ -13,12 +14,14 @@
 
 .share-confirm::backdrop,
 .share-session-actions::backdrop,
+.share-window-actions::backdrop,
 .share-provenance::backdrop {
   background: rgb(0 0 0 / 0.68);
 }
 
 .share-confirm-panel,
 .share-session-actions-panel,
+.share-window-actions-panel,
 .share-provenance-panel {
   display: grid;
   gap: 18px;
@@ -30,6 +33,7 @@
 
 .share-confirm h1,
 .share-session-actions h1,
+.share-window-actions h1,
 .share-provenance h1 {
   margin: 0;
   color: var(--share-dialog-text);
@@ -40,6 +44,7 @@
 
 .share-confirm p,
 .share-session-actions p,
+.share-window-actions p,
 .share-provenance p {
   margin: 0;
   color: var(--share-dialog-muted);
@@ -156,6 +161,7 @@
 
 .share-confirm button:not(.share-provenance-trigger),
 .share-session-actions button:not(.share-provenance-trigger),
+.share-window-actions button,
 .share-provenance button {
   height: 34px;
   padding: 0 14px;
@@ -174,7 +180,8 @@
   font-weight: 700;
 }
 
-.share-session-actions button.danger {
+.share-session-actions button.danger,
+.share-window-actions button.danger {
   border-color: rgb(177 61 61 / 0.44);
   background: #ffe4e4;
   color: #842121;

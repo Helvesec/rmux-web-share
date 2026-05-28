@@ -28,6 +28,8 @@ import type {
   PaneResizeDirection,
   ServerMessage,
   SessionView,
+  SessionWindowView,
+  SessionSplitDirection,
   ShareParams,
   ShareRole,
   ShareScope,
@@ -39,13 +41,19 @@ import { shareViewTemplate, titleCase } from './view-content';
 import {
   authPayload,
   closeMessage,
+  killSessionPane,
+  killSessionWindow,
   logoutSession,
+  newSessionWindow,
+  renameSessionWindow,
   scrollSessionPane,
   selectSessionPane,
+  selectSessionWindow,
   resizeSessionPane,
   sendAttachInputText,
   sendInputText,
   sendResizeRequest,
+  splitSessionPane,
   WEB_SHARE_PROTOCOL_VERSION,
 } from './wire';
 
@@ -317,9 +325,19 @@ class ShareConnection {
     this.terminal.onPaneSelect((paneId) => this.selectPane(paneId));
     this.terminal.onPaneResize((paneId, direction, cells) => this.resizePane(paneId, direction, cells));
     this.terminal.onPaneScroll((paneId, delta) => this.sendPaneScroll(paneId, delta));
+    this.terminal.onWindowMenu((windowIndex) => this.view.openWindowActions(windowIndex));
     this.view.bindSessionActions({
       detach: () => this.detach(),
       logout: () => this.logout(),
+    });
+    this.view.bindSessionControls({
+      splitHorizontal: () => this.splitPane('horizontal'),
+      splitVertical: () => this.splitPane('vertical'),
+      newWindow: () => this.newWindow(),
+      killPane: () => this.killPane(),
+      selectWindow: (windowIndex) => this.selectWindow(windowIndex),
+      renameWindow: (windowIndex, name) => this.renameWindow(windowIndex, name),
+      killWindow: (windowIndex) => this.killWindow(windowIndex),
     });
     this.view.setReady(message);
     this.view.setViewerCount(message);
@@ -336,7 +354,9 @@ class ShareConnection {
       this.terminal.replace(payload);
       this.scheduleTerminalViewportSync();
     } else if (opcode === SESSION_VIEW) {
-      this.terminal.setSessionView(parseSessionView(payload));
+      const view = parseSessionView(payload);
+      this.terminal.setSessionView(view);
+      this.view.setSessionView(view);
       this.scheduleTerminalViewportSync();
     } else if (opcode === OUTPUT_RAW) {
       this.terminal.write(payload);
@@ -399,6 +419,48 @@ class ShareConnection {
     resizeSessionPane(this.transport, paneId, direction, cells);
   }
 
+  private splitPane(direction: SessionSplitDirection): void {
+    const socket = this.openSessionOperatorSocket();
+    if (socket) {
+      splitSessionPane(socket, direction);
+    }
+  }
+
+  private newWindow(): void {
+    const socket = this.openSessionOperatorSocket();
+    if (socket) {
+      newSessionWindow(socket);
+    }
+  }
+
+  private killPane(): void {
+    const socket = this.openSessionOperatorSocket();
+    if (socket) {
+      killSessionPane(socket);
+    }
+  }
+
+  private selectWindow(windowIndex: number): void {
+    const socket = this.openSessionOperatorSocket();
+    if (socket) {
+      selectSessionWindow(socket, windowIndex);
+    }
+  }
+
+  private renameWindow(windowIndex: number, name: string): void {
+    const socket = this.openSessionOperatorSocket();
+    if (socket && !renameSessionWindow(socket, windowIndex, name)) {
+      this.view.flashWindowRenameError();
+    }
+  }
+
+  private killWindow(windowIndex: number): void {
+    const socket = this.openSessionOperatorSocket();
+    if (socket) {
+      killSessionWindow(socket, windowIndex);
+    }
+  }
+
   private detach(): void {
     this.socket?.close(1000, 'detached');
     this.socket = undefined;
@@ -425,6 +487,13 @@ class ShareConnection {
       return undefined;
     }
     return this.transport;
+  }
+
+  private openSessionOperatorSocket(): EncryptedShareTransport | undefined {
+    if (this.scope !== 'session') {
+      return undefined;
+    }
+    return this.openOperatorSocket();
   }
 
   private bindTerminalViewport(): void {
@@ -508,9 +577,20 @@ class ShareView {
   private readonly themeSelect: HTMLSelectElement;
   private readonly chromeHide: HTMLButtonElement;
   private readonly chromeShow: HTMLButtonElement;
+  private readonly sessionControls: HTMLElement;
+  private readonly splitHorizontal: HTMLButtonElement;
+  private readonly splitVertical: HTMLButtonElement;
+  private readonly newWindow: HTMLButtonElement;
+  private readonly killPane: HTMLButtonElement;
   private readonly viewers: HTMLElement;
   private readonly viewersCount: HTMLElement;
   private readonly statusButton: HTMLButtonElement;
+  private readonly windowActionsDialog: HTMLDialogElement;
+  private readonly windowList: HTMLElement;
+  private readonly windowName: HTMLInputElement;
+  private readonly windowNew: HTMLButtonElement;
+  private readonly windowRename: HTMLButtonElement;
+  private readonly windowKill: HTMLButtonElement;
   private readonly confirmDialog: HTMLDialogElement;
   private readonly confirmTitle: HTMLElement;
   private readonly confirmDetail: HTMLElement;
@@ -533,8 +613,18 @@ class ShareView {
   private connected = false;
   private canLogout = false;
   private viewerCountVisible = false;
+  private sessionControlVisible = false;
+  private windows: SessionWindowView[] = [];
+  private selectedWindowIndex?: number;
   private detachHandler?: () => void;
   private logoutHandler?: () => void;
+  private splitHorizontalHandler?: () => void;
+  private splitVerticalHandler?: () => void;
+  private newWindowHandler?: () => void;
+  private killPaneHandler?: () => void;
+  private selectWindowHandler?: (windowIndex: number) => void;
+  private renameWindowHandler?: (windowIndex: number, name: string) => void;
+  private killWindowHandler?: (windowIndex: number) => void;
   private reconnectHandler?: () => void;
   private copyLinkHandler?: () => void;
 
@@ -552,9 +642,20 @@ class ShareView {
     this.themeSelect = query(root, '[data-share-terminal-theme]');
     this.chromeHide = query(root, '[data-share-chrome-hide]');
     this.chromeShow = query(root, '[data-share-chrome-show]');
+    this.sessionControls = query(root, '[data-share-session-controls]');
+    this.splitHorizontal = query(root, '[data-share-split-horizontal]');
+    this.splitVertical = query(root, '[data-share-split-vertical]');
+    this.newWindow = query(root, '[data-share-new-window]');
+    this.killPane = query(root, '[data-share-kill-pane]');
     this.viewers = query(root, '[data-share-viewers]');
     this.viewersCount = query(root, '[data-share-viewers-count]');
     this.statusButton = query(root, '[data-share-status-menu]');
+    this.windowActionsDialog = query(root, '[data-share-window-actions]');
+    this.windowList = query(root, '[data-share-window-list]');
+    this.windowName = query(root, '[data-share-window-name]');
+    this.windowNew = query(root, '[data-share-window-new]');
+    this.windowRename = query(root, '[data-share-window-rename]');
+    this.windowKill = query(root, '[data-share-window-kill]');
     this.confirmDialog = query(root, '[data-share-confirm]');
     this.confirmTitle = query(root, '[data-share-confirm-title]');
     this.confirmDetail = query(root, '[data-share-confirm-detail]');
@@ -575,6 +676,13 @@ class ShareView {
     this.pinError = query(root, '[data-share-pin-error]');
     this.meta = query(root, '[data-share-meta]');
     this.statusButton.addEventListener('click', () => this.openSessionActions());
+    this.splitHorizontal.addEventListener('click', () => this.splitHorizontalHandler?.());
+    this.splitVertical.addEventListener('click', () => this.splitVerticalHandler?.());
+    this.newWindow.addEventListener('click', () => this.newWindowHandler?.());
+    this.killPane.addEventListener('click', () => this.killPaneHandler?.());
+    this.windowNew.addEventListener('click', () => this.newWindowHandler?.());
+    this.windowRename.addEventListener('click', () => this.renameSelectedWindow());
+    this.windowKill.addEventListener('click', () => this.killSelectedWindow());
     this.sessionActionsDetach.addEventListener('click', () => {
       this.sessionActionsDialog.close();
       this.detachHandler?.();
@@ -634,6 +742,24 @@ class ShareView {
     this.logoutHandler = handlers.logout;
   }
 
+  bindSessionControls(handlers: {
+    splitHorizontal: () => void;
+    splitVertical: () => void;
+    newWindow: () => void;
+    killPane: () => void;
+    selectWindow: (windowIndex: number) => void;
+    renameWindow: (windowIndex: number, name: string) => void;
+    killWindow: (windowIndex: number) => void;
+  }): void {
+    this.splitHorizontalHandler = handlers.splitHorizontal;
+    this.splitVerticalHandler = handlers.splitVertical;
+    this.newWindowHandler = handlers.newWindow;
+    this.killPaneHandler = handlers.killPane;
+    this.selectWindowHandler = handlers.selectWindow;
+    this.renameWindowHandler = handlers.renameWindow;
+    this.killWindowHandler = handlers.killWindow;
+  }
+
   bindReconnectActions(handlers: { reconnect: () => void; copyLink: () => void }): void {
     this.reconnectHandler = handlers.reconnect;
     this.copyLinkHandler = handlers.copyLink;
@@ -660,6 +786,7 @@ class ShareView {
     this.setRole(message.role);
     this.terminal.dataset.scope = message.scope;
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
+    this.setSessionControls(message.scope === 'session' && message.role === 'operator');
     this.setOperatorConnected((finiteCount(message.operators_active) ?? 0) > 0);
     const label = [message.session_name, message.pane_label].filter(Boolean).join(' ');
     this.meta.textContent = label || message.share_id || 'rmux share';
@@ -674,6 +801,19 @@ class ShareView {
 
   setSessionActions(canLogout: boolean): void {
     this.canLogout = canLogout;
+  }
+
+  setSessionControls(visible: boolean): void {
+    this.sessionControlVisible = visible;
+    this.sessionControls.hidden = !visible;
+  }
+
+  setSessionView(view: SessionView): void {
+    this.windows = normalizeWindows(view.windows);
+    if (this.selectedWindowIndex === undefined || !this.windows.some((window) => window.index === this.selectedWindowIndex)) {
+      this.selectedWindowIndex = this.activeWindow()?.index;
+    }
+    this.renderWindowList();
   }
 
   showReconnect(): void {
@@ -734,7 +874,23 @@ class ShareView {
     }
     this.status.textContent = this.connected ? 'Connected' : 'Disconnected';
     this.statusButton.dataset.tone = this.connected ? 'ok' : status.tone ?? 'idle';
+    this.statusButton.title = this.connected ? 'Connected' : 'Disconnected';
     this.setTerminalPlaceholder(status);
+  }
+
+  openWindowActions(windowIndex?: number): void {
+    if (!this.sessionControlVisible) {
+      return;
+    }
+    this.selectedWindowIndex = windowIndex ?? this.activeWindow()?.index ?? this.windows[0]?.index;
+    this.renderWindowList();
+    this.windowActionsDialog.showModal();
+  }
+
+  flashWindowRenameError(): void {
+    this.windowName.setCustomValidity('Use 1-128 bytes and no control characters.');
+    this.windowName.reportValidity();
+    window.setTimeout(() => this.windowName.setCustomValidity(''), 1500);
   }
 
   showError(message: string, status = 'error'): void {
@@ -771,6 +927,51 @@ class ShareView {
     this.sessionActionsLogout.hidden = !this.canLogout;
     this.sessionActionsLogout.disabled = !this.canLogout;
     this.sessionActionsDialog.showModal();
+  }
+
+  private renderWindowList(): void {
+    this.windowList.replaceChildren(...this.windows.map((window) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.windowIndex = String(window.index);
+      button.textContent = windowLabel(window);
+      button.title = `Select window ${window.index}`;
+      if (window.active) {
+        button.dataset.active = 'true';
+      }
+      if (window.index === this.selectedWindowIndex) {
+        button.dataset.selected = 'true';
+        this.windowName.value = window.name || String(window.index);
+      }
+      button.addEventListener('click', () => {
+        this.selectedWindowIndex = window.index;
+        this.selectWindowHandler?.(window.index);
+        this.renderWindowList();
+      });
+      return button;
+    }));
+    const hasWindow = this.selectedWindowIndex !== undefined;
+    this.windowRename.disabled = !hasWindow;
+    this.windowKill.disabled = !hasWindow;
+  }
+
+  private renameSelectedWindow(): void {
+    if (this.selectedWindowIndex === undefined) {
+      return;
+    }
+    this.renameWindowHandler?.(this.selectedWindowIndex, this.windowName.value);
+  }
+
+  private killSelectedWindow(): void {
+    if (this.selectedWindowIndex === undefined) {
+      return;
+    }
+    this.killWindowHandler?.(this.selectedWindowIndex);
+    this.windowActionsDialog.close();
+  }
+
+  private activeWindow(): SessionWindowView | undefined {
+    return this.windows.find((window) => window.active);
   }
 
   private async openProvenance(): Promise<void> {
@@ -880,6 +1081,21 @@ function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {
   }
   const spectators = finiteCount(message.spectators_active) ?? 0;
   return spectators + (finiteCount(message.operators_active) ?? 0);
+}
+
+function normalizeWindows(windows: SessionWindowView[] | undefined): SessionWindowView[] {
+  return (windows ?? [])
+    .filter((window) => Number.isInteger(window.index) && window.index >= 0)
+    .map((window) => ({
+      index: window.index,
+      name: window.name || String(window.index),
+      active: Boolean(window.active),
+    }))
+    .sort((left, right) => left.index - right.index);
+}
+
+function windowLabel(window: SessionWindowView): string {
+  return `${window.index}:${window.name}${window.active ? '*' : ''}`;
 }
 
 function finiteCount(value: number | undefined): number | undefined {

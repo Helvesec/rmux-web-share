@@ -7,6 +7,7 @@ import type {
   PaneResizeDirection,
   SessionPaneView,
   SessionView,
+  SessionWindowView,
   ShareRole,
   ShareScope,
   TerminalThemeName,
@@ -52,6 +53,7 @@ export interface ShareTerminal {
   onPaneSelect(callback: (paneId: number) => void): void;
   onPaneResize(callback: (paneId: number, direction: PaneResizeDirection, cells: number) => void): void;
   onPaneScroll(callback: (paneId: number, delta: number) => void): void;
+  onWindowMenu(callback: (windowIndex: number, x: number, y: number) => void): void;
   notice(text: string): void;
 }
 
@@ -353,6 +355,44 @@ class XtermShareTerminal implements ShareTerminal {
     this.paneScrollHandler = callback;
   }
 
+  onWindowMenu(callback: (windowIndex: number, x: number, y: number) => void): void {
+    const onContextMenu = (event: MouseEvent) => {
+      if (this.scope !== 'session' || this.role !== 'operator') {
+        return;
+      }
+      const window = this.windowFromStatusEvent(event);
+      if (!window) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.term.focus();
+      callback(window.index, event.clientX, event.clientY);
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (this.scope !== 'session' || this.role !== 'operator') {
+        this.stage.removeAttribute('title');
+        delete this.stage.dataset.windowActions;
+        return;
+      }
+      if (this.windowFromStatusEvent(event)) {
+        this.stage.title = 'Right-click for window actions';
+        this.stage.dataset.windowActions = 'true';
+      } else {
+        this.stage.removeAttribute('title');
+        delete this.stage.dataset.windowActions;
+      }
+    };
+    this.stage.addEventListener('contextmenu', onContextMenu);
+    this.stage.addEventListener('pointermove', onPointerMove);
+    this.disposables.push({
+      dispose: () => {
+        this.stage.removeEventListener('contextmenu', onContextMenu);
+        this.stage.removeEventListener('pointermove', onPointerMove);
+      },
+    });
+  }
+
   notice(text: string): void {
     this.term.writeln(`\r\n${text}`);
   }
@@ -595,6 +635,15 @@ class XtermShareTerminal implements ShareTerminal {
       && row >= pane.y
       && row < pane.y + pane.rows
     ));
+  }
+
+  private windowFromStatusEvent(event: MouseEvent): SessionWindowView | undefined {
+    const point = this.sessionPointFromMouseEvent(event);
+    const windows = this.sessionView?.windows;
+    if (!point || !windows?.length || point.row < this.sessionView!.size.rows - 1) {
+      return undefined;
+    }
+    return windows.find((window) => window.active) ?? windows[0];
   }
 
   private dividerFromMouseEvent(event: MouseEvent): PaneDivider | undefined {

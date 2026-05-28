@@ -286,6 +286,70 @@ test('session operator can drag a pane divider without shell input', async ({ pa
   expect(await sentInputFrameCount(page)).toBe(0);
 });
 
+test('session operator toolbar sends typed controls and window actions', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+      windows: [
+        { index: 0, name: 'bash', active: true },
+        { index: 1, name: 'logs', active: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-session-controls]')).toBeVisible();
+  await expect(page.locator('[data-share-split-horizontal]')).toHaveAttribute('title', 'Split right');
+  await expect(page.locator('[data-share-split-vertical]')).toHaveAttribute('title', 'Split down');
+  await expect(page.locator('[data-share-new-window]')).toHaveAttribute('title', 'New window');
+  await expect(page.locator('[data-share-kill-pane]')).toHaveAttribute('title', 'Close active pane');
+
+  await page.locator('[data-share-split-horizontal]').click();
+  await page.locator('[data-share-split-vertical]').click();
+  await page.locator('[data-share-new-window]').click();
+  await page.locator('[data-share-kill-pane]').click();
+  await expect.poll(() => jsonFrames(page)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ type: 'split_pane', direction: 'horizontal' }),
+      expect.objectContaining({ type: 'split_pane', direction: 'vertical' }),
+      expect.objectContaining({ type: 'new_window' }),
+      expect.objectContaining({ type: 'kill_pane' }),
+    ]),
+  );
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 40, screen!.y + screen!.height - 6);
+  await expect(page.locator('.share-terminal-stage')).toHaveAttribute('data-window-actions', 'true');
+  await expect(page.locator('.xterm-screen')).toHaveCSS('cursor', 'context-menu');
+  await page.mouse.click(screen!.x + 48, screen!.y + screen!.height - 6, { button: 'right' });
+  await expect(page.locator('[data-share-window-actions]')).toBeVisible();
+
+  await page.locator('[data-share-window-list] button').filter({ hasText: '1:logs' }).click();
+  await page.locator('[data-share-window-name]').fill('build');
+  await page.locator('[data-share-window-rename]').click();
+  await page.locator('[data-share-window-kill]').click();
+  await expect.poll(() => jsonFrames(page)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ type: 'select_window', window_index: 1 }),
+      expect.objectContaining({ type: 'rename_window', window_index: 1, name: 'build' }),
+      expect.objectContaining({ type: 'kill_window', window_index: 1 }),
+    ]),
+  );
+});
+
 test('session spectator cannot drag pane dividers', async ({ page }) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
@@ -306,6 +370,8 @@ test('session spectator cannot drag pane dividers', async ({ page }) => {
   });
   await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-session-controls]')).toBeHidden();
+  await expect(page.locator('.share-role-badge')).toBeVisible();
 
   const screen = await page.locator('.xterm-screen').boundingBox();
   expect(screen).not.toBeNull();
@@ -693,6 +759,20 @@ test('invalid terminal theme in the URL is rejected', async ({ page }) => {
 
 async function sentFrames(page: import('@playwright/test').Page) {
   return page.evaluate(() => window.__rmuxShareSockets?.flatMap((socket) => socket.sent) ?? []);
+}
+
+async function jsonFrames(page: import('@playwright/test').Page): Promise<Array<Record<string, unknown>>> {
+  const frames = await sentFrames(page);
+  return frames.flatMap((frame) => {
+    if (typeof frame !== 'string') {
+      return [];
+    }
+    try {
+      return [JSON.parse(frame) as Record<string, unknown>];
+    } catch {
+      return [];
+    }
+  });
 }
 
 async function paneScrollFrames(page: import('@playwright/test').Page): Promise<Array<{

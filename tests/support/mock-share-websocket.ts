@@ -338,6 +338,11 @@ declare global {
         scroll_offset: number;
         alternate_on: boolean;
       }>;
+      windows?: Array<{
+        index: number;
+        name: string;
+        active: boolean;
+      }>;
     };
     __rmuxShareRequirePin?: boolean;
     __rmuxShareShowViewers?: boolean;

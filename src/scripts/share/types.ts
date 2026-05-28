@@ -2,6 +2,7 @@ export type ShareRole = 'spectator' | 'operator';
 export type ShareScope = 'pane' | 'session';
 export type TerminalThemeName = 'user' | 'dark' | 'light';
 export type PaneResizeDirection = 'left' | 'right' | 'up' | 'down';
+export type SessionSplitDirection = 'horizontal' | 'vertical';
 
 export interface ShareParams {
   endpoint: string;
@@ -62,6 +63,13 @@ export interface SessionView {
     rows: number;
   };
   panes: SessionPaneView[];
+  windows?: SessionWindowView[];
+}
+
+export interface SessionWindowView {
+  index: number;
+  name: string;
+  active: boolean;
 }
 
 export interface TerminalThemePalette {

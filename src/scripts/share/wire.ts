@@ -1,4 +1,4 @@
-import type { PaneResizeDirection } from './types';
+import type { PaneResizeDirection, SessionSplitDirection } from './types';
 
 export const WEB_SHARE_PROTOCOL_VERSION = 3;
 export const WEB_SHARE_CLIENT_CAPABILITIES = [
@@ -12,6 +12,7 @@ const ATTACH_INPUT = 0x83;
 const SESSION_RESIZE_PANE = 0x84;
 const MAX_INPUT_BYTES = 4096;
 const MAX_PANE_RESIZE_CELLS = 10_000;
+const MAX_WINDOW_NAME_BYTES = 128;
 const PANE_RESIZE_DIRECTION_CODES: Record<PaneResizeDirection, number> = {
   down: 3,
   left: 0,
@@ -111,6 +112,44 @@ export function selectSessionPane(ws: ShareTransport, paneId: number): void {
   ws.sendText(JSON.stringify({ type: 'select_pane', pane_id: paneId }));
 }
 
+export function splitSessionPane(ws: ShareTransport, direction: SessionSplitDirection): void {
+  ws.sendText(JSON.stringify({ type: 'split_pane', direction }));
+}
+
+export function newSessionWindow(ws: ShareTransport): void {
+  ws.sendText(JSON.stringify({ type: 'new_window' }));
+}
+
+export function killSessionPane(ws: ShareTransport): void {
+  ws.sendText(JSON.stringify({ type: 'kill_pane' }));
+}
+
+export function selectSessionWindow(ws: ShareTransport, windowIndex: number): void {
+  const index = normalizedWindowIndex(windowIndex);
+  if (index === undefined) {
+    return;
+  }
+  ws.sendText(JSON.stringify({ type: 'select_window', window_index: index }));
+}
+
+export function renameSessionWindow(ws: ShareTransport, windowIndex: number, name: string): boolean {
+  const index = normalizedWindowIndex(windowIndex);
+  const trimmed = name.trim();
+  if (index === undefined || !validWindowName(trimmed)) {
+    return false;
+  }
+  ws.sendText(JSON.stringify({ type: 'rename_window', window_index: index, name: trimmed }));
+  return true;
+}
+
+export function killSessionWindow(ws: ShareTransport, windowIndex: number): void {
+  const index = normalizedWindowIndex(windowIndex);
+  if (index === undefined) {
+    return;
+  }
+  ws.sendText(JSON.stringify({ type: 'kill_window', window_index: index }));
+}
+
 export function closeMessage(code: number): string {
   switch (code) {
     case 1000:
@@ -136,4 +175,14 @@ export function closeMessage(code: number): string {
     default:
       return code ? `connection closed (${code})` : 'connection closed';
   }
+}
+
+function normalizedWindowIndex(value: number): number | undefined {
+  return Number.isInteger(value) && value >= 0 && value <= 0xffff_ffff ? value : undefined;
+}
+
+function validWindowName(value: string): boolean {
+  return value.length > 0
+    && encoder.encode(value).length <= MAX_WINDOW_NAME_BYTES
+    && !/[\u0000-\u001f\u007f]/u.test(value);
 }

@@ -16,14 +16,37 @@ export function shareViewTemplate(): string {
           <span class="share-brand-divider" aria-hidden="true"></span>
           <span class="share-brand-context">Web Multiplex</span>
         </div>
-        <div class="share-topbar-meta">
-          <span class="share-role-badge">
-            <svg class="share-role-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M7 10V8a5 5 0 0 1 10 0v2" />
-              <rect x="5" y="10" width="14" height="10" rx="2.5" />
-              <path d="M12 14v2.5" />
+        <nav class="share-topbar-actions" data-share-session-controls hidden aria-label="Session controls">
+          <button class="share-icon-button" data-share-split-horizontal type="button" aria-label="Split right" title="Split right">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="5" width="16" height="14" rx="1.5" />
+              <path d="M12 5v14" />
             </svg>
-            <span data-share-role>Spectator</span>
+          </button>
+          <button class="share-icon-button" data-share-split-vertical type="button" aria-label="Split down" title="Split down">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="5" width="16" height="14" rx="1.5" />
+              <path d="M4 12h16" />
+            </svg>
+          </button>
+          <button class="share-icon-button" data-share-new-window type="button" aria-label="New window" title="New window">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="5" width="14" height="14" rx="1.5" />
+              <path d="M12 8v8M8 12h8" />
+            </svg>
+          </button>
+          <button class="share-icon-button" data-share-kill-pane type="button" aria-label="Close active pane" title="Close active pane">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </nav>
+        <div class="share-topbar-meta">
+          <span class="share-role-badge" title="Read-only">
+            <svg class="share-role-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M10 5h4M6 9h12M7 9v8h10V9M4 4l16 16" />
+            </svg>
+            <span class="share-visually-hidden" data-share-role>Spectator</span>
           </span>
           <span class="share-session-label" data-share-meta hidden>rmux share</span>
           <span class="share-viewer-count" data-share-viewers hidden aria-label="Connected browsers">
@@ -33,6 +56,9 @@ export function shareViewTemplate(): string {
             </svg>
             <span data-share-viewers-count>0</span>
           </span>
+          <button class="share-status" data-share-status-menu type="button" data-tone="idle" aria-haspopup="dialog" aria-label="Connection actions" title="Disconnected">
+            <span data-share-status>Disconnected</span>
+          </button>
           <label class="share-theme-control">
             <span class="share-visually-hidden">Terminal theme</span>
             <svg class="share-theme-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
@@ -46,10 +72,6 @@ export function shareViewTemplate(): string {
             </select>
           </label>
           <span class="share-operator-state" aria-hidden="true"></span>
-          <button class="share-status" data-share-status-menu type="button" data-tone="idle" aria-haspopup="dialog">
-            <span data-share-status>Disconnected</span>
-            <span class="share-status-chevron" aria-hidden="true"></span>
-          </button>
           <button class="share-chrome-button share-chrome-hide" data-share-chrome-hide type="button" aria-label="Hide toolbar" title="Hide toolbar">
             <span aria-hidden="true"></span>
           </button>
@@ -81,6 +103,21 @@ export function shareViewTemplate(): string {
           <div class="share-confirm-actions">
             <button data-share-session-detach type="button">Disconnect browser</button>
             <button data-share-session-logout class="danger" type="button">Close rmux session</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog class="share-window-actions" data-share-window-actions>
+        <form method="dialog" class="share-window-actions-panel">
+          <h1>Windows</h1>
+          <div class="share-window-list" data-share-window-list></div>
+          <label class="share-window-rename">
+            <span>Rename selected window</span>
+            <input data-share-window-name maxlength="128" autocomplete="off" />
+          </label>
+          <div class="share-confirm-actions">
+            <button data-share-window-new type="button">New window</button>
+            <button data-share-window-rename type="button">Rename</button>
+            <button data-share-window-kill class="danger" type="button">Close window</button>
           </div>
         </form>
       </dialog>
