@@ -246,6 +246,77 @@ test('session operator click selects the clicked pane without shell input', asyn
   expect(await sentInputFrameCount(page)).toBe(0);
 });
 
+test('session operator can drag a pane divider without shell input', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  const dividerX = screen!.x + screen!.width * (40.5 / 80);
+  const dividerY = screen!.y + screen!.height * (8 / 24);
+  await page.mouse.move(dividerX, dividerY);
+  await expect(page.locator('.share-terminal-stage')).toHaveAttribute('data-resize-axis', 'vertical');
+  await page.mouse.down();
+  await page.mouse.move(dividerX + screen!.width * (5 / 80), dividerY, { steps: 8 });
+  await page.mouse.up();
+
+  await expect.poll(() => paneResizeFrames(page)).toContainEqual(
+    expect.objectContaining({ direction: 1, pane_id: 1 }),
+  );
+  expect(await sentInputFrameCount(page)).toBe(0);
+});
+
+test('session spectator cannot drag pane dividers', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  const dividerX = screen!.x + screen!.width * (40.5 / 80);
+  const dividerY = screen!.y + screen!.height * (8 / 24);
+  await page.mouse.move(dividerX, dividerY);
+  await expect(page.locator('.share-terminal-stage')).not.toHaveAttribute('data-resize-axis', 'vertical');
+  await page.mouse.down();
+  await page.mouse.move(dividerX + screen!.width * (5 / 80), dividerY, { steps: 8 });
+  await page.mouse.up();
+
+  expect(await paneResizeFrames(page)).toEqual([]);
+});
+
 test('session operator drives the remote size from the browser viewport', async ({ page }) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
@@ -655,6 +726,24 @@ async function selectedPaneFrames(page: import('@playwright/test').Page): Promis
     } catch {
       return [];
     }
+  });
+}
+
+async function paneResizeFrames(page: import('@playwright/test').Page): Promise<Array<{
+  pane_id: number;
+  direction: number;
+  cells: number;
+}>> {
+  const frames = await sentFrames(page);
+  return frames.flatMap((frame) => {
+    if (!Array.isArray(frame) || frame[0] !== 0x84 || frame.length !== 8) {
+      return [];
+    }
+    return [{
+      pane_id: ((frame[1] << 24) >>> 0) | (frame[2] << 16) | (frame[3] << 8) | frame[4],
+      direction: frame[5],
+      cells: (frame[6] << 8) | frame[7],
+    }];
   });
 }
 

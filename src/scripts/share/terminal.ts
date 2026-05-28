@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 
 import type {
+  PaneResizeDirection,
   SessionPaneView,
   SessionView,
   ShareRole,
@@ -24,6 +25,7 @@ const IMAGE_SEQUENCE_LIMIT = 8_000_000;
 const IMAGE_STORAGE_MB = 48;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 2;
+const MAX_DIVIDER_DRAG_CELLS = 10_000;
 
 export interface TerminalChromePalette {
   accent: string;
@@ -47,6 +49,7 @@ export interface ShareTerminal {
   dispose(): void;
   onData(callback: (data: string) => void): void;
   onPaneSelect(callback: (paneId: number) => void): void;
+  onPaneResize(callback: (paneId: number, direction: PaneResizeDirection, cells: number) => void): void;
   onPaneScroll(callback: (paneId: number, delta: number) => void): void;
   notice(text: string): void;
 }
@@ -70,6 +73,20 @@ export function openShareTerminal(
   return controller;
 }
 
+type DividerAxis = 'vertical' | 'horizontal';
+
+interface PaneDivider {
+  axis: DividerAxis;
+  paneId: number;
+}
+
+interface PaneResizeDrag {
+  divider: PaneDivider;
+  startX: number;
+  startY: number;
+  appliedCells: number;
+}
+
 class XtermShareTerminal implements ShareTerminal {
   readonly term: Terminal;
   role: ShareRole;
@@ -90,6 +107,8 @@ class XtermShareTerminal implements ShareTerminal {
   private operatorRows = 0;
   private sessionView?: SessionView;
   private paneScrollHandler?: (paneId: number, delta: number) => void;
+  private paneResizeHandler?: (paneId: number, direction: PaneResizeDirection, cells: number) => void;
+  private paneResizeDrag?: PaneResizeDrag;
 
   constructor(
     private readonly container: HTMLElement,
@@ -241,6 +260,7 @@ class XtermShareTerminal implements ShareTerminal {
 
   dispose(): void {
     this.disposed = true;
+    this.finishPaneResizeDrag();
     this.disposables.splice(0).forEach((disposable) => disposable.dispose());
     this.term.dispose();
   }
@@ -254,6 +274,9 @@ class XtermShareTerminal implements ShareTerminal {
       if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
         return;
       }
+      if (this.dividerFromMouseEvent(event)) {
+        return;
+      }
       const pane = this.paneFromMouseEvent(event);
       if (!pane) {
         return;
@@ -265,6 +288,58 @@ class XtermShareTerminal implements ShareTerminal {
     this.stage.addEventListener('mousedown', onMouseDown);
     this.disposables.push({
       dispose: () => this.stage.removeEventListener('mousedown', onMouseDown),
+    });
+  }
+
+  onPaneResize(callback: (paneId: number, direction: PaneResizeDirection, cells: number) => void): void {
+    this.paneResizeHandler = callback;
+    const onPointerMove = (event: PointerEvent) => {
+      if (this.paneResizeDrag) {
+        this.updatePaneResizeDrag(event);
+        return;
+      }
+      this.updateResizeCursor(event);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
+        return;
+      }
+      const divider = this.dividerFromMouseEvent(event);
+      if (!divider) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.term.focus();
+      this.paneResizeDrag = {
+        divider,
+        startX: event.clientX,
+        startY: event.clientY,
+        appliedCells: 0,
+      };
+      this.stage.dataset.resizing = 'true';
+      this.stage.dataset.resizeAxis = divider.axis;
+      this.stage.setPointerCapture(event.pointerId);
+    };
+    const onPointerUp = (event: PointerEvent) => this.finishPaneResizeDrag(event);
+    const onPointerLeave = () => {
+      if (!this.paneResizeDrag) {
+        delete this.stage.dataset.resizeAxis;
+      }
+    };
+    this.stage.addEventListener('pointermove', onPointerMove);
+    this.stage.addEventListener('pointerdown', onPointerDown);
+    this.stage.addEventListener('pointerup', onPointerUp);
+    this.stage.addEventListener('pointercancel', onPointerUp);
+    this.stage.addEventListener('pointerleave', onPointerLeave);
+    this.disposables.push({
+      dispose: () => {
+        this.stage.removeEventListener('pointermove', onPointerMove);
+        this.stage.removeEventListener('pointerdown', onPointerDown);
+        this.stage.removeEventListener('pointerup', onPointerUp);
+        this.stage.removeEventListener('pointercancel', onPointerUp);
+        this.stage.removeEventListener('pointerleave', onPointerLeave);
+      },
     });
   }
 
@@ -474,19 +549,137 @@ class XtermShareTerminal implements ShareTerminal {
     };
   }
 
-  private paneFromMouseEvent(event: MouseEvent): SessionPaneView | undefined {
+  private sessionCellFromMouseEvent(event: MouseEvent): { col: number; row: number } | undefined {
     const cell = this.cellFromMouseEvent(event);
     if (!cell || !this.sessionView) {
       return undefined;
     }
-    const col = projectCell(cell.col - 1, this.term.cols, this.sessionView.size.cols);
-    const row = projectCell(cell.row - 1, this.term.rows, this.sessionView.size.rows);
+    return {
+      col: projectCell(cell.col - 1, this.term.cols, this.sessionView.size.cols),
+      row: projectCell(cell.row - 1, this.term.rows, this.sessionView.size.rows),
+    };
+  }
+
+  private paneFromMouseEvent(event: MouseEvent): SessionPaneView | undefined {
+    const cell = this.sessionCellFromMouseEvent(event);
+    if (!cell || !this.sessionView) {
+      return undefined;
+    }
+    const { col, row } = cell;
     return this.sessionView.panes.find((pane) => (
       col >= pane.x
       && col < pane.x + pane.cols
       && row >= pane.y
       && row < pane.y + pane.rows
     ));
+  }
+
+  private dividerFromMouseEvent(event: MouseEvent): PaneDivider | undefined {
+    if ((event.target as Element | null)?.closest('.share-pane-scrollbar')) {
+      return undefined;
+    }
+    const cell = this.sessionCellFromMouseEvent(event);
+    if (!cell || !this.sessionView) {
+      return undefined;
+    }
+    const vertical = this.verticalDividerAt(cell.col, cell.row);
+    const horizontal = this.horizontalDividerAt(cell.col, cell.row);
+    return vertical && horizontal ? undefined : vertical ?? horizontal;
+  }
+
+  private verticalDividerAt(col: number, row: number): PaneDivider | undefined {
+    const panes = this.sessionView?.panes ?? [];
+    const pane = panes.find((candidate) => {
+      const dividerCol = candidate.x + candidate.cols;
+      return col === dividerCol && row >= candidate.y && row < candidate.y + candidate.rows
+        && panes.some((neighbor) => (
+          neighbor.x === dividerCol + 1
+          && row >= neighbor.y
+          && row < neighbor.y + neighbor.rows
+        ));
+    });
+    return pane ? { axis: 'vertical', paneId: pane.id } : undefined;
+  }
+
+  private horizontalDividerAt(col: number, row: number): PaneDivider | undefined {
+    const panes = this.sessionView?.panes ?? [];
+    const pane = panes.find((candidate) => {
+      const dividerRow = candidate.y + candidate.rows;
+      return row === dividerRow && col >= candidate.x && col < candidate.x + candidate.cols
+        && panes.some((neighbor) => (
+          neighbor.y === dividerRow + 1
+          && col >= neighbor.x
+          && col < neighbor.x + neighbor.cols
+        ));
+    });
+    return pane ? { axis: 'horizontal', paneId: pane.id } : undefined;
+  }
+
+  private updateResizeCursor(event: PointerEvent): void {
+    if (this.scope !== 'session' || this.role !== 'operator') {
+      delete this.stage.dataset.resizeAxis;
+      return;
+    }
+    const divider = this.dividerFromMouseEvent(event);
+    if (divider) {
+      this.stage.dataset.resizeAxis = divider.axis;
+    } else {
+      delete this.stage.dataset.resizeAxis;
+    }
+  }
+
+  private updatePaneResizeDrag(event: PointerEvent): void {
+    if (!this.paneResizeDrag || !this.paneResizeHandler) {
+      return;
+    }
+    event.preventDefault();
+    const metrics = this.sessionCellMetrics();
+    if (!metrics) {
+      return;
+    }
+    const drag = this.paneResizeDrag;
+    const pixelDelta = drag.divider.axis === 'vertical'
+      ? event.clientX - drag.startX
+      : event.clientY - drag.startY;
+    const cellDelta = integralDelta(pixelDelta / (
+      drag.divider.axis === 'vertical' ? metrics.width : metrics.height
+    ));
+    const step = cellDelta - drag.appliedCells;
+    if (step === 0) {
+      return;
+    }
+    const direction: PaneResizeDirection = drag.divider.axis === 'vertical'
+      ? (step > 0 ? 'right' : 'left')
+      : (step > 0 ? 'down' : 'up');
+    this.paneResizeHandler(
+      drag.divider.paneId,
+      direction,
+      Math.min(MAX_DIVIDER_DRAG_CELLS, Math.abs(step)),
+    );
+    drag.appliedCells += step;
+  }
+
+  private finishPaneResizeDrag(event?: PointerEvent): void {
+    if (event && this.stage.hasPointerCapture(event.pointerId)) {
+      this.stage.releasePointerCapture(event.pointerId);
+    }
+    this.paneResizeDrag = undefined;
+    delete this.stage.dataset.resizing;
+    delete this.stage.dataset.resizeAxis;
+  }
+
+  private sessionCellMetrics(): { width: number; height: number } | undefined {
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!screen || !this.sessionView) {
+      return undefined;
+    }
+    const rect = screen.getBoundingClientRect();
+    const width = rect.width / Math.max(1, this.sessionView.size.cols);
+    const height = rect.height / Math.max(1, this.sessionView.size.rows);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return undefined;
+    }
+    return { width, height };
   }
 
   private sendPaneScroll(pane: SessionPaneView, event: WheelEvent): boolean {
@@ -666,6 +859,10 @@ function projectCell(cell: number, fromSize: number, toSize: number): number {
     return cell;
   }
   return Math.min(toSize - 1, Math.max(0, Math.floor(cell * toSize / fromSize)));
+}
+
+function integralDelta(value: number): number {
+  return value < 0 ? Math.ceil(value) : Math.floor(value);
 }
 
 function snapshotGeometry(text: string): { cols: number; rows: number } {

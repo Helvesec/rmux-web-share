@@ -1,6 +1,7 @@
 export type ShareRole = 'spectator' | 'operator';
 export type ShareScope = 'pane' | 'session';
 export type TerminalThemeName = 'user' | 'dark' | 'light';
+export type PaneResizeDirection = 'left' | 'right' | 'up' | 'down';
 
 export interface ShareParams {
   endpoint: string;

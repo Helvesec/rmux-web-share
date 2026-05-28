@@ -25,6 +25,7 @@ import {
 } from './terminal';
 import type {
   ReadyMessage,
+  PaneResizeDirection,
   ServerMessage,
   SessionView,
   ShareParams,
@@ -41,6 +42,7 @@ import {
   logoutSession,
   scrollSessionPane,
   selectSessionPane,
+  resizeSessionPane,
   sendAttachInputText,
   sendInputText,
   sendResizeRequest,
@@ -313,6 +315,7 @@ class ShareConnection {
     );
     this.terminal.onData((data) => this.sendOperatorData(data));
     this.terminal.onPaneSelect((paneId) => this.selectPane(paneId));
+    this.terminal.onPaneResize((paneId, direction, cells) => this.resizePane(paneId, direction, cells));
     this.terminal.onPaneScroll((paneId, delta) => this.sendPaneScroll(paneId, delta));
     this.view.bindSessionActions({
       detach: () => this.detach(),
@@ -387,6 +390,13 @@ class ShareConnection {
       return;
     }
     selectSessionPane(this.transport, paneId);
+  }
+
+  private resizePane(paneId: number, direction: PaneResizeDirection, cells: number): void {
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session' || this.role !== 'operator') {
+      return;
+    }
+    resizeSessionPane(this.transport, paneId, direction, cells);
   }
 
   private detach(): void {

@@ -1,3 +1,5 @@
+import type { PaneResizeDirection } from './types';
+
 export const WEB_SHARE_PROTOCOL_VERSION = 3;
 export const WEB_SHARE_CLIENT_CAPABILITIES = [
   'e2ee-token-auth',
@@ -7,7 +9,15 @@ export const WEB_SHARE_CLIENT_CAPABILITIES = [
 const INPUT_TEXT = 0x80;
 const RESIZE_REQUEST = 0x82;
 const ATTACH_INPUT = 0x83;
+const SESSION_RESIZE_PANE = 0x84;
 const MAX_INPUT_BYTES = 4096;
+const MAX_PANE_RESIZE_CELLS = 10_000;
+const PANE_RESIZE_DIRECTION_CODES: Record<PaneResizeDirection, number> = {
+  down: 3,
+  left: 0,
+  right: 1,
+  up: 2,
+};
 
 const encoder = new TextEncoder();
 
@@ -49,6 +59,31 @@ export function sendResizeRequest(ws: ShareTransport, cols: number, rows: number
   frame[2] = cols & 0xff;
   frame[3] = (rows >> 8) & 0xff;
   frame[4] = rows & 0xff;
+  ws.sendBinary(frame);
+}
+
+export function resizeSessionPane(
+  ws: ShareTransport,
+  paneId: number,
+  direction: PaneResizeDirection,
+  cells: number,
+): void {
+  if (!Number.isInteger(paneId) || paneId < 0 || paneId > 0xffff_ffff) {
+    return;
+  }
+  if (!Number.isFinite(cells) || cells < 1) {
+    return;
+  }
+  const amount = Math.min(MAX_PANE_RESIZE_CELLS, Math.floor(cells));
+  const frame = new Uint8Array(8);
+  frame[0] = SESSION_RESIZE_PANE;
+  frame[1] = (paneId >>> 24) & 0xff;
+  frame[2] = (paneId >>> 16) & 0xff;
+  frame[3] = (paneId >>> 8) & 0xff;
+  frame[4] = paneId & 0xff;
+  frame[5] = PANE_RESIZE_DIRECTION_CODES[direction];
+  frame[6] = (amount >> 8) & 0xff;
+  frame[7] = amount & 0xff;
   ws.sendBinary(frame);
 }
 
