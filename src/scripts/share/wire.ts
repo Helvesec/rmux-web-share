@@ -91,11 +91,11 @@ export function closeMessage(code: number): string {
     case 4003:
       return 'spectator limit reached';
     case 4004:
-      return 'origin not whitelisted; check --frontend-url';
+      return 'origin not allowed; check --frontend-url';
     case 4006:
       return 'protocol violation';
     case 4007:
-      return 'operator slot already taken';
+      return 'operator limit reached';
     case 4008:
       return 'pairing code required';
     default:

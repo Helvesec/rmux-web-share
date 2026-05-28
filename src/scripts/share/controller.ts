@@ -370,7 +370,9 @@ class ShareConnection {
     const send = this.sessionControls ? sendAttachInputText : sendInputText;
     if (!send(socket, data)) {
       this.view.setStatus({ connected: true, detail: 'input too large', tone: 'error' });
+      return;
     }
+    this.terminal?.followLiveOutput();
   }
 
   private sendPaneScroll(paneId: number, delta: number): void {
@@ -646,7 +648,7 @@ class ShareView {
     this.setRole(message.role);
     this.terminal.dataset.scope = message.scope;
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
-    this.setOperatorConnected(Boolean(message.operator_connected));
+    this.setOperatorConnected((finiteCount(message.operators_active) ?? 0) > 0);
     const label = [message.session_name, message.pane_label].filter(Boolean).join(' ');
     this.meta.textContent = label || message.share_id || 'rmux share';
     this.setStatus({ connected: true, detail: 'connected', tone: 'ok' });
@@ -865,7 +867,7 @@ function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {
     return explicit;
   }
   const spectators = finiteCount(message.spectators_active) ?? 0;
-  return spectators + (message.operator_connected ? 1 : 0);
+  return spectators + (finiteCount(message.operators_active) ?? 0);
 }
 
 function finiteCount(value: number | undefined): number | undefined {

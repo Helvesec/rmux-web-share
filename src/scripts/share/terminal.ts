@@ -41,6 +41,7 @@ export interface ShareTerminal {
   setTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void;
   replace(data: Uint8Array): void;
   write(data: Uint8Array): void;
+  followLiveOutput(): void;
   resize(cols: number, rows: number): void;
   setSessionView(view: SessionView): void;
   dispose(): void;
@@ -328,6 +329,10 @@ class XtermShareTerminal implements ShareTerminal {
   private scrollToBottom(): void {
     this.container.scrollTop = this.container.scrollHeight;
     this.stickToBottom = true;
+  }
+
+  followLiveOutput(): void {
+    this.scrollToBottom();
   }
 
   private scrollToTop(): void {

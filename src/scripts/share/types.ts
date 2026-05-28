@@ -26,7 +26,8 @@ export interface ReadyMessage {
   operator: boolean;
   controls: boolean;
   show_viewers: boolean;
-  operator_connected?: boolean;
+  operators_active?: number;
+  operators_max?: number;
   ttl_remaining_seconds?: number;
   spectators_active?: number;
   spectators_max?: number;
@@ -38,7 +39,8 @@ export interface ViewerCountMessage {
   type: 'viewer_count';
   spectators_active: number;
   spectators_max: number;
-  operator_connected: boolean;
+  operators_active: number;
+  operators_max?: number;
   viewers_connected: number;
 }
 

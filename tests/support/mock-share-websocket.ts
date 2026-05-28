@@ -127,7 +127,7 @@ export function installMockShareWebSocket(): void {
         controls: window.__rmuxShareReadyControls
           ?? (role === 'operator' && window.__rmuxShareReadyScope === 'session'),
         show_viewers: Boolean(window.__rmuxShareShowViewers),
-        operator_connected: false,
+        operators_active: 0,
         ttl_remaining_seconds: 60,
         spectators_active: 1,
         spectators_max: 5,
@@ -139,7 +139,7 @@ export function installMockShareWebSocket(): void {
         type: 'viewer_count',
         spectators_active: 2,
         spectators_max: 5,
-        operator_connected: true,
+        operators_active: 1,
         viewers_connected: 3,
       }));
       await this.dispatchEncryptedBinary(
@@ -354,7 +354,8 @@ declare global {
       type: 'viewer_count';
       spectators_active: number;
       spectators_max: number;
-      operator_connected: boolean;
+      operators_active: number;
+      operators_max?: number;
       viewers_connected: number;
     };
     __rmuxShareMockToken?: string;
