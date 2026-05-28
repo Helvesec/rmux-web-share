@@ -434,6 +434,8 @@ class ShareConnection {
       this.viewportObserver = new ResizeObserver(() => this.scheduleTerminalViewportSync());
       this.viewportObserver.observe(this.view.terminalElement());
     }
+    this.terminal?.syncViewport();
+    this.syncOperatorBrowserSize();
     this.scheduleTerminalViewportSync();
     for (const delay of [16, 64, 250, 1000]) {
       this.viewportTimers.push(window.setTimeout(() => this.scheduleTerminalViewportSync(), delay));

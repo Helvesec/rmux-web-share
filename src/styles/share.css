@@ -222,8 +222,18 @@
   cursor: col-resize;
 }
 
+.share-terminal-stage[data-resize-axis='vertical'] .xterm,
+.share-terminal-stage[data-resize-axis='vertical'] .xterm * {
+  cursor: col-resize !important;
+}
+
 .share-terminal-stage[data-resize-axis='horizontal'] {
   cursor: row-resize;
+}
+
+.share-terminal-stage[data-resize-axis='horizontal'] .xterm,
+.share-terminal-stage[data-resize-axis='horizontal'] .xterm * {
+  cursor: row-resize !important;
 }
 
 .share-terminal-stage[data-resizing='true'] {

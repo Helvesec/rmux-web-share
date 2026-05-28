@@ -26,6 +26,7 @@ const IMAGE_STORAGE_MB = 48;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 2;
 const MAX_DIVIDER_DRAG_CELLS = 10_000;
+const DIVIDER_HIT_SLOP_CELLS = 0.75;
 
 export interface TerminalChromePalette {
   accent: string;
@@ -85,6 +86,11 @@ interface PaneResizeDrag {
   startX: number;
   startY: number;
   appliedCells: number;
+}
+
+interface SessionPoint {
+  col: number;
+  row: number;
 }
 
 class XtermShareTerminal implements ShareTerminal {
@@ -560,6 +566,23 @@ class XtermShareTerminal implements ShareTerminal {
     };
   }
 
+  private sessionPointFromMouseEvent(event: MouseEvent): SessionPoint | undefined {
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!screen || !this.sessionView) {
+      return undefined;
+    }
+    const rect = screen.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (rect.width <= 0 || rect.height <= 0 || x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      return undefined;
+    }
+    return {
+      col: x * this.sessionView.size.cols / rect.width,
+      row: y * this.sessionView.size.rows / rect.height,
+    };
+  }
+
   private paneFromMouseEvent(event: MouseEvent): SessionPaneView | undefined {
     const cell = this.sessionCellFromMouseEvent(event);
     if (!cell || !this.sessionView) {
@@ -578,41 +601,70 @@ class XtermShareTerminal implements ShareTerminal {
     if ((event.target as Element | null)?.closest('.share-pane-scrollbar')) {
       return undefined;
     }
-    const cell = this.sessionCellFromMouseEvent(event);
-    if (!cell || !this.sessionView) {
+    const point = this.sessionPointFromMouseEvent(event);
+    if (!point || !this.sessionView) {
       return undefined;
     }
-    const vertical = this.verticalDividerAt(cell.col, cell.row);
-    const horizontal = this.horizontalDividerAt(cell.col, cell.row);
-    return vertical && horizontal ? undefined : vertical ?? horizontal;
+    const vertical = this.verticalDividerNear(point);
+    const horizontal = this.horizontalDividerNear(point);
+    if (!vertical) {
+      return horizontal?.divider;
+    }
+    if (!horizontal) {
+      return vertical.divider;
+    }
+    if (Math.abs(vertical.distance - horizontal.distance) < 0.1) {
+      return undefined;
+    }
+    return vertical.distance < horizontal.distance ? vertical.divider : horizontal.divider;
   }
 
-  private verticalDividerAt(col: number, row: number): PaneDivider | undefined {
+  private verticalDividerNear(point: SessionPoint): { divider: PaneDivider; distance: number } | undefined {
     const panes = this.sessionView?.panes ?? [];
-    const pane = panes.find((candidate) => {
+    let best: { divider: PaneDivider; distance: number } | undefined;
+    for (const candidate of panes) {
       const dividerCol = candidate.x + candidate.cols;
-      return col === dividerCol && row >= candidate.y && row < candidate.y + candidate.rows
-        && panes.some((neighbor) => (
+      const distance = Math.abs(point.col - (dividerCol + 0.5));
+      if (distance > DIVIDER_HIT_SLOP_CELLS
+        || point.row < candidate.y - DIVIDER_HIT_SLOP_CELLS
+        || point.row >= candidate.y + candidate.rows + DIVIDER_HIT_SLOP_CELLS
+        || !panes.some((neighbor) => (
           neighbor.x === dividerCol + 1
-          && row >= neighbor.y
-          && row < neighbor.y + neighbor.rows
-        ));
-    });
-    return pane ? { axis: 'vertical', paneId: pane.id } : undefined;
+          && point.row >= neighbor.y - DIVIDER_HIT_SLOP_CELLS
+          && point.row < neighbor.y + neighbor.rows + DIVIDER_HIT_SLOP_CELLS
+        ))
+      ) {
+        continue;
+      }
+      if (!best || distance < best.distance) {
+        best = { divider: { axis: 'vertical', paneId: candidate.id }, distance };
+      }
+    }
+    return best;
   }
 
-  private horizontalDividerAt(col: number, row: number): PaneDivider | undefined {
+  private horizontalDividerNear(point: SessionPoint): { divider: PaneDivider; distance: number } | undefined {
     const panes = this.sessionView?.panes ?? [];
-    const pane = panes.find((candidate) => {
+    let best: { divider: PaneDivider; distance: number } | undefined;
+    for (const candidate of panes) {
       const dividerRow = candidate.y + candidate.rows;
-      return row === dividerRow && col >= candidate.x && col < candidate.x + candidate.cols
-        && panes.some((neighbor) => (
+      const distance = Math.abs(point.row - (dividerRow + 0.5));
+      if (distance > DIVIDER_HIT_SLOP_CELLS
+        || point.col < candidate.x - DIVIDER_HIT_SLOP_CELLS
+        || point.col >= candidate.x + candidate.cols + DIVIDER_HIT_SLOP_CELLS
+        || !panes.some((neighbor) => (
           neighbor.y === dividerRow + 1
-          && col >= neighbor.x
-          && col < neighbor.x + neighbor.cols
-        ));
-    });
-    return pane ? { axis: 'horizontal', paneId: pane.id } : undefined;
+          && point.col >= neighbor.x - DIVIDER_HIT_SLOP_CELLS
+          && point.col < neighbor.x + neighbor.cols + DIVIDER_HIT_SLOP_CELLS
+        ))
+      ) {
+        continue;
+      }
+      if (!best || distance < best.distance) {
+        best = { divider: { axis: 'horizontal', paneId: candidate.id }, distance };
+      }
+    }
+    return best;
   }
 
   private updateResizeCursor(event: PointerEvent): void {

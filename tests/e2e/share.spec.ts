@@ -273,6 +273,9 @@ test('session operator can drag a pane divider without shell input', async ({ pa
   const dividerY = screen!.y + screen!.height * (8 / 24);
   await page.mouse.move(dividerX, dividerY);
   await expect(page.locator('.share-terminal-stage')).toHaveAttribute('data-resize-axis', 'vertical');
+  await expect(page.locator('.xterm-screen')).toHaveCSS('cursor', 'col-resize');
+  await page.mouse.move(dividerX + screen!.width * (0.3 / 80), dividerY);
+  await expect(page.locator('.share-terminal-stage')).toHaveAttribute('data-resize-axis', 'vertical');
   await page.mouse.down();
   await page.mouse.move(dividerX + screen!.width * (5 / 80), dividerY, { steps: 8 });
   await page.mouse.up();
