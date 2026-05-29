@@ -188,9 +188,11 @@
   margin-top: 36px;
   padding: 25px 42px 23px;
   background:
-    radial-gradient(ellipse 940px 360px at 83% 46%, rgb(37 99 235 / 0.16), transparent 72%),
-    radial-gradient(ellipse 620px 240px at 57% 22%, rgb(96 165 250 / 0.07), transparent 74%),
-    linear-gradient(104deg, var(--home-surface) 0%, #fbfdff 48%, #f0f6ff 100%);
+    radial-gradient(ellipse 1880px 650px at 52% 54%, rgb(37 99 235 / 0.054), transparent 80%),
+    radial-gradient(ellipse 1180px 420px at 70% 52%, rgb(37 99 235 / 0.058), transparent 80%),
+    radial-gradient(ellipse 760px 300px at 30% 45%, rgb(147 197 253 / 0.046), transparent 84%),
+    radial-gradient(ellipse 520px 210px at 92% 28%, rgb(147 197 253 / 0.036), transparent 84%),
+    linear-gradient(104deg, var(--home-surface) 0%, #fbfdff 100%);
 }
 
 .share-root[data-theme='dark'] .home-connect-card,
@@ -200,9 +202,11 @@
 
 .share-root[data-theme='dark'] .home-connect-card {
   background:
-    radial-gradient(ellipse 940px 360px at 83% 46%, rgb(91 140 255 / 0.22), transparent 72%),
-    radial-gradient(ellipse 620px 240px at 57% 22%, rgb(96 165 250 / 0.1), transparent 74%),
-    linear-gradient(104deg, var(--home-surface) 0%, #101a29 48%, #13233a 100%);
+    radial-gradient(ellipse 1880px 650px at 52% 54%, rgb(91 140 255 / 0.084), transparent 80%),
+    radial-gradient(ellipse 1180px 420px at 70% 52%, rgb(91 140 255 / 0.085), transparent 80%),
+    radial-gradient(ellipse 760px 300px at 30% 45%, rgb(147 197 253 / 0.064), transparent 84%),
+    radial-gradient(ellipse 520px 210px at 92% 28%, rgb(147 197 253 / 0.052), transparent 84%),
+    linear-gradient(104deg, var(--home-surface) 0%, #0f1724 100%);
 }
 
 .home-connect-icon {
@@ -701,11 +705,13 @@
 
 .home-forget-dialog,
 .home-pin-dialog {
-  width: min(540px, calc(100vw - 40px));
+  width: min(560px, calc(100vw - 32px));
   padding: 0;
-  border: 0;
-  border-radius: 16px;
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--home-ok) 24%, transparent);
+  border-radius: 24px;
+  background: var(--home-surface);
+  color: var(--home-text);
+  box-shadow: 0 28px 100px rgb(0 0 0 / 0.36);
 }
 
 .home-forget-dialog::backdrop,
@@ -715,17 +721,18 @@
 
 .home-dialog-panel {
   position: relative;
-  padding: 34px;
-  border: 1px solid var(--home-border);
-  border-radius: 16px;
+  padding: 28px;
+  border: 0;
+  border-radius: inherit;
   background: var(--home-surface);
   color: var(--home-text);
-  box-shadow: 0 30px 100px rgb(0 0 0 / 0.28);
+  box-shadow: none;
 }
 
 .home-dialog-panel h2 {
   margin: 0;
-  font-size: 26px;
+  font-size: clamp(26px, 3.8vw, 32px);
+  line-height: 1.12;
 }
 
 .home-dialog-panel p {
@@ -738,6 +745,8 @@
 .home-pin-panel {
   display: grid;
   justify-items: center;
+  gap: 16px;
+  padding: 30px;
   text-align: center;
 }
 
@@ -828,31 +837,45 @@
 
 .home-dialog-close {
   position: absolute;
-  top: 22px;
-  right: 22px;
+  top: 24px;
+  right: 24px;
   display: grid;
   width: 44px;
   height: 44px;
   place-items: center;
   border: 1px solid var(--home-border);
-  border-radius: 9px;
-  background: transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--home-surface-soft) 84%, transparent);
   color: var(--home-text);
   cursor: pointer;
 }
 
+.home-dialog-close svg {
+  display: none;
+}
+
+.home-dialog-close::before {
+  content: '\00d7';
+  font-size: 28px;
+  font-weight: 420;
+  line-height: 1;
+}
+
 .home-dialog-actions {
   display: flex;
+  justify-content: center;
   gap: 14px;
 }
 
 .home-secondary-button,
 .home-danger-button {
-  min-height: 48px;
-  padding: 0 22px;
+  min-height: 52px;
+  padding: 0 28px;
   border: 1px solid var(--home-border);
+  border-radius: 999px;
   background: var(--home-surface-soft);
   color: var(--home-text);
+  font-size: 17px;
   transition:
     background 0.16s ease,
     border-color 0.16s ease,

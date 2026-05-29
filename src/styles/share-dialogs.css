@@ -251,10 +251,6 @@
   text-align: left;
 }
 
-.share-provenance {
-  width: min(620px, calc(100vw - 32px));
-}
-
 .share-provenance-list {
   display: grid;
   gap: 0;
@@ -385,13 +381,15 @@
 }
 
 .share-dialog-close svg {
-  display: block;
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  display: none;
+}
+
+.share-dialog-close::before {
+  color: currentColor;
+  content: '\00d7';
+  font-size: 28px;
+  font-weight: 420;
+  line-height: 1;
 }
 
 .share-confirm button.primary,

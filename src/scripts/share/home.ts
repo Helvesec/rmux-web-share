@@ -228,6 +228,11 @@ class ShareHome {
       menu.append(menuButton('Share Spectator', linkIcon(), () => this.copySpectatorUrl(share, button)));
     }
     menu.append(separator(), menuButton('Forget', trashIcon(), () => this.forgetFromMenu(share), true));
+    menu.addEventListener('click', (event) => {
+      if ((event.target as Element | null)?.closest('button')) {
+        menu.hidden = true;
+      }
+    });
     button.addEventListener('click', (event) => {
       event.stopPropagation();
       const opening = menu.hidden;

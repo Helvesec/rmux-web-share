@@ -937,6 +937,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await page.locator('.home-menu-button').click();
   await page.locator('.home-menu-popover button', { hasText: 'Show PIN' }).click();
   await expect(page.locator('[data-home-pin-dialog]')).toBeVisible();
+  await expect(page.locator('.home-menu-popover')).toBeHidden();
   await expect(page.locator('[data-home-pin-logo]')).toHaveAttribute('src', /\/crabs\/orange-light\.svg$/);
 });
 
