@@ -38,10 +38,10 @@
   --share-scrollbar: rgb(119 148 139 / 0.7);
   --share-scrollbar-track: rgb(6 8 7 / 0.28);
   --share-terminal-radius: 12px;
-  --share-terminal-surface: color-mix(in srgb, var(--share-bg) 84%, #000000 16%);
-  --share-terminal-outline: color-mix(in srgb, var(--share-text) 4%, transparent);
-  --share-terminal-highlight: color-mix(in srgb, var(--share-text) 4%, transparent);
-  --share-terminal-shadow: 0 24px 80px rgb(0 0 0 / 0.34);
+  --share-terminal-surface: color-mix(in srgb, var(--share-bg) 66%, #000000 34%);
+  --share-terminal-outline: color-mix(in srgb, var(--share-text) 7%, transparent);
+  --share-terminal-highlight: color-mix(in srgb, var(--share-text) 5%, transparent);
+  --share-terminal-shadow: 0 28px 90px rgb(0 0 0 / 0.48);
   --share-dialog-bg: #f7fbf6;
   --share-dialog-text: #10211a;
   --share-dialog-muted: #485a53;
@@ -60,7 +60,11 @@
   padding: 0;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgb(4 13 17 / 0.94), rgb(1 5 7)),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--share-bg) 86%, #111a18 14%),
+      color-mix(in srgb, var(--share-bg) 68%, #000000 32%)
+    ),
     var(--share-bg);
   color: var(--share-text);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -144,6 +148,20 @@
       180deg,
       color-mix(in srgb, var(--share-client-bg) 88%, var(--share-client-fg) 8%),
       var(--share-client-bg)
+    );
+}
+
+.share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='dark'] {
+  --share-bg: color-mix(in srgb, var(--share-client-bg) 70%, #000000 30%);
+  --share-terminal-surface: color-mix(in srgb, var(--share-client-bg) 58%, #000000 42%);
+  --share-terminal-outline: color-mix(in srgb, var(--share-client-fg) 7%, transparent);
+  --share-terminal-highlight: color-mix(in srgb, var(--share-client-fg) 5%, transparent);
+  --share-terminal-shadow: 0 28px 90px rgb(0 0 0 / 0.5);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--share-client-bg) 72%, #000000 28%),
+      color-mix(in srgb, var(--share-client-bg) 50%, #000000 50%)
     );
 }
 
