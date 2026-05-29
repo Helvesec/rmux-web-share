@@ -226,6 +226,10 @@
   box-shadow: 0 14px 34px rgb(0 0 0 / 0.22);
 }
 
+.share-terminal-menu {
+  min-width: 270px;
+}
+
 .share-window-menu[hidden],
 .share-terminal-menu[hidden] {
   display: none;
@@ -249,6 +253,7 @@
 }
 
 .share-terminal-menu button {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   border-bottom: 0;
 }
 
@@ -287,10 +292,41 @@
   stroke-linejoin: round;
 }
 
+.share-terminal-menu-section {
+  display: grid;
+}
+
+.share-terminal-menu-section[hidden] {
+  display: none;
+}
+
+.share-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-menu-shortcut {
+  justify-self: end;
+  padding-left: 16px;
+  color: color-mix(in srgb, var(--share-dialog-text) 48%, transparent);
+  font: 11px / 1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  white-space: nowrap;
+}
+
+.share-terminal-menu button:disabled .share-menu-shortcut {
+  color: color-mix(in srgb, var(--share-dialog-text) 28%, transparent);
+}
+
 .share-menu-separator {
   height: 1px;
   margin: 5px 12px;
   background: color-mix(in srgb, var(--share-dialog-text) 12%, transparent);
+}
+
+.share-menu-separator[hidden] {
+  display: none;
 }
 
 .share-window-menu button.danger:hover,

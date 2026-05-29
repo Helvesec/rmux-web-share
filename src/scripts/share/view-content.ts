@@ -122,28 +122,66 @@ export function shareViewTemplate(): string {
             <rect x="8" y="8" width="10" height="10" rx="1.5" />
             <path d="M6 16H5.5A1.5 1.5 0 0 1 4 14.5v-9A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5V6" />
           </svg>
-          <span>Copy</span>
+          <span class="share-menu-label">Copy</span>
+          <span class="share-menu-shortcut" data-share-terminal-copy-shortcut></span>
         </button>
         <button data-share-terminal-paste type="button" role="menuitem">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
             <path d="M9 5h6l1 2h2v13H6V7h2l1-2Z" />
             <path d="M9 11h6M9 15h5" />
           </svg>
-          <span>Paste</span>
+          <span class="share-menu-label">Paste</span>
+          <span class="share-menu-shortcut" data-share-terminal-paste-shortcut></span>
         </button>
         <button data-share-terminal-show-toolbar type="button" role="menuitem" hidden>
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
             <path d="M5 8h14M8 12h8M10 16h4" />
           </svg>
-          <span data-share-terminal-toolbar-label>Show toolbar</span>
+          <span class="share-menu-label" data-share-terminal-toolbar-label>Show toolbar</span>
+          <span class="share-menu-shortcut" aria-hidden="true"></span>
         </button>
+        <div class="share-menu-separator" data-share-terminal-controls-separator role="separator" hidden></div>
+        <div class="share-terminal-menu-section" data-share-terminal-controls role="group" hidden>
+          <button data-share-terminal-split-horizontal type="button" role="menuitem">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="5" width="16" height="14" rx="1.5" />
+              <path d="M12 5v14" />
+            </svg>
+            <span class="share-menu-label">Split Horizontally</span>
+            <span class="share-menu-shortcut">Ctrl+B %</span>
+          </button>
+          <button data-share-terminal-split-vertical type="button" role="menuitem">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="5" width="16" height="14" rx="1.5" />
+              <path d="M4 12h16" />
+            </svg>
+            <span class="share-menu-label">Split Vertically</span>
+            <span class="share-menu-shortcut">Ctrl+B "</span>
+          </button>
+          <button data-share-terminal-new-window type="button" role="menuitem">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="5" width="14" height="14" rx="1.5" />
+              <path d="M12 8v8M8 12h8" />
+            </svg>
+            <span class="share-menu-label">New Window</span>
+            <span class="share-menu-shortcut">Ctrl+B C</span>
+          </button>
+          <button data-share-terminal-kill-pane type="button" role="menuitem">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+            <span class="share-menu-label">Close Pane</span>
+            <span class="share-menu-shortcut">Ctrl+B X</span>
+          </button>
+        </div>
         <div class="share-menu-separator" role="separator"></div>
         <button data-share-terminal-provenance type="button" role="menuitem">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
             <path d="M12 3l8 4v5c0 5-3.4 7.8-8 9-4.6-1.2-8-4-8-9V7l8-4Z" />
             <path d="M9.5 12l1.8 1.8 3.7-4" />
           </svg>
-          <span>Security & provenance</span>
+          <span class="share-menu-label">Security & provenance</span>
+          <span class="share-menu-shortcut" aria-hidden="true"></span>
         </button>
       </div>
       <dialog class="share-confirm" data-share-confirm>

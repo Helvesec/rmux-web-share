@@ -549,6 +549,9 @@ test('terminal context menu exposes terminal actions without opening window acti
   await expect(page.locator('[data-share-terminal-copy]')).toBeDisabled();
   await expect(page.locator('[data-share-terminal-paste]')).toBeEnabled();
   await expect(page.locator('[data-share-terminal-toolbar-label]')).toHaveText('Hide toolbar');
+  await expect(page.locator('[data-share-terminal-copy-shortcut]')).toHaveText(/^(Ctrl\+|⌘)C$/);
+  await expect(page.locator('[data-share-terminal-paste-shortcut]')).toHaveText(/^(Ctrl\+|⌘)V$/);
+  await expect(page.locator('[data-share-terminal-controls]')).toBeHidden();
 
   await page.locator('[data-share-terminal-paste]').click();
   await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 112, 119, 100]);
@@ -556,6 +559,60 @@ test('terminal context menu exposes terminal actions without opening window acti
   await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
   await page.locator('[data-share-terminal-show-toolbar]').click();
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'hidden');
+});
+
+test('session operator terminal menu exposes session controls with shortcuts', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, active: false, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  const openTerminalMenu = async () => {
+    await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+    await expect(page.locator('[data-share-terminal-menu]')).toBeVisible();
+    await expect(page.locator('[data-share-terminal-controls]')).toBeVisible();
+  };
+
+  await openTerminalMenu();
+  await expect(page.locator('[data-share-terminal-split-horizontal]')).toContainText('Split Horizontally');
+  await expect(page.locator('[data-share-terminal-split-horizontal] .share-menu-shortcut')).toHaveText('Ctrl+B %');
+  await expect(page.locator('[data-share-terminal-split-vertical] .share-menu-shortcut')).toHaveText('Ctrl+B "');
+  await expect(page.locator('[data-share-terminal-new-window] .share-menu-shortcut')).toHaveText('Ctrl+B C');
+  await expect(page.locator('[data-share-terminal-kill-pane] .share-menu-shortcut')).toHaveText('Ctrl+B X');
+
+  await page.locator('[data-share-terminal-split-horizontal]').click();
+  await openTerminalMenu();
+  await page.locator('[data-share-terminal-split-vertical]').click();
+  await openTerminalMenu();
+  await page.locator('[data-share-terminal-new-window]').click();
+  await openTerminalMenu();
+  await page.locator('[data-share-terminal-kill-pane]').click();
+
+  await expect.poll(() => jsonFrames(page)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ type: 'split_pane', direction: 'horizontal' }),
+      expect.objectContaining({ type: 'split_pane', direction: 'vertical' }),
+      expect.objectContaining({ type: 'new_window' }),
+      expect.objectContaining({ type: 'kill_pane' }),
+    ]),
+  );
 });
 
 test('operator can disconnect, copy the sanitized link, and reconnect from the same tab', async ({ page }) => {

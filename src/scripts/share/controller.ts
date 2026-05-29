@@ -67,6 +67,7 @@ const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
+  canControlSession: boolean;
   toolbarHidden: boolean;
 }
 
@@ -330,6 +331,7 @@ class ShareConnection {
       this.view.openTerminalMenu(x, y, {
         canCopy: Boolean(this.terminal?.selection()),
         canPaste: this.role === 'operator' && typeof navigator.clipboard?.readText === 'function',
+        canControlSession: this.sessionControls,
         toolbarHidden: this.view.toolbarHidden(),
       });
     });
@@ -635,9 +637,17 @@ class ShareView {
   private readonly windowKill: HTMLButtonElement;
   private readonly terminalMenu: HTMLElement;
   private readonly terminalCopy: HTMLButtonElement;
+  private readonly terminalCopyShortcut: HTMLElement;
   private readonly terminalPaste: HTMLButtonElement;
+  private readonly terminalPasteShortcut: HTMLElement;
   private readonly terminalShowToolbar: HTMLButtonElement;
   private readonly terminalToolbarLabel: HTMLElement;
+  private readonly terminalControlsSeparator: HTMLElement;
+  private readonly terminalControls: HTMLElement;
+  private readonly terminalSplitHorizontal: HTMLButtonElement;
+  private readonly terminalSplitVertical: HTMLButtonElement;
+  private readonly terminalNewWindow: HTMLButtonElement;
+  private readonly terminalKillPane: HTMLButtonElement;
   private readonly terminalProvenance: HTMLButtonElement;
   private readonly confirmDialog: HTMLDialogElement;
   private readonly confirmTitle: HTMLElement;
@@ -706,9 +716,17 @@ class ShareView {
     this.windowKill = query(root, '[data-share-window-kill]');
     this.terminalMenu = query(root, '[data-share-terminal-menu]');
     this.terminalCopy = query(root, '[data-share-terminal-copy]');
+    this.terminalCopyShortcut = query(root, '[data-share-terminal-copy-shortcut]');
     this.terminalPaste = query(root, '[data-share-terminal-paste]');
+    this.terminalPasteShortcut = query(root, '[data-share-terminal-paste-shortcut]');
     this.terminalShowToolbar = query(root, '[data-share-terminal-show-toolbar]');
     this.terminalToolbarLabel = query(root, '[data-share-terminal-toolbar-label]');
+    this.terminalControlsSeparator = query(root, '[data-share-terminal-controls-separator]');
+    this.terminalControls = query(root, '[data-share-terminal-controls]');
+    this.terminalSplitHorizontal = query(root, '[data-share-terminal-split-horizontal]');
+    this.terminalSplitVertical = query(root, '[data-share-terminal-split-vertical]');
+    this.terminalNewWindow = query(root, '[data-share-terminal-new-window]');
+    this.terminalKillPane = query(root, '[data-share-terminal-kill-pane]');
     this.terminalProvenance = query(root, '[data-share-terminal-provenance]');
     this.confirmDialog = query(root, '[data-share-confirm]');
     this.confirmTitle = query(root, '[data-share-confirm-title]');
@@ -767,6 +785,18 @@ class ShareView {
       this.closeTerminalMenu();
       this.toggleToolbarHandler?.();
     });
+    this.terminalSplitHorizontal.addEventListener('click', () => {
+      this.runTerminalSessionControl(this.splitHorizontalHandler);
+    });
+    this.terminalSplitVertical.addEventListener('click', () => {
+      this.runTerminalSessionControl(this.splitVerticalHandler);
+    });
+    this.terminalNewWindow.addEventListener('click', () => {
+      this.runTerminalSessionControl(this.newWindowHandler);
+    });
+    this.terminalKillPane.addEventListener('click', () => {
+      this.runTerminalSessionControl(this.killPaneHandler);
+    });
     this.terminalProvenance.addEventListener('click', () => {
       this.closeTerminalMenu();
       void this.openProvenance();
@@ -785,6 +815,7 @@ class ShareView {
     this.provenanceOpen.addEventListener('click', () => {
       void this.openProvenance();
     });
+    this.setTerminalShortcuts();
   }
 
   static render(root: HTMLElement): ShareView {
@@ -1013,13 +1044,24 @@ class ShareView {
     this.terminalPaste.disabled = !state.canPaste;
     this.terminalShowToolbar.hidden = false;
     this.terminalToolbarLabel.textContent = state.toolbarHidden ? 'Show toolbar' : 'Hide toolbar';
+    this.terminalControlsSeparator.hidden = !state.canControlSession;
+    this.terminalControls.hidden = !state.canControlSession;
     this.terminalMenu.hidden = false;
     const rect = this.terminalMenu.getBoundingClientRect();
     const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);
     const top = Math.min(Math.max(8, y), window.innerHeight - rect.height - 8);
     this.terminalMenu.style.left = `${left}px`;
     this.terminalMenu.style.top = `${top}px`;
-    const first = [this.terminalCopy, this.terminalPaste, this.terminalShowToolbar, this.terminalProvenance]
+    const first = [
+      this.terminalCopy,
+      this.terminalPaste,
+      this.terminalShowToolbar,
+      this.terminalSplitHorizontal,
+      this.terminalSplitVertical,
+      this.terminalNewWindow,
+      this.terminalKillPane,
+      this.terminalProvenance,
+    ]
       .find((button) => !button.hidden && !button.disabled);
     first?.focus();
   }
@@ -1081,6 +1123,17 @@ class ShareView {
 
   private closeTerminalMenu(): void {
     this.terminalMenu.hidden = true;
+  }
+
+  private runTerminalSessionControl(handler?: () => void): void {
+    this.closeTerminalMenu();
+    handler?.();
+  }
+
+  private setTerminalShortcuts(): void {
+    const primary = primaryShortcutLabel();
+    this.terminalCopyShortcut.textContent = `${primary}C`;
+    this.terminalPasteShortcut.textContent = `${primary}V`;
   }
 
   private activeWindow(): SessionWindowView | undefined {
@@ -1211,6 +1264,10 @@ function finiteCount(value: number | undefined): number | undefined {
   return value === undefined || !Number.isFinite(value)
     ? undefined
     : Math.max(0, Math.floor(value));
+}
+
+function primaryShortcutLabel(): string {
+  return /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 }
 
 function bindUserThemeChanges(callback: () => void): void {
