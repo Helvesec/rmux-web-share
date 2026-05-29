@@ -112,9 +112,10 @@ class ShareHome {
   }
 
   private renderShareRow(share: RecentShare): HTMLElement {
+    const currentStatus = recentShareStatus(share);
     const row = document.createElement('article');
     row.className = 'home-recent-row';
-    row.dataset.status = recentShareStatus(share);
+    row.dataset.status = currentStatus;
 
     const crab = document.createElement('img');
     crab.className = 'home-recent-crab';
@@ -144,27 +145,32 @@ class ShareHome {
 
     const status = document.createElement('span');
     status.className = 'home-status';
-    status.textContent = statusLabel(recentShareStatus(share));
+    status.textContent = statusLabel(currentStatus);
 
     const viewers = document.createElement('span');
     viewers.className = 'home-viewers';
-    viewers.title = share.viewers === undefined
+    const viewerCount = currentStatus === 'unavailable' ? 0 : share.viewers;
+    viewers.title = viewerCount === undefined
       ? 'Connected browser count unavailable'
-      : `${share.viewers} connected browser${share.viewers === 1 ? '' : 's'}`;
+      : `${viewerCount} connected browser${viewerCount === 1 ? '' : 's'}`;
     viewers.setAttribute('aria-label', viewers.title);
     viewers.innerHTML = eyeIcon();
-    viewers.append(document.createTextNode(share.viewers === undefined ? '—' : String(share.viewers)));
+    viewers.append(document.createTextNode(viewerCount === undefined ? '—' : String(viewerCount)));
 
     const expires = document.createElement('div');
     expires.className = 'home-expiry';
-    const expiryLabel = document.createElement('span');
-    expiryLabel.textContent = recentShareExpiresLabel(share);
-    const progress = document.createElement('i');
-    const progressValue = recentShareProgress(share);
-    if (progressValue !== undefined) {
-      progress.style.setProperty('--progress', `${progressValue}%`);
+    if (currentStatus !== 'unavailable') {
+      const expiryLabel = document.createElement('span');
+      expiryLabel.textContent = recentShareExpiresLabel(share);
+      const progress = document.createElement('i');
+      const progressValue = recentShareProgress(share);
+      if (progressValue !== undefined) {
+        progress.style.setProperty('--progress', `${progressValue}%`);
+      }
+      expires.append(expiryLabel, progress);
+    } else {
+      expires.setAttribute('aria-label', 'Unavailable share');
     }
-    expires.append(expiryLabel, progress);
 
     const connect = document.createElement('button');
     connect.className = 'home-row-connect';
@@ -173,9 +179,30 @@ class ShareHome {
     connect.append(iconArrowRight());
     connect.addEventListener('click', () => openShareWindow(share.params, { pairing: Boolean(share.pin) }));
 
-    const menu = this.renderShareMenu(share);
-    row.append(crab, wrap(title, endpoint), status, viewers, expires, connect, menu);
+    const unavailable = currentStatus === 'unavailable';
+    const action = unavailable ? this.renderForgetButton(share) : connect;
+    const menu = unavailable ? this.renderActionPlaceholder() : this.renderShareMenu(share);
+    row.append(crab, wrap(title, endpoint), status, viewers, expires, action, menu);
     return row;
+  }
+
+  private renderForgetButton(share: RecentShare): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.className = 'home-row-forget';
+    button.type = 'button';
+    button.innerHTML = `${trashIcon()}<span>Forget</span>`;
+    button.addEventListener('click', () => {
+      forgetRecentShare(share.id);
+      this.renderRecentLinks();
+      this.showToast('Share forgotten');
+    });
+    return button;
+  }
+
+  private renderActionPlaceholder(): HTMLElement {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'home-row-menu-placeholder';
+    return placeholder;
   }
 
   private renderShareMenu(share: RecentShare): HTMLElement {

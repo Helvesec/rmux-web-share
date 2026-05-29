@@ -1,10 +1,10 @@
 .share-confirm,
 .share-session-actions,
 .share-provenance {
-  width: min(420px, calc(100vw - 32px));
+  width: min(620px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid rgb(69 136 87 / 0.24);
-  border-radius: 24px;
+  border-radius: 22px;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
   color-scheme: light;
@@ -16,14 +16,10 @@
   max-height: calc(100dvh - 32px);
   overflow: auto;
   border: 1px solid rgb(69 136 87 / 0.28);
-  border-radius: 18px;
+  border-radius: 22px;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
   color-scheme: light;
-}
-
-.share-session-actions {
-  width: min(860px, calc(100vw - 32px));
 }
 
 .share-confirm::backdrop,
@@ -37,7 +33,7 @@
 .share-provenance-panel {
   display: grid;
   gap: 18px;
-  padding: 24px;
+  padding: 32px;
   border-radius: inherit;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
@@ -45,7 +41,7 @@
 
 .share-session-actions-panel,
 .share-provenance-panel {
-  padding: 42px;
+  padding: 32px;
 }
 
 .share-confirm[data-pin='true'] .share-confirm-panel {
@@ -95,7 +91,7 @@
 }
 
 .share-session-actions h1 {
-  font-size: clamp(36px, 6vw, 52px);
+  font-size: clamp(30px, 4.6vw, 42px);
   font-weight: 820;
   line-height: 1.02;
 }
@@ -123,7 +119,7 @@
 }
 
 .share-session-actions p {
-  font-size: clamp(18px, 2.3vw, 24px);
+  font-size: clamp(16px, 2vw, 18px);
   line-height: 1.45;
 }
 
@@ -256,7 +252,7 @@
 }
 
 .share-provenance {
-  width: min(680px, calc(100vw - 32px));
+  width: min(620px, calc(100vw - 32px));
 }
 
 .share-provenance-list {
@@ -378,10 +374,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  min-width: 56px;
-  height: 56px;
-  min-height: 56px;
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
   padding: 0;
   box-sizing: border-box;
   border-radius: 999px;
@@ -408,14 +404,14 @@
 
 .share-session-actions .share-confirm-actions {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .share-session-actions .share-confirm-actions button {
-  min-height: 64px;
+  min-height: 56px;
   min-width: 0;
-  font-size: clamp(18px, 2.4vw, 24px);
+  font-size: clamp(16px, 2vw, 18px);
   font-weight: 780;
   white-space: nowrap;
 }

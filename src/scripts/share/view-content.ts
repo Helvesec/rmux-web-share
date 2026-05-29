@@ -1,4 +1,4 @@
-import { shareAssetUrl } from './fragment';
+import { shareAssetUrl, shareBasePath } from './fragment';
 import { provenanceDialogTemplate } from './provenance';
 import type { ShareRole } from './types';
 
@@ -15,7 +15,7 @@ export function shareViewTemplate(): string {
             <span class="share-brand-title">RMUX</span>
           </a>
           <span class="share-brand-divider" aria-hidden="true"></span>
-          <a class="share-brand-context" href="https://share.rmux.io/">SHARE</a>
+          <a class="share-brand-context" data-share-home-link href="${shareBasePath()}">SHARE</a>
         </div>
         <nav class="share-topbar-actions" data-share-session-controls hidden aria-label="Session controls">
           <button class="share-icon-button" data-share-split-horizontal type="button" aria-label="Split right" title="Split right">

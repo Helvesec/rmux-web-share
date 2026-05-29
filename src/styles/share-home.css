@@ -172,7 +172,7 @@
 
 .home-connect-card,
 .home-recent-card {
-  width: min(100%, 1800px);
+  width: min(100%, 1720px);
   margin-right: auto;
   margin-left: auto;
   border: 1px solid var(--home-border);
@@ -183,13 +183,13 @@
 
 .home-connect-card {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  gap: 26px;
-  margin-top: 42px;
-  padding: 32px 46px 28px;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 22px;
+  margin-top: 36px;
+  padding: 25px 42px 23px;
   background:
-    radial-gradient(ellipse 420px 260px at 88% 48%, rgb(37 99 235 / 0.17), transparent 72%),
-    linear-gradient(105deg, var(--home-surface) 0%, #fbfdff 58%, #eff6ff 100%);
+    radial-gradient(ellipse 370px 230px at 84% 48%, rgb(37 99 235 / 0.2), transparent 72%),
+    linear-gradient(105deg, var(--home-surface) 0%, #fbfdff 62%, #eef5ff 100%);
 }
 
 .share-root[data-theme='dark'] .home-connect-card,
@@ -199,14 +199,14 @@
 
 .share-root[data-theme='dark'] .home-connect-card {
   background:
-    radial-gradient(ellipse 420px 260px at 88% 48%, rgb(91 140 255 / 0.24), transparent 72%),
-    linear-gradient(105deg, var(--home-surface) 0%, #101a29 58%, #13233a 100%);
+    radial-gradient(ellipse 370px 230px at 84% 48%, rgb(91 140 255 / 0.26), transparent 72%),
+    linear-gradient(105deg, var(--home-surface) 0%, #101a29 62%, #13233a 100%);
 }
 
 .home-connect-icon {
   display: grid;
-  width: 62px;
-  height: 62px;
+  width: 56px;
+  height: 56px;
   place-items: center;
   border: 1px solid var(--home-border);
   border-radius: 999px;
@@ -216,7 +216,7 @@
 
 .home-connect-content h1 {
   margin: 0;
-  font-size: clamp(25px, 2.45vw, 32px);
+  font-size: clamp(24px, 2.25vw, 30px);
   line-height: 1.12;
   letter-spacing: 0;
 }
@@ -228,26 +228,26 @@
 }
 
 .home-connect-content p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--home-muted);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 520;
 }
 
 .home-connect-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 18px;
-  margin-top: 26px;
+  grid-template-columns: minmax(0, 1fr) 164px;
+  gap: 16px;
+  margin-top: 20px;
 }
 
 .home-input-wrap {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
-  min-height: 58px;
-  padding: 0 22px;
+  gap: 14px;
+  min-height: 52px;
+  padding: 0 20px;
   border: 1px solid var(--home-border);
   border-radius: 9px;
   background: var(--home-surface);
@@ -260,8 +260,8 @@
 }
 
 .home-input-wrap svg {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
   stroke: currentColor;
   stroke-width: 1.9;
 }
@@ -273,7 +273,7 @@
   background: transparent;
   color: var(--home-text);
   font: inherit;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 560;
 }
 
@@ -283,6 +283,7 @@
 
 .home-connect-button,
 .home-row-connect,
+.home-row-forget,
 .home-secondary-button,
 .home-danger-button {
   display: inline-flex;
@@ -295,11 +296,11 @@
 }
 
 .home-connect-button {
-  gap: 14px;
+  gap: 12px;
   border: 0;
   background: linear-gradient(135deg, var(--home-primary), var(--home-primary-strong));
   color: #ffffff;
-  font-size: 18px;
+  font-size: 16px;
   box-shadow: 0 12px 26px rgb(37 99 235 / 0.22);
   transition:
     transform 0.16s ease,
@@ -318,7 +319,8 @@
 }
 
 .home-connect-button svg,
-.home-row-connect svg {
+.home-row-connect svg,
+.home-row-forget svg {
   width: 24px;
   height: 24px;
   stroke: currentColor;
@@ -336,14 +338,14 @@
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  min-height: 48px;
+  min-height: 46px;
   margin-top: 2px;
-  padding: 0 20px;
+  padding: 0 18px;
   border: 1px solid var(--home-border);
   border-radius: 8px;
   background: var(--home-surface-soft);
   color: var(--home-text);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 640;
 }
 
@@ -575,6 +577,7 @@
 }
 
 .home-row-connect:hover,
+.home-row-forget:hover,
 .home-menu-button:hover,
 .home-action:hover,
 .home-icon-action:hover {
@@ -583,13 +586,37 @@
   color: var(--home-primary);
 }
 
-.home-row-connect:hover {
+.home-row-connect:hover,
+.home-row-forget:hover {
   box-shadow: 0 10px 24px rgb(15 23 42 / 0.08);
   transform: translateY(-1px);
 }
 
+.home-row-forget {
+  gap: 9px;
+  min-height: 46px;
+  border: 1px solid color-mix(in srgb, var(--home-error) 44%, var(--home-border));
+  background: color-mix(in srgb, var(--home-error) 10%, var(--home-surface));
+  color: var(--home-error);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.home-row-forget:hover {
+  border-color: color-mix(in srgb, var(--home-error) 70%, var(--home-border));
+  background: color-mix(in srgb, var(--home-error) 16%, var(--home-surface));
+  color: var(--home-error);
+}
+
 .home-row-menu {
   position: relative;
+  justify-self: end;
+}
+
+.home-row-menu-placeholder {
   justify-self: end;
 }
 

@@ -752,6 +752,9 @@ class ShareView {
   private constructor(root: HTMLElement) {
     root.innerHTML = shareViewTemplate();
     this.app = query(root, '.share-app');
+    query<HTMLAnchorElement>(root, '[data-share-home-link]').addEventListener('click', () => {
+      clearActiveShareParams();
+    });
     this.brandLogoDark = query(root, '.share-brand-logo-dark');
     this.brandLogoLight = query(root, '.share-brand-logo-light');
     this.endpointHost = query(root, '[data-share-endpoint]');

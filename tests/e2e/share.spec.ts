@@ -17,7 +17,7 @@ test('spectator client connects immediately and receives the initial snapshot', 
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
   await expect(page.locator('[data-share-terminal-theme] option[value="user"]')).toHaveText('Host');
   await expect(page.locator('.share-brand-context')).toHaveText('SHARE');
-  await expect(page.locator('.share-brand-context')).toHaveAttribute('href', 'https://share.rmux.io/');
+  await expect(page.locator('.share-brand-context')).toHaveAttribute('href', '/');
   await expect(page.locator('[data-share-role]')).toHaveText('Spectator');
   await expect.poll(() => socketCount(page)).toBe(1);
 
@@ -38,6 +38,20 @@ test('spectator client connects immediately and receives the initial snapshot', 
     }),
   );
   expect(JSON.stringify(await sentFrames(page))).not.toContain(spectatorToken);
+});
+
+test('terminal SHARE link returns to the dashboard instead of reopening the share', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'The SHARE label is hidden in the mobile topbar.');
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  await page.locator('.share-brand-context').click();
+
+  await expect(page.locator('.home-connect-card')).toBeVisible();
+  await expect(page.locator('[data-share-terminal]')).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.sessionStorage.getItem('rmux.share.activeParams.v1')))
+    .toBeNull();
 });
 
 test('Firefox local links do not show a Chrome permission prompt', async ({ page }) => {
@@ -783,6 +797,13 @@ test('session operator can logout the shared session from the exit menu', async 
   await expect.poll(() => logoutFrameCount(page)).toBe(1);
   await expect(page.locator('.home-connect-card')).toBeVisible();
   await expect(page.locator('.home-status')).toHaveText('Unavailable');
+  await expect(page.locator('.home-viewers')).toContainText('0');
+  await expect(page.locator('.home-expiry')).toHaveText('');
+  await expect(page.locator('.home-row-connect')).toHaveCount(0);
+  await expect(page.locator('.home-row-menu')).toHaveCount(0);
+  await page.locator('.home-row-forget').click();
+  await expect(page.locator('.home-recent-row')).toHaveCount(0);
+  await expect(page.locator('[data-home-toast]')).toHaveText('Share forgotten');
 });
 
 test('operator session shares send attach input without a controls toggle', async ({ page }) => {
