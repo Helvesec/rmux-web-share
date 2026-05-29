@@ -88,18 +88,30 @@
 }
 
 .share-brand-context {
-  color: currentColor;
+  color: #2563eb;
   font-size: 18px;
-  font-weight: 520;
+  font-weight: 760;
   letter-spacing: 0;
   text-decoration: none;
   white-space: nowrap;
 }
 
+.share-app[data-terminal-mode='dark'] .share-brand-context,
+.share-app:not([data-terminal-mode='light']) .share-brand-context {
+  color: #5b8cff;
+}
+
 .share-brand-context:hover,
 .share-brand-context:focus-visible {
-  opacity: 0.72;
+  color: #1d4ed8;
   outline: none;
+}
+
+.share-app[data-terminal-mode='dark'] .share-brand-context:hover,
+.share-app:not([data-terminal-mode='light']) .share-brand-context:hover,
+.share-app[data-terminal-mode='dark'] .share-brand-context:focus-visible,
+.share-app:not([data-terminal-mode='light']) .share-brand-context:focus-visible {
+  color: #82a5ff;
 }
 
 .share-topbar-actions {
@@ -112,6 +124,10 @@
 }
 
 .share-topbar-actions[hidden] {
+  display: none;
+}
+
+.share-app[data-connected='false'] .share-topbar-actions {
   display: none;
 }
 

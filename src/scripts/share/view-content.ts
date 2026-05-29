@@ -98,7 +98,7 @@ export function shareViewTemplate(): string {
           </div>
           <p>Disconnect closes only this browser. The rmux session keeps running.</p>
           <div class="share-confirm-actions">
-            <button data-share-session-detach class="primary" type="button">Disconnect</button>
+            <button data-share-session-detach class="primary" type="button">Disconnect only</button>
             <button data-share-session-logout class="danger" type="button">Close rmux session</button>
           </div>
         </form>

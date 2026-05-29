@@ -32,7 +32,7 @@
   min-height: 100vh;
   padding: 34px 38px 56px;
   background:
-    radial-gradient(circle at 82% 18%, rgb(36 99 235 / 0.09), transparent 32%),
+    radial-gradient(ellipse 560px 320px at 83% 20%, rgb(36 99 235 / 0.13), transparent 72%),
     linear-gradient(180deg, #fbfdff, var(--home-bg));
   color: var(--home-text);
 }
@@ -48,7 +48,7 @@
   --home-primary: #5b8cff;
   --home-primary-strong: #3f73f5;
   background:
-    radial-gradient(circle at 82% 18%, rgb(91 140 255 / 0.16), transparent 34%),
+    radial-gradient(ellipse 560px 320px at 83% 20%, rgb(91 140 255 / 0.18), transparent 72%),
     linear-gradient(180deg, #0b111b, var(--home-bg));
 }
 
@@ -188,8 +188,8 @@
   margin-top: 42px;
   padding: 32px 46px 28px;
   background:
-    radial-gradient(circle at 92% 20%, rgb(37 99 235 / 0.13), transparent 34%),
-    linear-gradient(105deg, var(--home-surface) 0%, #fbfdff 52%, #eef6ff 100%);
+    radial-gradient(ellipse 420px 260px at 88% 48%, rgb(37 99 235 / 0.17), transparent 72%),
+    linear-gradient(105deg, var(--home-surface) 0%, #fbfdff 58%, #eff6ff 100%);
 }
 
 .share-root[data-theme='dark'] .home-connect-card,
@@ -199,8 +199,8 @@
 
 .share-root[data-theme='dark'] .home-connect-card {
   background:
-    radial-gradient(circle at 92% 18%, rgb(91 140 255 / 0.2), transparent 36%),
-    linear-gradient(105deg, var(--home-surface) 0%, #101a29 54%, #13233a 100%);
+    radial-gradient(ellipse 420px 260px at 88% 48%, rgb(91 140 255 / 0.24), transparent 72%),
+    linear-gradient(105deg, var(--home-surface) 0%, #101a29 58%, #13233a 100%);
 }
 
 .home-connect-icon {

@@ -18,6 +18,17 @@
   min-height: 100vh;
 }
 
+.share-root {
+  --share-dialog-bg: #f7fbf6;
+  --share-dialog-text: #10211a;
+  --share-dialog-muted: #485a53;
+  --share-dialog-field-bg: #ffffff;
+  --share-dialog-button-bg: #eef5f0;
+  --share-dialog-button-primary-bg: #dff2e6;
+  --share-dialog-button-primary-border: #458857;
+  --share-dialog-help: #226b39;
+}
+
 .share-app,
 .share-app * {
   box-sizing: border-box;
@@ -245,6 +256,9 @@
 
 .share-app[data-connected='false'] .share-terminal {
   filter: grayscale(0.78);
+}
+
+.share-app[data-connected='false'] .share-terminal-stage {
   opacity: 0.48;
 }
 
@@ -385,6 +399,7 @@
 .share-terminal-placeholder {
   position: absolute;
   inset: 0;
+  z-index: 3;
   display: grid;
   min-width: 0;
   min-height: 0;
@@ -414,6 +429,30 @@
 .share-placeholder-action:focus-visible {
   color: var(--share-text);
   outline: none;
+}
+
+.share-placeholder-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--share-text);
+  font-weight: 650;
+}
+
+.share-placeholder-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  border-radius: 999px;
+  animation: share-placeholder-spin 780ms linear infinite;
+}
+
+@keyframes share-placeholder-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .share-terminal .xterm {

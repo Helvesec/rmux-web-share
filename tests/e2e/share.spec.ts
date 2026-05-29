@@ -146,8 +146,9 @@ test('home provenance opens from learn more and home logo follows the theme', as
 
   await page.locator('[data-home-provenance-open]').click();
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
+  await expect(page.locator('.share-provenance-panel')).toHaveCSS('background-color', 'rgb(247, 251, 246)');
   await expect(page.locator('[data-share-provenance-commit]')).toHaveText('fedcba987654');
-  await page.locator('[data-share-provenance] button[type="submit"]').click();
+  await page.locator('[data-share-provenance] .share-dialog-close').click();
 
   await page.locator('button[data-home-theme]').click();
   await expect(page.locator('.home-brand-logo-dark')).toBeVisible();
@@ -603,7 +604,7 @@ test('operator sends xterm data and can open the disconnect dialog from exit', a
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
   await expect(page.locator('[data-share-session-actions] h1')).toHaveText('Disconnect');
   await expect(page.locator('[data-share-session-detach]')).toBeVisible();
-  await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect');
+  await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect only');
   await expect(page.locator('[data-share-session-release]')).toHaveCount(0);
   await expect(page.locator('[data-share-session-cancel]')).toHaveCount(0);
   await expect(page.locator('[data-share-session-provenance]')).toHaveCount(0);
@@ -700,6 +701,44 @@ test('session operator terminal menu exposes session controls with shortcuts', a
       expect.objectContaining({ type: 'kill_pane' }),
     ]),
   );
+});
+
+test('disconnected session operator hides session controls and shows reconnecting state', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-session-controls]')).toBeVisible();
+
+  await page.evaluate(() => {
+    const socket = window.__rmuxShareSockets?.at(-1) as unknown as { closeWith?: (code: number, reason: string) => void };
+    socket?.closeWith?.(1006, '');
+  });
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
+  await expect(page.locator('[data-share-session-controls]')).toBeHidden();
+  await expect(page.locator('.share-placeholder-state')).toContainText('Disconnected. Reconnecting...');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await expect(page.locator('[data-share-terminal-menu]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal-controls]')).toBeHidden();
 });
 
 test('operator disconnect returns to recent links without reusing the share secret', async ({ page }) => {
@@ -846,6 +885,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
+  await expect(page.locator('[data-share-pin]')).toBeFocused();
   await expect(page.locator('[data-share-confirm-title]')).toHaveText('Pairing code required');
   await expect(page.locator('[data-share-confirm-logo]')).toHaveAttribute('src', /\/crabs\/orange-light\.svg$/);
   await page.locator('[data-share-confirm]').evaluate((dialog) => (dialog as HTMLDialogElement).close());
@@ -858,7 +898,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
 
   await page.locator('[data-share-pin]').fill('1');
   await expect(page.locator('[data-share-pin-boxes] i').first()).toHaveText('1');
-  await expect(page.locator('[data-share-pin-boxes] i').first()).toHaveText('*', { timeout: 1400 });
+  await expect(page.locator('[data-share-pin-boxes] i').first()).toHaveText('*', { timeout: 700 });
 
   await page.locator('[data-share-pin]').fill('123456');
 

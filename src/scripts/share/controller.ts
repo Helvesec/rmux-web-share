@@ -81,6 +81,8 @@ const SESSION_VIEW = 0x11;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const PIN_RE = /^\d{6}$/;
 const PIN_REQUIRED_CLOSE_CODE = 4008;
+const PIN_MASK_DELAY_MS = 330;
+const DISCONNECTED_RECONNECTING = 'Disconnected. Reconnecting...';
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
@@ -332,8 +334,14 @@ class ShareConnection {
       return;
     }
 
-    this.view.setStatus({ connected: false, detail: 'disconnected', tone: 'error' });
     const recovery = `${message}. Lost connection? Try refreshing.`;
+    if (event.code === 1006) {
+      this.view.setStatus({ connected: false, detail: DISCONNECTED_RECONNECTING, tone: 'warn' });
+      this.terminal?.notice(recovery);
+      return;
+    }
+
+    this.view.setStatus({ connected: false, detail: 'disconnected', tone: 'error' });
     if (this.terminal) {
       this.terminal.notice(recovery);
       return;
@@ -370,10 +378,11 @@ class ShareConnection {
     this.terminal.onWindowSelect((windowIndex) => this.view.selectWindow(windowIndex));
     this.terminal.onWindowMenu((windowIndex, x, y) => this.view.openWindowActions(windowIndex, x, y));
     this.terminal.onTerminalMenu((x, y) => {
+      const connected = this.view.isConnected();
       this.view.openTerminalMenu(x, y, {
         canCopy: Boolean(this.terminal?.selection()),
-        canPaste: this.role === 'operator' && typeof navigator.clipboard?.readText === 'function',
-        canControlSession: this.sessionControls,
+        canPaste: connected && this.role === 'operator' && typeof navigator.clipboard?.readText === 'function',
+        canControlSession: connected && this.sessionControls,
         toolbarHidden: this.view.toolbarHidden(),
       });
     });
@@ -918,7 +927,7 @@ class ShareView {
     }
     this.confirmDialog.showModal();
     if (requiresPin) {
-      this.pinInput.focus();
+      this.focusPinInput();
     }
   }
 
@@ -996,7 +1005,7 @@ class ShareView {
 
   setSessionControls(visible: boolean): void {
     this.sessionControlVisible = visible;
-    this.sessionControls.hidden = !visible;
+    this.updateSessionControlsVisibility();
   }
 
   setSessionView(view: SessionView): void {
@@ -1067,11 +1076,16 @@ class ShareView {
     this.status.textContent = this.connected ? 'Connected' : 'Disconnected';
     this.sessionMenuButton.title = this.connected ? 'Disconnect' : 'Disconnected';
     this.rootDataset('connected', String(this.connected));
+    this.updateSessionControlsVisibility();
     this.setTerminalPlaceholder(status);
   }
 
+  isConnected(): boolean {
+    return this.connected;
+  }
+
   selectWindow(windowIndex: number): void {
-    if (!this.sessionControlVisible) {
+    if (!this.connected || !this.sessionControlVisible) {
       return;
     }
     this.selectedWindowIndex = windowIndex;
@@ -1079,7 +1093,7 @@ class ShareView {
   }
 
   openWindowActions(windowIndex: number, x: number, y: number): void {
-    if (!this.sessionControlVisible) {
+    if (!this.connected || !this.sessionControlVisible) {
       return;
     }
     this.closeTerminalMenu();
@@ -1097,12 +1111,17 @@ class ShareView {
 
   openTerminalMenu(x: number, y: number, state: TerminalMenuState): void {
     this.closeWindowMenu();
+    if (!this.connected) {
+      this.closeTerminalMenu();
+      return;
+    }
+    const canControlSession = this.connected && state.canControlSession;
     this.terminalCopy.disabled = !state.canCopy;
-    this.terminalPaste.disabled = !state.canPaste;
+    this.terminalPaste.disabled = !this.connected || !state.canPaste;
     this.terminalShowToolbar.hidden = false;
     this.terminalToolbarLabel.textContent = state.toolbarHidden ? 'Show toolbar' : 'Hide toolbar';
-    this.terminalControlsSeparator.hidden = !state.canControlSession;
-    this.terminalControls.hidden = !state.canControlSession;
+    this.terminalControlsSeparator.hidden = !canControlSession;
+    this.terminalControls.hidden = !canControlSession;
     this.terminalMenu.hidden = false;
     const rect = this.terminalMenu.getBoundingClientRect();
     const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);
@@ -1191,7 +1210,9 @@ class ShareView {
 
   private runTerminalSessionControl(handler?: () => void): void {
     this.closeTerminalMenu();
-    handler?.();
+    if (this.connected) {
+      handler?.();
+    }
   }
 
   private setTerminalShortcuts(): void {
@@ -1204,9 +1225,16 @@ class ShareView {
     return this.windows.find((window) => window.active);
   }
 
+  private updateSessionControlsVisibility(): void {
+    this.sessionControls.hidden = !(this.connected && this.sessionControlVisible);
+  }
+
   private setTerminalPlaceholder(status: ShareStatus): void {
     if (!this.terminalPlaceholder.isConnected) {
-      return;
+      if (this.connected) {
+        return;
+      }
+      this.terminal.append(this.terminalPlaceholder);
     }
     this.terminalPlaceholder.replaceChildren();
     if (status.action) {
@@ -1216,6 +1244,16 @@ class ShareView {
       button.textContent = status.detail;
       button.addEventListener('click', status.action);
       this.terminalPlaceholder.append(button);
+    } else if (!this.connected && status.detail === DISCONNECTED_RECONNECTING) {
+      const state = document.createElement('span');
+      state.className = 'share-placeholder-state';
+      const spinner = document.createElement('span');
+      spinner.className = 'share-placeholder-spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.textContent = DISCONNECTED_RECONNECTING;
+      state.append(spinner, label);
+      this.terminalPlaceholder.append(state);
     } else {
       this.terminalPlaceholder.textContent = status.detail;
     }
@@ -1258,7 +1296,7 @@ class ShareView {
           if (this.pinBoxDigits[index] === digit) {
             box.textContent = '*';
           }
-        }, 1000);
+        }, PIN_MASK_DELAY_MS);
       }
       box.dataset.filled = String(index < normalized.length);
     });
@@ -1279,6 +1317,16 @@ class ShareView {
     this.pinSubmitted = true;
     this.confirmDialog.close();
     this.pinSubmitHandler?.(pin);
+  }
+
+  private focusPinInput(): void {
+    const focus = () => {
+      this.pinInput.focus({ preventScroll: true });
+    };
+    focus();
+    window.requestAnimationFrame(focus);
+    window.setTimeout(focus, 0);
+    window.setTimeout(focus, 80);
   }
 }
 

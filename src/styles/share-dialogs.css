@@ -3,12 +3,12 @@
 .share-provenance {
   width: min(420px, calc(100vw - 32px));
   padding: 0;
-  border: 1px solid rgb(69 136 87 / 0.38);
-  border-radius: 8px;
+  border: 1px solid rgb(69 136 87 / 0.24);
+  border-radius: 24px;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
   color-scheme: light;
-  box-shadow: 0 22px 60px rgb(0 0 0 / 0.36);
+  box-shadow: 0 28px 100px rgb(0 0 0 / 0.36);
 }
 
 .share-confirm[data-pin='true'] {
@@ -23,13 +23,13 @@
 }
 
 .share-session-actions {
-  width: min(500px, calc(100vw - 32px));
+  width: min(860px, calc(100vw - 32px));
 }
 
 .share-confirm::backdrop,
 .share-session-actions::backdrop,
 .share-provenance::backdrop {
-  background: rgb(0 0 0 / 0.68);
+  background: rgb(0 0 0 / 0.62);
 }
 
 .share-confirm-panel,
@@ -37,10 +37,15 @@
 .share-provenance-panel {
   display: grid;
   gap: 18px;
-  padding: 20px;
+  padding: 24px;
   border-radius: inherit;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
+}
+
+.share-session-actions-panel,
+.share-provenance-panel {
+  padding: 42px;
 }
 
 .share-confirm[data-pin='true'] .share-confirm-panel {
@@ -56,7 +61,7 @@
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 24px;
 }
 
 .share-confirm-mark {
@@ -89,6 +94,17 @@
   line-height: 1.35;
 }
 
+.share-session-actions h1 {
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 820;
+  line-height: 1.02;
+}
+
+.share-provenance h1 {
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 780;
+}
+
 .share-confirm[data-pin='true'] h1 {
   max-width: 520px;
   color: var(--share-dialog-text);
@@ -103,6 +119,11 @@
   margin: 0;
   color: var(--share-dialog-muted);
   font-size: 13px;
+  line-height: 1.45;
+}
+
+.share-session-actions p {
+  font-size: clamp(18px, 2.3vw, 24px);
   line-height: 1.45;
 }
 
@@ -235,19 +256,29 @@
 }
 
 .share-provenance {
-  width: min(560px, calc(100vw - 32px));
+  width: min(680px, calc(100vw - 32px));
 }
 
 .share-provenance-list {
   display: grid;
-  gap: 10px;
+  gap: 0;
   margin: 0;
+  border: 1px solid rgb(51 77 68 / 0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.5);
 }
 
 .share-provenance-list div {
   display: grid;
   grid-template-columns: 124px minmax(0, 1fr);
   gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgb(51 77 68 / 0.1);
+}
+
+.share-provenance-list div:last-child {
+  border-bottom: 0;
 }
 
 .share-provenance-list dt {
@@ -291,10 +322,10 @@
 .share-confirm button:not(.share-provenance-trigger),
 .share-session-actions button:not(.share-provenance-trigger),
 .share-provenance button {
-  height: 34px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 20px;
   border: 1px solid rgb(51 77 68 / 0.28);
-  border-radius: 6px;
+  border-radius: 999px;
   background: var(--share-dialog-button-bg);
   color: var(--share-dialog-text);
   cursor: pointer;
@@ -343,17 +374,17 @@
   background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 76%, white);
 }
 
-.share-session-actions .share-dialog-close {
+.share-dialog-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  min-height: 34px;
+  width: 56px;
+  min-width: 56px;
+  height: 56px;
+  min-height: 56px;
   padding: 0;
   box-sizing: border-box;
-  border-radius: 7px;
+  border-radius: 999px;
   line-height: 0;
 }
 
@@ -377,11 +408,15 @@
 
 .share-session-actions .share-confirm-actions {
   display: grid;
-  grid-template-columns: minmax(132px, 1fr) minmax(190px, 1.25fr);
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr);
+  gap: 20px;
 }
 
 .share-session-actions .share-confirm-actions button {
+  min-height: 64px;
   min-width: 0;
+  font-size: clamp(18px, 2.4vw, 24px);
+  font-weight: 780;
   white-space: nowrap;
 }
 
@@ -393,16 +428,16 @@
 }
 
 .share-session-actions button.danger {
-  border-color: rgb(177 61 61 / 0.44);
-  background: #ffe4e4;
-  color: #842121;
+  border-color: rgb(177 61 61 / 0.2);
+  background: linear-gradient(180deg, #e35d5d, #b82d2d);
+  color: #ffffff;
   font-weight: 760;
 }
 
 .share-session-actions button.danger:hover,
 .share-session-actions button.danger:focus-visible {
-  border-color: rgb(177 61 61 / 0.7);
-  background: #ffd1d1;
+  border-color: rgb(177 61 61 / 0.36);
+  background: linear-gradient(180deg, #ea6a6a, #a92626);
 }
 
 @media (max-width: 480px) {

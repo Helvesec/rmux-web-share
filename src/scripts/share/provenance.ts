@@ -6,7 +6,14 @@ export function provenanceDialogTemplate(): string {
   return `
     <dialog class="share-provenance" data-share-provenance>
       <form method="dialog" class="share-provenance-panel">
-        <h1>Security & provenance</h1>
+        <div class="share-dialog-header">
+          <h1>Security & provenance</h1>
+          <button class="share-dialog-close" type="submit" aria-label="Close" title="Close">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
         <p data-share-provenance-statement>
           share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.
         </p>
