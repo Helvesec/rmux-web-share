@@ -83,16 +83,6 @@ export function shareViewTemplate(): string {
         <div class="share-terminal" data-share-terminal>
           <div class="share-terminal-placeholder" data-share-terminal-placeholder data-tone="idle">waiting</div>
         </div>
-        <div class="share-reconnect" data-share-reconnect hidden>
-          <div class="share-reconnect-panel">
-            <h1>Disconnected from this share</h1>
-            <p>The share link is kept only in this tab. Reconnect now or copy the link before closing it.</p>
-            <div class="share-reconnect-actions">
-              <button data-share-reconnect-copy type="button">Copy link</button>
-              <button data-share-reconnect-connect class="primary" type="button">Reconnect</button>
-            </div>
-          </div>
-        </div>
       </section>
       <dialog class="share-session-actions" data-share-session-actions>
         <form method="dialog" class="share-session-actions-panel">
@@ -202,10 +192,6 @@ export function shareViewTemplate(): string {
             </div>
             <small data-share-pin-error></small>
           </label>
-          <div class="share-pin-warning" data-share-pin-warning hidden>
-            <strong>Security warning</strong>
-            <p>Never share this pairing code with third parties. Anyone with the share link and this code can access the terminal.</p>
-          </div>
           <a class="share-confirm-help" href="https://rmux.io/docs/web-share/#first-time-on-chrome" target="_blank" rel="noopener noreferrer">
             Connection help
           </a>

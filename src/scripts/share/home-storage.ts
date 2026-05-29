@@ -16,7 +16,7 @@ const CRAB_COLORS = [
   'lime',
 ] as const;
 
-export type RecentStatus = 'active' | 'checking' | 'unavailable';
+export type RecentStatus = 'active' | 'checking' | 'disconnected' | 'unavailable';
 
 export interface RecentShare {
   id: string;
@@ -32,6 +32,7 @@ export interface RecentShare {
   pin?: string;
   viewers?: number;
   expiresAt?: number;
+  disconnectedAt?: number;
   lastOpenedAt: number;
   crab: string;
 }
@@ -101,8 +102,40 @@ export function rememberRecentWindowName(params: ShareParams, view: SessionView)
   writeRecentShares(shares);
 }
 
+export function markRecentShareDisconnected(params: ShareParams): void {
+  markRecentShare(params, (share, now) => {
+    share.disconnectedAt = now;
+    share.lastOpenedAt = now;
+  });
+}
+
+export function markRecentShareUnavailable(params: ShareParams): void {
+  markRecentShare(params, (share, now) => {
+    share.disconnectedAt = undefined;
+    share.expiresAt = now;
+    share.lastOpenedAt = now;
+  });
+}
+
+function markRecentShare(
+  params: ShareParams,
+  update: (share: RecentShare, now: number) => void,
+): void {
+  const id = recentShareId(params);
+  const shares = loadRecentShares();
+  const share = shares.find((candidate) => candidate.id === id);
+  if (!share) {
+    return;
+  }
+  update(share, Date.now());
+  writeRecentShares(shares);
+}
+
 export function recentShareStatus(share: RecentShare): RecentStatus {
-  return share.expiresAt !== undefined && share.expiresAt <= Date.now() ? 'unavailable' : 'active';
+  if (share.expiresAt !== undefined && share.expiresAt <= Date.now()) {
+    return 'unavailable';
+  }
+  return share.disconnectedAt === undefined ? 'active' : 'disconnected';
 }
 
 export function recentShareExpiresLabel(share: RecentShare): string {
@@ -187,6 +220,7 @@ function isRecentShare(value: unknown): value is RecentShare {
     && typeof share.spectatorAccess === 'boolean'
     && (share.pin === undefined || typeof share.pin === 'string')
     && typeof share.lastOpenedAt === 'number'
+    && (share.disconnectedAt === undefined || typeof share.disconnectedAt === 'number')
     && typeof share.crab === 'string'
     && isShareParams(share.params);
 }

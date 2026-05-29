@@ -57,6 +57,7 @@ export interface ShareTerminal {
   onWindowSelect(callback: (windowIndex: number) => void): void;
   onWindowMenu(callback: (windowIndex: number, x: number, y: number) => void): void;
   selection(): string;
+  focus(): void;
   notice(text: string): void;
 }
 
@@ -450,6 +451,10 @@ class XtermShareTerminal implements ShareTerminal {
 
   selection(): string {
     return this.term.getSelection();
+  }
+
+  focus(): void {
+    this.term.focus();
   }
 
   bindLocalWheelScroll(): void {

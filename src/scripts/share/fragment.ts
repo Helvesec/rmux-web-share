@@ -30,6 +30,14 @@ export function rememberActiveShareParams(params: ShareParams): void {
   }
 }
 
+export function clearActiveShareParams(): void {
+  try {
+    window.sessionStorage.removeItem(ACTIVE_SHARE_STORAGE_KEY);
+  } catch {
+    // Clearing tab-local state is best effort.
+  }
+}
+
 export function parseShareFragment(hash: string): ShareParams {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
   const endpoint = parseEndpoint(params.get('e'));

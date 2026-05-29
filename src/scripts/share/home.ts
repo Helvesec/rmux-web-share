@@ -217,7 +217,7 @@ class ShareHome {
 
   private async copyShareUrl(url: string, button: HTMLButtonElement): Promise<void> {
     const copied = await tryCopyText(url);
-    this.showToast(copied ? 'Link copied' : 'Copy failed');
+    this.showToast(copied ? 'Link copied' : 'Copy failed', copied ? 'success' : 'error');
     button.title = copied ? 'Copied' : 'Copy failed';
     window.setTimeout(() => {
       button.title = 'Share actions';
@@ -256,7 +256,8 @@ class ShareHome {
     if (!pin) {
       return;
     }
-    this.showToast(await tryCopyText(pin) ? 'PIN copied' : 'Copy failed');
+    const copied = await tryCopyText(pin);
+    this.showToast(copied ? 'PIN copied' : 'Copy failed', copied ? 'success' : 'error');
   }
 
   private revealPinCode(): void {
@@ -268,15 +269,22 @@ class ShareHome {
     }, 2200);
   }
 
-  private showToast(message: string): void {
+  private showToast(message: string, kind: 'success' | 'error' = 'success'): void {
     const toast = query<HTMLElement>(this.root, '[data-home-toast]');
     toast.textContent = message;
+    toast.dataset.kind = kind;
     toast.hidden = false;
-    toast.dataset.visible = 'true';
+    window.requestAnimationFrame(() => {
+      toast.dataset.visible = 'true';
+    });
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => {
       toast.dataset.visible = 'false';
-      toast.hidden = true;
+      window.setTimeout(() => {
+        if (toast.dataset.visible === 'false') {
+          toast.hidden = true;
+        }
+      }, 180);
     }, 1800);
   }
 
@@ -533,7 +541,13 @@ function writeTheme(theme: HomeTheme): void {
 }
 
 function statusLabel(status: string): string {
-  return status === 'unavailable' ? 'Unavailable' : status === 'checking' ? 'Checking' : 'Active';
+  if (status === 'unavailable') {
+    return 'Unavailable';
+  }
+  if (status === 'checking') {
+    return 'Checking';
+  }
+  return status === 'disconnected' ? 'Disconnected' : 'Active';
 }
 
 function iconArrowRight(): SVGSVGElement {

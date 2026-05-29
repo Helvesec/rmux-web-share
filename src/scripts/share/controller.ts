@@ -1,4 +1,5 @@
 import {
+  clearActiveShareParams,
   endpointHost,
   parseShareFragment,
   readActiveShareParams,
@@ -6,7 +7,6 @@ import {
   shareAssetUrl,
   shareBasePath,
   shareBaseUrl,
-  shareUrl,
 } from './fragment';
 import {
   createClientHello,
@@ -23,7 +23,12 @@ import {
   shouldShowChromeLocalAccessHelp,
   type ConfirmationCopy,
 } from './local-access';
-import { rememberRecentShare, rememberRecentWindowName } from './home-storage';
+import {
+  markRecentShareDisconnected,
+  markRecentShareUnavailable,
+  rememberRecentShare,
+  rememberRecentWindowName,
+} from './home-storage';
 import {
   DEFAULT_TERMINAL_THEME,
   terminalChromePalette,
@@ -81,12 +86,13 @@ interface TerminalMenuState {
   toolbarHidden: boolean;
 }
 
+type ShareExitState = 'disconnected' | 'unavailable';
+
 export function startShareApp(root: HTMLElement): void {
   const view = ShareView.render(root);
   let terminalTheme = readTerminalTheme();
   let connection: ShareConnection | undefined;
   let params: ShareParams;
-  let currentPin: string | undefined;
   const applyTerminalTheme = (theme: TerminalThemeName) => {
     view.setTerminalTheme(theme, connection?.terminalPalette());
     connection?.setTerminalTheme(theme);
@@ -126,9 +132,19 @@ export function startShareApp(root: HTMLElement): void {
     view.setChromeHidden(true);
   }
 
+  const leaveShare = (state: ShareExitState = 'disconnected') => {
+    connection?.dispose('left_share');
+    connection = undefined;
+    if (state === 'unavailable') {
+      markRecentShareUnavailable(params);
+    } else {
+      markRecentShareDisconnected(params);
+    }
+    clearActiveShareParams();
+    window.location.replace(shareBasePath());
+  };
   const host = endpointHost(params.endpoint);
-  const connect = (pin = currentPin) => {
-    currentPin = pin;
+  const connect = (pin?: string) => {
     connection?.dispose();
     connection = new ShareConnection(
       params,
@@ -137,19 +153,16 @@ export function startShareApp(root: HTMLElement): void {
       pin,
       () => showPrompt(host, pinPromptCopy(), true),
       () => showPrompt(host, chromeLocalAccessCopy(params.endpoint), false),
+      leaveShare,
     );
     connection.connect();
   };
   const showPrompt = (promptHost: string, copy: ConfirmationCopy, requiresPin: boolean) => {
     view.confirm(promptHost, copy, requiresPin, {
-      cancel: () => view.setStatus({ connected: false, detail: 'disconnected', tone: 'idle' }),
+      cancel: leaveShare,
       connect,
     });
   };
-  view.bindReconnectActions({
-    reconnect: () => connect(),
-    copyLink: () => copyCurrentShareUrl(params, view),
-  });
   connect();
 }
 
@@ -168,6 +181,8 @@ class ShareConnection {
   private viewportRaf?: number;
   private viewportTimers: number[] = [];
   private lastResizeRequest?: { cols: number; rows: number };
+  private logoutPending = false;
+  private logoutFallbackTimer?: number;
   private disposed = false;
 
   constructor(
@@ -177,12 +192,12 @@ class ShareConnection {
     private readonly pin?: string,
     private readonly requestPin?: () => void,
     private readonly requestLocalAccessHelp?: () => void,
+    private readonly leaveShare?: (state?: ShareExitState) => void,
   ) {
     this.role = 'spectator';
   }
 
   connect(): void {
-    this.view.hideReconnect();
     this.view.setStatus({ connected: false, detail: 'connecting', tone: 'idle' });
     const socket = new WebSocket(this.params.endpoint);
     socket.binaryType = 'arraybuffer';
@@ -297,6 +312,11 @@ class ShareConnection {
       return;
     }
 
+    if (event.code === 1000 && (event.reason === 'session_closed' || this.logoutPending)) {
+      this.leaveShare?.('unavailable');
+      return;
+    }
+
     const message = closeMessage(event.code);
     if (event.code === 1000) {
       this.view.setStatus({ connected: false, detail: message, tone: 'idle' });
@@ -318,7 +338,6 @@ class ShareConnection {
       this.socket?.close(4006, 'protocol_version_mismatch');
       return;
     }
-    this.view.hideReconnect();
     this.role = message.role;
     this.scope = message.scope;
     this.sessionControls = message.controls && message.scope === 'session' && message.role === 'operator';
@@ -408,9 +427,13 @@ class ShareConnection {
     return this.userTerminalTheme;
   }
 
-  dispose(): void {
+  dispose(reason = 'replaced'): void {
     this.disposed = true;
-    this.socket?.close(1000, 'replaced');
+    if (this.logoutFallbackTimer !== undefined) {
+      window.clearTimeout(this.logoutFallbackTimer);
+      this.logoutFallbackTimer = undefined;
+    }
+    this.socket?.close(1000, reason);
     this.socket = undefined;
     this.transport = undefined;
     this.disposeTerminal();
@@ -493,6 +516,8 @@ class ShareConnection {
     selectSessionWindow(socket, windowIndex);
     sendAttachInputText(socket, '\u0002,');
     this.terminal?.followLiveOutput();
+    this.terminal?.focus();
+    window.setTimeout(() => this.terminal?.focus(), 30);
   }
 
   private async copyTerminalSelection(): Promise<void> {
@@ -526,11 +551,7 @@ class ShareConnection {
   }
 
   private detach(): void {
-    this.socket?.close(1000, 'detached');
-    this.socket = undefined;
-    this.transport = undefined;
-    this.view.setStatus({ connected: false, detail: 'disconnected', tone: 'idle' });
-    this.view.showReconnect();
+    this.leaveShare?.();
   }
 
   private logout(): void {
@@ -539,7 +560,9 @@ class ShareConnection {
       return;
     }
     this.view.setStatus({ connected: true, detail: 'closing session', tone: 'warn' });
+    this.logoutPending = true;
     logoutSession(socket);
+    this.logoutFallbackTimer = window.setTimeout(() => this.leaveShare?.('unavailable'), 1000);
   }
 
   private openOperatorSocket(): EncryptedShareTransport | undefined {
@@ -638,9 +661,6 @@ class ShareView {
   private readonly terminalShell: HTMLElement;
   private readonly terminal: HTMLElement;
   private readonly terminalPlaceholder: HTMLElement;
-  private readonly reconnectPanel: HTMLElement;
-  private readonly reconnectConnect: HTMLButtonElement;
-  private readonly reconnectCopy: HTMLButtonElement;
   private readonly themeSelect: HTMLSelectElement;
   private readonly sessionControls: HTMLElement;
   private readonly splitHorizontal: HTMLButtonElement;
@@ -687,7 +707,6 @@ class ShareView {
   private readonly pinInput: HTMLInputElement;
   private readonly pinBoxes: HTMLElement;
   private readonly pinError: HTMLElement;
-  private readonly pinWarning: HTMLElement;
   private readonly meta: HTMLElement;
   private connected = false;
   private canLogout = false;
@@ -707,8 +726,6 @@ class ShareView {
   private selectWindowHandler?: (windowIndex: number) => void;
   private editWindowHandler?: (windowIndex: number) => void;
   private killWindowHandler?: (windowIndex: number) => void;
-  private reconnectHandler?: () => void;
-  private copyLinkHandler?: () => void;
 
   private constructor(root: HTMLElement) {
     root.innerHTML = shareViewTemplate();
@@ -721,9 +738,6 @@ class ShareView {
     this.terminalShell = query(root, '[data-share-terminal-shell]');
     this.terminal = query(root, '[data-share-terminal]');
     this.terminalPlaceholder = query(root, '[data-share-terminal-placeholder]');
-    this.reconnectPanel = query(root, '[data-share-reconnect]');
-    this.reconnectConnect = query(root, '[data-share-reconnect-connect]');
-    this.reconnectCopy = query(root, '[data-share-reconnect-copy]');
     this.themeSelect = query(root, '[data-share-terminal-theme]');
     this.sessionControls = query(root, '[data-share-session-controls]');
     this.splitHorizontal = query(root, '[data-share-split-horizontal]');
@@ -770,7 +784,6 @@ class ShareView {
     this.pinInput = query(root, '[data-share-pin]');
     this.pinBoxes = query(root, '[data-share-pin-boxes]');
     this.pinError = query(root, '[data-share-pin-error]');
-    this.pinWarning = query(root, '[data-share-pin-warning]');
     this.meta = query(root, '[data-share-meta]');
     this.sessionMenuButton.addEventListener('click', () => this.openSessionActions());
     this.splitHorizontal.addEventListener('click', () => this.splitHorizontalHandler?.());
@@ -835,13 +848,18 @@ class ShareView {
       this.sessionActionsDialog.close();
       this.logoutHandler?.();
     });
-    this.reconnectConnect.addEventListener('click', () => this.reconnectHandler?.());
-    this.reconnectCopy.addEventListener('click', () => this.copyLinkHandler?.());
     this.provenanceOpen.addEventListener('click', () => {
       void this.openProvenance();
     });
     this.setTerminalShortcuts();
     this.pinInput.addEventListener('input', () => this.syncPinEntry());
+    this.pinInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') {
+        return;
+      }
+      event.preventDefault();
+      this.confirmConnect.click();
+    });
   }
 
   static render(root: HTMLElement): ShareView {
@@ -862,7 +880,6 @@ class ShareView {
     this.confirmDialog.dataset.local = String(copy.local);
     this.confirmDialog.dataset.pin = String(requiresPin);
     this.pinGroup.hidden = !requiresPin;
-    this.pinWarning.hidden = !requiresPin;
     this.pinInput.required = requiresPin;
     this.pinInput.value = '';
     this.pinError.textContent = '';
@@ -907,11 +924,6 @@ class ShareView {
     this.selectWindowHandler = handlers.selectWindow;
     this.editWindowHandler = handlers.editWindow;
     this.killWindowHandler = handlers.killWindow;
-  }
-
-  bindReconnectActions(handlers: { reconnect: () => void; copyLink: () => void }): void {
-    this.reconnectHandler = handlers.reconnect;
-    this.copyLinkHandler = handlers.copyLink;
   }
 
   bindTerminalActions(handlers: {
@@ -972,19 +984,6 @@ class ShareView {
     if (this.selectedWindowIndex === undefined || !this.windows.some((window) => window.index === this.selectedWindowIndex)) {
       this.selectedWindowIndex = this.activeWindow()?.index;
     }
-  }
-
-  showReconnect(): void {
-    this.reconnectCopy.textContent = 'Copy link';
-    this.reconnectPanel.hidden = false;
-  }
-
-  hideReconnect(): void {
-    this.reconnectPanel.hidden = true;
-  }
-
-  setCopyLinkStatus(copied: boolean): void {
-    this.reconnectCopy.textContent = copied ? 'Copied' : 'Copy failed';
   }
 
   setTerminalTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void {
@@ -1341,15 +1340,6 @@ function removeShareSecretFromAddressBar(): void {
   }
 
   window.history.replaceState(null, '', shareBasePath());
-}
-
-async function copyCurrentShareUrl(params: ShareParams, view: ShareView): Promise<void> {
-  try {
-    await copyText(shareUrl(params));
-    view.setCopyLinkStatus(true);
-  } catch {
-    view.setCopyLinkStatus(false);
-  }
 }
 
 async function copyText(text: string): Promise<void> {

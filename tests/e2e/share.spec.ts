@@ -615,17 +615,7 @@ test('session operator terminal menu exposes session controls with shortcuts', a
   );
 });
 
-test('operator can disconnect, copy the sanitized link, and reconnect from the same tab', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        writeText: async (text: string) => {
-          (window as unknown as { __rmuxCopiedShareLink?: string }).__rmuxCopiedShareLink = text;
-        },
-      },
-    });
-  });
+test('operator disconnect returns to recent links without reusing the share secret', async ({ page }) => {
   await page.goto(`/#t=${operatorToken}`);
   await expect.poll(() => socketCount(page)).toBe(1);
   await expect.poll(() => new URL(page.url()).hash).toBe('');
@@ -633,21 +623,13 @@ test('operator can disconnect, copy the sanitized link, and reconnect from the s
   await page.locator('[data-share-session-menu]').click();
   await page.locator('[data-share-session-detach]').click();
 
-  await expect(page.locator('[data-share-reconnect]')).toBeVisible();
-  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
-  await page.locator('[data-share-reconnect-copy]').click();
-  await expect(page.locator('[data-share-reconnect-copy]')).toHaveText('Copied');
-  const copied = await page.evaluate(() => {
-    return (window as unknown as { __rmuxCopiedShareLink?: string }).__rmuxCopiedShareLink;
-  });
-  expect(copied).toContain(`/#t=${operatorToken}`);
-  expect(copied).not.toContain('endpoint=');
-  expect(copied).not.toContain('token=');
-
-  await page.locator('[data-share-reconnect-connect]').click();
-  await expect.poll(() => socketCount(page)).toBe(2);
-  await expect(page.locator('[data-share-reconnect]')).toBeHidden();
-  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.home-connect-card')).toBeVisible();
+  await expect(page.locator('.home-recent-row')).toHaveCount(1);
+  await expect(page.locator('.home-status')).toHaveText('Disconnected');
+  await expect(page.locator('.home-row-connect')).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.sessionStorage.getItem('rmux.share.activeParams.v1')))
+    .toBeNull();
 });
 
 test('session operator can logout the shared session from the exit menu', async ({ page }) => {
@@ -662,7 +644,8 @@ test('session operator can logout the shared session from the exit menu', async 
   await expect(page.locator('[data-share-session-logout]')).toBeVisible();
   await page.locator('[data-share-session-logout]').click();
   await expect.poll(() => logoutFrameCount(page)).toBe(1);
-  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
+  await expect(page.locator('.home-connect-card')).toBeVisible();
+  await expect(page.locator('.home-status')).toHaveText('Unavailable');
 });
 
 test('operator session shares send attach input without a controls toggle', async ({ page }) => {
@@ -765,11 +748,12 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
+  await expect(page.locator('[data-share-pin-warning]')).toHaveCount(0);
   await page.locator('[data-share-confirm-connect]').click();
   await expect(page.locator('[data-share-pin-error]')).toContainText('6-digit');
 
   await page.locator('[data-share-pin]').fill('123456');
-  await page.locator('[data-share-confirm-connect]').click();
+  await page.locator('[data-share-pin]').press('Enter');
 
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
@@ -780,6 +764,21 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
     }),
   );
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+});
+
+test('pin prompt cancel returns to the recent links dashboard', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareRequirePin = true;
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+
+  await expect(page.locator('[data-share-pin]')).toBeVisible();
+  await page.locator('[data-share-confirm-cancel]').click();
+
+  await expect(page.locator('.home-connect-card')).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.sessionStorage.getItem('rmux.share.activeParams.v1')))
+    .toBeNull();
 });
 
 test('pin-protected minimal links stay readable in a light user theme', async ({ page }) => {

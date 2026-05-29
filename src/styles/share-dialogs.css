@@ -210,40 +210,6 @@
   font-size: 12px;
 }
 
-.share-pin-warning {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 14px;
-  width: min(520px, 100%);
-  padding: 18px;
-  border: 1px solid rgb(214 147 66 / 0.72);
-  border-radius: 14px;
-  color: var(--share-dialog-text);
-  text-align: left;
-}
-
-.share-pin-warning::before {
-  width: 26px;
-  height: 26px;
-  color: #d98217;
-  font-size: 21px;
-  line-height: 1;
-  content: '!';
-}
-
-.share-pin-warning strong {
-  display: block;
-  grid-column: 2;
-  margin-bottom: 7px;
-  font-size: 16px;
-}
-
-.share-pin-warning p {
-  grid-column: 2;
-  color: var(--share-dialog-muted);
-  font-size: 14px;
-}
-
 .share-confirm-help {
   width: fit-content;
   color: var(--share-dialog-help);

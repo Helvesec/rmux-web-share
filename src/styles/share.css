@@ -257,6 +257,10 @@
   pointer-events: none;
 }
 
+.share-app[data-connected='false'] .share-exit-button {
+  display: none;
+}
+
 .share-terminal-stage {
   position: relative;
   display: flex;
@@ -418,89 +422,6 @@
   visibility: hidden !important;
 }
 
-.share-reconnect {
-  position: absolute;
-  inset: 8px;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  background: rgb(3 9 11 / 0.78);
-  backdrop-filter: blur(10px) saturate(120%);
-}
-
-.share-reconnect[hidden] {
-  display: none;
-}
-
-.share-reconnect-panel {
-  display: grid;
-  width: min(380px, 100%);
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--share-border);
-  border-radius: 8px;
-  background: var(--share-panel);
-  color: var(--share-text);
-  box-shadow: 0 18px 46px rgb(0 0 0 / 0.36);
-}
-
-.share-app[data-terminal-mode='light'] .share-reconnect {
-  background: rgb(246 242 234 / 0.74);
-}
-
-.share-app[data-terminal-mode='light'] .share-reconnect-panel {
-  background: rgb(255 252 244 / 0.92);
-  box-shadow: 0 18px 42px rgb(70 80 74 / 0.16);
-}
-
-.share-reconnect h1,
-.share-reconnect p {
-  margin: 0;
-}
-
-.share-reconnect h1 {
-  color: var(--share-text);
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.share-reconnect p {
-  color: var(--share-muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.share-reconnect-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.share-reconnect button {
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--share-border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--share-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 740;
-}
-
-.share-reconnect button.primary {
-  border-color: color-mix(in srgb, var(--share-ok) 60%, transparent);
-  color: var(--share-ok);
-}
-
-.share-reconnect button:hover,
-.share-reconnect button:focus-visible {
-  border-color: color-mix(in srgb, var(--share-text) 48%, transparent);
-  outline: none;
-}
-
 .share-error {
   position: absolute;
   inset: 0;
@@ -532,20 +453,6 @@
 
   .share-terminal-shell {
     padding: 6px;
-  }
-
-  .share-reconnect {
-    inset: 6px;
-    padding: 12px;
-  }
-
-  .share-reconnect-panel {
-    padding: 16px;
-  }
-
-  .share-reconnect-actions {
-    display: grid;
-    grid-template-columns: 1fr;
   }
 
   .share-error {

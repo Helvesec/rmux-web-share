@@ -67,7 +67,7 @@ export function installMockShareWebSocket(): void {
           if (parsed.type === 'auth') {
             await this.handleAuth(parsed);
           } else if (parsed.type === 'logout') {
-            this.close();
+            window.setTimeout(() => this.closeWith(1000, 'session_closed'), 25);
           }
           return;
         }
@@ -124,6 +124,8 @@ export function installMockShareWebSocket(): void {
         pane_label: '%1',
         role,
         operator: role === 'operator',
+        operator_access: role === 'operator',
+        spectator_access: true,
         controls: window.__rmuxShareReadyControls
           ?? (role === 'operator' && window.__rmuxShareReadyScope === 'session'),
         show_viewers: Boolean(window.__rmuxShareShowViewers),
