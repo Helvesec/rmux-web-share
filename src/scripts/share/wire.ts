@@ -171,7 +171,7 @@ export function closeMessage(code: number): string {
     case 4007:
       return 'operator limit reached';
     case 4008:
-      return 'pairing code required';
+      return 'Pairing code required';
     default:
       return code ? `connection closed (${code})` : 'connection closed';
   }

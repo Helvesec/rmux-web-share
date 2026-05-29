@@ -8,6 +8,7 @@ import { startShareApp } from './controller';
 import { hasActiveShareParams, hasShareFragment } from './fragment';
 import { startShareHome } from './home';
 import { registerShareServiceWorker } from './pwa';
+import { trackShareWindowBounds } from './window-bounds';
 
 export function mountShareApp(target: Element | null = document.body): void {
   if (!target) {
@@ -26,6 +27,7 @@ export function mountShareApp(target: Element | null = document.body): void {
   }
   registerShareServiceWorker();
   if (shareMode) {
+    trackShareWindowBounds();
     startShareApp(root);
   } else {
     startShareHome(root);

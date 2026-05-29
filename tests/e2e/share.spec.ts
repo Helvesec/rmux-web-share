@@ -16,7 +16,8 @@ test('spectator client connects immediately and receives the initial snapshot', 
   await expect(page.locator('[data-share-confirm]')).toBeHidden();
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
   await expect(page.locator('[data-share-terminal-theme] option[value="user"]')).toHaveText('Host');
-  await expect(page.locator('.share-brand-context')).toHaveText('Web Multiplex');
+  await expect(page.locator('.share-brand-context')).toHaveText('SHARE');
+  await expect(page.locator('.share-brand-context')).toHaveAttribute('href', 'https://share.rmux.io/');
   await expect(page.locator('[data-share-role]')).toHaveText('Spectator');
   await expect.poll(() => socketCount(page)).toBe(1);
 
@@ -82,10 +83,7 @@ test('explicit endpoint links keep the short e/t fragment contract', async ({ pa
   );
 });
 
-test('server viewer-count option shows the live connected browser count', async ({ page }) => {
-  await page.addInitScript(() => {
-    window.__rmuxShareShowViewers = true;
-  });
+test('server shows the live connected browser count by default', async ({ page }) => {
   await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-viewers]')).toBeVisible();
@@ -94,10 +92,99 @@ test('server viewer-count option shows the live connected browser count', async 
 });
 
 test('URL cannot force the live viewer count when the server disabled it', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareShowViewers = false;
+  });
   await page.goto(`/#t=${spectatorToken}&viewers=on`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-viewers]')).toBeHidden();
+});
+
+test('home dashboard receives recent shares from another window in the same browser', async ({ context }) => {
+  await context.addInitScript(installMockShareWebSocket);
+  const home = await context.newPage();
+  await home.goto('/');
+  await expect(home.locator('.home-connect-card')).toBeVisible();
+  await expect(home.locator('.home-recent-row')).toHaveCount(0);
+
+  const share = await context.newPage();
+  await share.goto(`/#t=${operatorToken}`);
+
+  await expect(share.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(home.locator('.home-recent-row')).toHaveCount(1);
+  await expect(home.locator('.home-recent-title strong')).toHaveText('%1');
+  await expect(home.locator('.home-viewers')).toContainText('3');
+
+  await share.close();
+  await home.close();
+});
+
+test('home provenance opens from learn more and home logo follows the theme', async ({ page }) => {
+  await page.route('**/.well-known/rmux-web-share.json', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      repository: 'https://github.com/Helvesec/rmux-web-share',
+      commit_sha1: 'fedcba9876543210fedcba9876543210fedcba98',
+      commit_url: 'https://github.com/Helvesec/rmux-web-share/commit/fedcba9876543210fedcba9876543210fedcba98',
+      security_statement: 'Builds are verifiable and deployments are traceable.',
+      github_actions: {
+        run_id: '987654',
+        run_url: 'https://github.com/Helvesec/rmux-web-share/actions/runs/987654',
+      },
+      cloudflare_pages: {
+        project: 'rmux-web-share',
+        deployment_proof: 'https://fedcba98.rmux-web-share.pages.dev',
+      },
+    }),
+  }));
+
+  await page.goto('/');
+  await expect(page.locator('.home-section')).toHaveText('SHARE');
+  await expect(page.locator('.home-brand-logo-light')).toBeVisible();
+  await expect(page.locator('.home-brand-logo-dark')).toBeHidden();
+
+  await page.locator('[data-home-provenance-open]').click();
+  await expect(page.locator('[data-share-provenance]')).toBeVisible();
+  await expect(page.locator('[data-share-provenance-commit]')).toHaveText('fedcba987654');
+  await page.locator('[data-share-provenance] button[type="submit"]').click();
+
+  await page.locator('button[data-home-theme]').click();
+  await expect(page.locator('.home-brand-logo-dark')).toBeVisible();
+  await expect(page.locator('.home-brand-logo-light')).toBeHidden();
+});
+
+test('spectator recent-link forget is immediate and shows feedback', async ({ page }) => {
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await page.locator('[data-share-session-menu]').click();
+  await expect(page.locator('.home-recent-row')).toHaveCount(1);
+
+  await page.locator('.home-menu-button').click();
+  await page.locator('.home-menu-popover .danger').click();
+
+  await expect(page.locator('[data-home-forget-dialog]')).toBeHidden();
+  await expect(page.locator('.home-recent-row')).toHaveCount(0);
+  await expect(page.locator('[data-home-toast]')).toHaveText('Share forgotten');
+});
+
+test('recent-link action menu opens upward near the viewport bottom', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await page.locator('[data-share-session-menu]').click();
+  await expect(page.locator('.home-recent-row')).toHaveCount(1);
+  await page.locator('.home-row-menu').scrollIntoViewIfNeeded();
+
+  await page.locator('.home-menu-button').click();
+
+  const menu = page.locator('.home-menu-popover');
+  await expect(menu).toBeVisible();
+  await expect(menu).toHaveAttribute('data-placement', 'top');
+  const box = await menu.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(720);
 });
 
 test('resize acknowledgement does not clear the initial snapshot', async ({ page }) => {
@@ -632,6 +719,17 @@ test('operator disconnect returns to recent links without reusing the share secr
     .toBeNull();
 });
 
+test('spectator exit returns to recent links without opening a disconnect dialog', async ({ page }) => {
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  await page.locator('[data-share-session-menu]').click();
+
+  await expect(page.locator('[data-share-session-actions]')).toBeHidden();
+  await expect(page.locator('.home-connect-card')).toBeVisible();
+  await expect(page.locator('.home-status')).toHaveText('Disconnected');
+});
+
 test('session operator can logout the shared session from the exit menu', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -748,12 +846,17 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
+  await expect(page.locator('[data-share-confirm-title]')).toHaveText('Pairing code required');
+  await expect(page.locator('[data-share-confirm-logo]')).toHaveAttribute('src', /\/crabs\/orange-light\.svg$/);
   await expect(page.locator('[data-share-pin-warning]')).toHaveCount(0);
-  await page.locator('[data-share-confirm-connect]').click();
-  await expect(page.locator('[data-share-pin-error]')).toContainText('6-digit');
+  await expect(page.locator('[data-share-confirm-connect]')).toBeHidden();
+  await expect(page.locator('[data-share-confirm-cancel]')).toBeHidden();
+
+  await page.locator('[data-share-pin]').fill('1');
+  await expect(page.locator('[data-share-pin-boxes] i').first()).toHaveText('1');
+  await expect(page.locator('[data-share-pin-boxes] i').first()).toHaveText('*', { timeout: 1400 });
 
   await page.locator('[data-share-pin]').fill('123456');
-  await page.locator('[data-share-pin]').press('Enter');
 
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
@@ -764,16 +867,22 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
     }),
   );
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  await page.locator('[data-share-session-menu]').click();
+  await page.locator('.home-menu-button').click();
+  await page.locator('.home-menu-popover button', { hasText: 'Show PIN' }).click();
+  await expect(page.locator('[data-home-pin-dialog]')).toBeVisible();
+  await expect(page.locator('[data-home-pin-logo]')).toHaveAttribute('src', /\/crabs\/orange-light\.svg$/);
 });
 
-test('pin prompt cancel returns to the recent links dashboard', async ({ page }) => {
+test('pin prompt escape returns to the recent links dashboard', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
   await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
-  await page.locator('[data-share-confirm-cancel]').click();
+  await page.keyboard.press('Escape');
 
   await expect(page.locator('.home-connect-card')).toBeVisible();
   await expect
@@ -798,7 +907,6 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await expect(page.locator('[data-share-pin]')).toHaveCSS('color', 'rgb(16, 33, 26)');
 
   await page.locator('[data-share-pin]').fill('123456');
-  await page.locator('[data-share-confirm-connect]').click();
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-toast]')).toHaveCount(0);

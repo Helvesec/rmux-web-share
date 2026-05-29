@@ -6,7 +6,6 @@ import {
   rememberActiveShareParams,
   shareAssetUrl,
   shareBasePath,
-  shareBaseUrl,
 } from './fragment';
 import {
   createClientHello,
@@ -26,8 +25,10 @@ import {
 import {
   markRecentShareDisconnected,
   markRecentShareUnavailable,
+  recentShareCrab,
   rememberRecentShare,
   rememberRecentWindowName,
+  updateRecentShareViewers,
 } from './home-storage';
 import {
   DEFAULT_TERMINAL_THEME,
@@ -52,7 +53,9 @@ import type {
   ViewerCountMessage,
 } from './types';
 import type { TerminalThemePalette } from './types';
+import { ProvenanceDialog } from './provenance';
 import { shareViewTemplate, titleCase } from './view-content';
+import { enableShareWindowBoundsTracking, resizeShareWindowForPairingPrompt, resizeShareWindowForTerminal } from './window-bounds';
 import {
   authPayload,
   closeMessage,
@@ -78,7 +81,6 @@ const SESSION_VIEW = 0x11;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const PIN_RE = /^\d{6}$/;
 const PIN_REQUIRED_CLOSE_CODE = 4008;
-const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
@@ -131,6 +133,7 @@ export function startShareApp(root: HTMLElement): void {
   if (params.navbar === 'off') {
     view.setChromeHidden(true);
   }
+  view.setBrandCrab(recentShareCrab(params));
 
   const leaveShare = (state: ShareExitState = 'disconnected') => {
     connection?.dispose('left_share');
@@ -283,6 +286,7 @@ class ShareConnection {
         break;
       case 'viewer_count':
         this.view.setViewerCount(message);
+        updateRecentShareViewers(this.params, connectedViewers(message));
         break;
       case 'ttl_warn':
         this.terminal?.notice(`share expires in ${message.seconds_remaining}s`);
@@ -307,7 +311,7 @@ class ShareConnection {
     }
 
     if (event.code === PIN_REQUIRED_CLOSE_CODE) {
-      this.view.setStatus({ connected: false, detail: 'pairing code required', tone: 'warn' });
+      this.view.setStatus({ connected: false, detail: 'Pairing code required', tone: 'warn' });
       this.requestPin?.();
       return;
     }
@@ -387,6 +391,8 @@ class ShareConnection {
       killWindow: (windowIndex) => this.killWindow(windowIndex),
     });
     this.view.setReady(message);
+    resizeShareWindowForTerminal();
+    enableShareWindowBoundsTracking();
     const recent = rememberRecentShare(this.params, message, undefined, this.pin);
     this.view.setBrandCrab(recent.crab);
     this.view.setViewerCount(message);
@@ -688,7 +694,9 @@ class ShareView {
   private readonly terminalNewWindow: HTMLButtonElement;
   private readonly terminalKillPane: HTMLButtonElement;
   private readonly terminalProvenance: HTMLButtonElement;
+  private readonly provenance: ProvenanceDialog;
   private readonly confirmDialog: HTMLDialogElement;
+  private readonly confirmLogo: HTMLImageElement;
   private readonly confirmTitle: HTMLElement;
   private readonly confirmDetail: HTMLElement;
   private readonly confirmConnect: HTMLButtonElement;
@@ -697,17 +705,17 @@ class ShareView {
   private readonly sessionActionsClose: HTMLButtonElement;
   private readonly sessionActionsDetach: HTMLButtonElement;
   private readonly sessionActionsLogout: HTMLButtonElement;
-  private readonly provenanceDialog: HTMLDialogElement;
   private readonly provenanceOpen: HTMLButtonElement;
-  private readonly provenanceCommit: HTMLAnchorElement;
-  private readonly provenanceRun: HTMLAnchorElement;
-  private readonly provenanceCloudflare: HTMLAnchorElement;
-  private readonly provenanceStatement: HTMLElement;
   private readonly pinGroup: HTMLElement;
   private readonly pinInput: HTMLInputElement;
   private readonly pinBoxes: HTMLElement;
   private readonly pinError: HTMLElement;
   private readonly meta: HTMLElement;
+  private pinSubmitHandler?: (pin?: string) => void;
+  private confirmCancelHandler?: () => void;
+  private readonly pinMaskTimers: Array<number | undefined> = [];
+  private readonly pinBoxDigits: Array<string | undefined> = [];
+  private pinSubmitted = false;
   private connected = false;
   private canLogout = false;
   private viewerCountVisible = false;
@@ -765,7 +773,9 @@ class ShareView {
     this.terminalNewWindow = query(root, '[data-share-terminal-new-window]');
     this.terminalKillPane = query(root, '[data-share-terminal-kill-pane]');
     this.terminalProvenance = query(root, '[data-share-terminal-provenance]');
+    this.provenance = new ProvenanceDialog(root);
     this.confirmDialog = query(root, '[data-share-confirm]');
+    this.confirmLogo = query(root, '[data-share-confirm-logo]');
     this.confirmTitle = query(root, '[data-share-confirm-title]');
     this.confirmDetail = query(root, '[data-share-confirm-detail]');
     this.confirmConnect = query(root, '[data-share-confirm-connect]');
@@ -774,12 +784,7 @@ class ShareView {
     this.sessionActionsClose = query(root, '[data-share-session-close]');
     this.sessionActionsDetach = query(root, '[data-share-session-detach]');
     this.sessionActionsLogout = query(root, '[data-share-session-logout]');
-    this.provenanceDialog = query(root, '[data-share-provenance]');
     this.provenanceOpen = query(root, '[data-share-provenance-open]');
-    this.provenanceCommit = query(root, '[data-share-provenance-commit]');
-    this.provenanceRun = query(root, '[data-share-provenance-run]');
-    this.provenanceCloudflare = query(root, '[data-share-provenance-cloudflare]');
-    this.provenanceStatement = query(root, '[data-share-provenance-statement]');
     this.pinGroup = query(root, '[data-share-pin-group]');
     this.pinInput = query(root, '[data-share-pin]');
     this.pinBoxes = query(root, '[data-share-pin-boxes]');
@@ -837,7 +842,7 @@ class ShareView {
     });
     this.terminalProvenance.addEventListener('click', () => {
       this.closeTerminalMenu();
-      void this.openProvenance();
+      void this.provenance.open();
     });
     this.sessionActionsClose.addEventListener('click', () => this.sessionActionsDialog.close());
     this.sessionActionsDetach.addEventListener('click', () => {
@@ -848,17 +853,20 @@ class ShareView {
       this.sessionActionsDialog.close();
       this.logoutHandler?.();
     });
-    this.provenanceOpen.addEventListener('click', () => {
-      void this.openProvenance();
-    });
+    this.provenance.bind(this.provenanceOpen);
     this.setTerminalShortcuts();
+    this.confirmDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      this.confirmDialog.close();
+      this.confirmCancelHandler?.();
+    });
     this.pinInput.addEventListener('input', () => this.syncPinEntry());
     this.pinInput.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') {
         return;
       }
       event.preventDefault();
-      this.confirmConnect.click();
+      this.tryAutoSubmitPin();
     });
   }
 
@@ -879,12 +887,15 @@ class ShareView {
     this.confirmConnect.textContent = copy.button;
     this.confirmDialog.dataset.local = String(copy.local);
     this.confirmDialog.dataset.pin = String(requiresPin);
+    this.pinSubmitHandler = actions.connect;
+    this.confirmCancelHandler = actions.cancel;
+    this.pinSubmitted = false;
     this.pinGroup.hidden = !requiresPin;
     this.pinInput.required = requiresPin;
     this.pinInput.value = '';
     this.pinError.textContent = '';
     this.syncPinEntry();
-    this.confirmConnect.disabled = false;
+    this.confirmConnect.disabled = requiresPin;
     this.confirmConnect.onclick = () => {
       const pin = this.confirmPin(requiresPin);
       if (pin === false) {
@@ -895,8 +906,11 @@ class ShareView {
     };
     this.confirmCancel.onclick = () => {
       this.confirmDialog.close();
-      actions.cancel();
+      this.confirmCancelHandler?.();
     };
+    if (requiresPin) {
+      resizeShareWindowForPairingPrompt();
+    }
     this.confirmDialog.showModal();
     if (requiresPin) {
       this.pinInput.focus();
@@ -968,6 +982,7 @@ class ShareView {
   setBrandCrab(color: string): void {
     this.brandLogoDark.src = shareAssetUrl(`crabs/${color}-dark.svg`);
     this.brandLogoLight.src = shareAssetUrl(`crabs/${color}-light.svg`);
+    this.confirmLogo.src = shareAssetUrl(`crabs/${color}-light.svg`);
   }
 
   setSessionActions(canLogout: boolean): void {
@@ -1131,10 +1146,17 @@ class ShareView {
   }
 
   private openSessionActions(): void {
-    this.sessionActionsDetach.hidden = !this.connected;
-    this.sessionActionsDetach.disabled = !this.connected;
-    this.sessionActionsLogout.hidden = !this.connected || !this.canLogout;
-    this.sessionActionsLogout.disabled = !this.connected || !this.canLogout;
+    if (!this.connected) {
+      return;
+    }
+    if (!this.canLogout && this.app.dataset.role === 'spectator') {
+      this.detachHandler?.();
+      return;
+    }
+    this.sessionActionsDetach.hidden = false;
+    this.sessionActionsDetach.disabled = false;
+    this.sessionActionsLogout.hidden = !this.canLogout;
+    this.sessionActionsLogout.disabled = !this.canLogout;
     this.sessionActionsDialog.showModal();
   }
 
@@ -1177,42 +1199,6 @@ class ShareView {
     return this.windows.find((window) => window.active);
   }
 
-  private async openProvenance(): Promise<void> {
-    this.provenanceDialog.showModal();
-    try {
-      const provenanceUrl = new URL(PROVENANCE_PATH, shareBaseUrl()).toString();
-      const response = await fetch(provenanceUrl, { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`failed to fetch ${provenanceUrl}`);
-      }
-      this.setProvenance(await response.json() as BuildProvenance);
-    } catch {
-      this.provenanceStatement.textContent = 'Build provenance is unavailable for this deployment.';
-      setProofLink(this.provenanceCommit, 'Repository', 'https://github.com/Helvesec/rmux-web-share');
-      setProofLink(this.provenanceRun, 'Actions', 'https://github.com/Helvesec/rmux-web-share/actions');
-      setProofLink(this.provenanceCloudflare, 'Cloudflare proof in Actions', 'https://github.com/Helvesec/rmux-web-share/actions');
-    }
-  }
-
-  private setProvenance(provenance: BuildProvenance): void {
-    this.provenanceStatement.textContent = provenance.security_statement;
-    setProofLink(
-      this.provenanceCommit,
-      shortSha(provenance.commit_sha1),
-      provenance.commit_url ?? provenance.repository,
-    );
-    setProofLink(
-      this.provenanceRun,
-      provenance.github_actions.run_id ? `run ${provenance.github_actions.run_id}` : 'Actions',
-      provenance.github_actions.run_url ?? `${provenance.repository}/actions`,
-    );
-    setProofLink(
-      this.provenanceCloudflare,
-      provenance.cloudflare_pages.project,
-      provenance.cloudflare_pages.deployment_proof,
-    );
-  }
-
   private setTerminalPlaceholder(status: ShareStatus): void {
     if (!this.terminalPlaceholder.isConnected) {
       return;
@@ -1243,11 +1229,46 @@ class ShareView {
     }
     const boxes = Array.from(this.pinBoxes.querySelectorAll<HTMLElement>('i'));
     boxes.forEach((box, index) => {
-      box.textContent = normalized[index] ?? '';
+      const digit = normalized[index];
+      if (!digit) {
+        box.textContent = '';
+        this.pinBoxDigits[index] = undefined;
+        window.clearTimeout(this.pinMaskTimers[index]);
+        this.pinMaskTimers[index] = undefined;
+      } else if (this.pinBoxDigits[index] !== digit) {
+        this.pinBoxDigits[index] = digit;
+        box.textContent = digit;
+        window.clearTimeout(this.pinMaskTimers[index]);
+        this.pinMaskTimers[index] = window.setTimeout(() => {
+          if (this.pinBoxDigits[index] === digit) {
+            box.textContent = '*';
+          }
+        }, 1000);
+      }
       box.dataset.filled = String(index < normalized.length);
     });
-    this.confirmConnect.disabled = false;
+    this.confirmConnect.disabled = requiresPinVisible(this.confirmDialog) && normalized.length !== 6;
+    if (normalized.length === 6) {
+      window.setTimeout(() => this.tryAutoSubmitPin(), 0);
+    }
   }
+
+  private tryAutoSubmitPin(): void {
+    if (this.pinSubmitted || !requiresPinVisible(this.confirmDialog)) {
+      return;
+    }
+    const pin = this.confirmPin(true);
+    if (pin === false) {
+      return;
+    }
+    this.pinSubmitted = true;
+    this.confirmDialog.close();
+    this.pinSubmitHandler?.(pin);
+  }
+}
+
+function requiresPinVisible(dialog: HTMLElement): boolean {
+  return dialog.dataset.pin === 'true';
 }
 
 function query<T extends Element>(root: ParentNode, selector: string): T {
@@ -1256,30 +1277,6 @@ function query<T extends Element>(root: ParentNode, selector: string): T {
     throw new Error(`missing share element ${selector}`);
   }
   return element;
-}
-
-interface BuildProvenance {
-  repository: string;
-  commit_sha1: string | null;
-  commit_url: string | null;
-  security_statement: string;
-  github_actions: {
-    run_id: string | null;
-    run_url: string | null;
-  };
-  cloudflare_pages: {
-    project: string;
-    deployment_proof: string;
-  };
-}
-
-function setProofLink(link: HTMLAnchorElement, label: string, href: string): void {
-  link.textContent = label;
-  link.href = href;
-}
-
-function shortSha(value: string | null): string {
-  return value ? value.slice(0, 12) : 'unavailable';
 }
 
 function parseSessionView(payload: Uint8Array): SessionView {

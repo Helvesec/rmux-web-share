@@ -2,6 +2,7 @@ import { endpointHost, shareUrl } from './fragment';
 import type { ReadyMessage, ShareParams, ShareRole, ShareScope, SessionView } from './types';
 
 const STORAGE_KEY = 'rmux.share.recentLinks.v1';
+const BROADCAST_CHANNEL = 'rmux.share.recentLinks.v1';
 const MAX_RECENT_LINKS = 12;
 const CRAB_COLORS = [
   'blue',
@@ -47,6 +48,21 @@ export function loadRecentShares(): RecentShare[] {
   } catch {
     return [];
   }
+}
+
+export function subscribeRecentShares(callback: () => void): () => void {
+  if (typeof BroadcastChannel === 'undefined') {
+    return () => {};
+  }
+  const channel = new BroadcastChannel(BROADCAST_CHANNEL);
+  channel.addEventListener('message', (event: MessageEvent<unknown>) => {
+    if (!isRecentShareBroadcast(event.data)) {
+      return;
+    }
+    writeRecentShares(mergeRecentShares(event.data.shares), false);
+    callback();
+  });
+  return () => channel.close();
 }
 
 export function forgetRecentShare(id: string): void {
@@ -117,6 +133,12 @@ export function markRecentShareUnavailable(params: ShareParams): void {
   });
 }
 
+export function updateRecentShareViewers(params: ShareParams, viewers: number): void {
+  markRecentShare(params, (share) => {
+    share.viewers = Math.max(0, Math.floor(viewers));
+  });
+}
+
 function markRecentShare(
   params: ShareParams,
   update: (share: RecentShare, now: number) => void,
@@ -171,11 +193,15 @@ export function recentShareCrab(params: ShareParams): string {
   return crabFor(recentShareId(params));
 }
 
-function writeRecentShares(shares: RecentShare[]): void {
+function writeRecentShares(shares: RecentShare[], broadcast = true): void {
+  const recent = shares.slice(0, MAX_RECENT_LINKS);
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(shares));
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(recent));
   } catch {
     // Recent-link storage is best effort.
+  }
+  if (broadcast) {
+    broadcastRecentShares(recent);
   }
 }
 
@@ -202,6 +228,38 @@ function stableHash(input: string): string {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash.toString(16).padStart(8, '0');
+}
+
+function broadcastRecentShares(shares: RecentShare[]): void {
+  if (typeof BroadcastChannel === 'undefined') {
+    return;
+  }
+  const channel = new BroadcastChannel(BROADCAST_CHANNEL);
+  channel.postMessage({ type: 'recent-shares', shares });
+  channel.close();
+}
+
+function mergeRecentShares(incoming: RecentShare[]): RecentShare[] {
+  const byId = new Map<string, RecentShare>();
+  for (const share of [...loadRecentShares(), ...incoming]) {
+    const current = byId.get(share.id);
+    if (!current || share.lastOpenedAt >= current.lastOpenedAt) {
+      byId.set(share.id, share);
+    }
+  }
+  return [...byId.values()]
+    .sort((left, right) => right.lastOpenedAt - left.lastOpenedAt)
+    .slice(0, MAX_RECENT_LINKS);
+}
+
+function isRecentShareBroadcast(value: unknown): value is { type: 'recent-shares'; shares: RecentShare[] } {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const message = value as { type?: unknown; shares?: unknown };
+  return message.type === 'recent-shares'
+    && Array.isArray(message.shares)
+    && message.shares.every(isRecentShare);
 }
 
 function isRecentShare(value: unknown): value is RecentShare {

@@ -6,9 +6,12 @@ import {
   recentShareExpiresLabel,
   recentShareProgress,
   recentShareStatus,
+  subscribeRecentShares,
   type RecentShare,
 } from './home-storage';
 import type { ServerMessage, ShareParams } from './types';
+import { ProvenanceDialog, provenanceDialogTemplate } from './provenance';
+import { shareWindowFeatures, shouldOpenShareInCurrentTab } from './window-bounds';
 import { authPayload, logoutSession } from './wire';
 
 const HOME_THEME_STORAGE_KEY = 'rmux.share.homeTheme';
@@ -26,6 +29,8 @@ class ShareHome {
   private selectedForget?: RecentShare;
   private selectedPin?: RecentShare;
   private installPrompt?: BeforeInstallPromptEvent;
+  private unsubscribeRecentShares?: () => void;
+  private provenance?: ProvenanceDialog;
   private pinRevealTimer?: number;
   private toastTimer?: number;
 
@@ -35,9 +40,12 @@ class ShareHome {
 
   mount(): void {
     this.root.innerHTML = homeTemplate();
+    this.provenance = new ProvenanceDialog(this.root);
     this.setTheme(readTheme());
     this.bindChrome();
     this.renderRecentLinks();
+    this.unsubscribeRecentShares = subscribeRecentShares(() => this.renderRecentLinks());
+    window.addEventListener('pagehide', () => this.unsubscribeRecentShares?.(), { once: true });
     window.addEventListener('storage', (event) => {
       if (event.key?.startsWith('rmux.share.')) {
         this.renderRecentLinks();
@@ -71,6 +79,7 @@ class ShareHome {
     query<HTMLButtonElement>(this.root, '[data-home-pin-close]').addEventListener('click', () => this.closePinDialog());
     query<HTMLButtonElement>(this.root, '[data-home-pin-copy]').addEventListener('click', () => this.copySelectedPin());
     query<HTMLElement>(this.root, '[data-home-pin-code]').addEventListener('pointerdown', () => this.revealPinCode());
+    this.provenance?.bind(query<HTMLElement>(this.root, '[data-home-provenance-open]'));
     document.addEventListener('pointerdown', (event) => this.closeOpenMenus(event.target as Node | null));
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -139,6 +148,10 @@ class ShareHome {
 
     const viewers = document.createElement('span');
     viewers.className = 'home-viewers';
+    viewers.title = share.viewers === undefined
+      ? 'Connected browser count unavailable'
+      : `${share.viewers} connected browser${share.viewers === 1 ? '' : 's'}`;
+    viewers.setAttribute('aria-label', viewers.title);
     viewers.innerHTML = eyeIcon();
     viewers.append(document.createTextNode(share.viewers === undefined ? '—' : String(share.viewers)));
 
@@ -158,7 +171,7 @@ class ShareHome {
     connect.type = 'button';
     connect.textContent = 'Connect';
     connect.append(iconArrowRight());
-    connect.addEventListener('click', () => openShareWindow(share.params));
+    connect.addEventListener('click', () => openShareWindow(share.params, { pairing: Boolean(share.pin) }));
 
     const menu = this.renderShareMenu(share);
     row.append(crab, wrap(title, endpoint), status, viewers, expires, connect, menu);
@@ -187,14 +200,32 @@ class ShareHome {
     if (share.spectatorAccess) {
       menu.append(menuButton('Share Spectator', linkIcon(), () => this.copySpectatorUrl(share, button)));
     }
-    menu.append(separator(), menuButton('Forget', trashIcon(), () => this.openForgetDialog(share), true));
+    menu.append(separator(), menuButton('Forget', trashIcon(), () => this.forgetFromMenu(share), true));
     button.addEventListener('click', (event) => {
       event.stopPropagation();
+      const opening = menu.hidden;
       this.closeOpenMenus(menu);
-      menu.hidden = !menu.hidden;
+      menu.hidden = !opening;
+      if (opening) {
+        this.placeShareMenu(menu, button);
+      }
     });
     container.append(button, menu);
     return container;
+  }
+
+  private placeShareMenu(menu: HTMLElement, button: HTMLButtonElement): void {
+    menu.dataset.placement = 'bottom';
+    menu.style.maxHeight = '';
+    const gap = 8;
+    const buttonRect = button.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const roomBelow = window.innerHeight - buttonRect.bottom - gap;
+    const roomAbove = buttonRect.top - gap;
+    const placement = menuRect.height > roomBelow && roomAbove > roomBelow ? 'top' : 'bottom';
+    const available = Math.max(132, (placement === 'top' ? roomAbove : roomBelow) - gap);
+    menu.dataset.placement = placement;
+    menu.style.maxHeight = `${Math.floor(available)}px`;
   }
 
   private setTheme(theme: HomeTheme): void {
@@ -233,12 +264,23 @@ class ShareHome {
     query<HTMLDialogElement>(this.root, '[data-home-forget-dialog]').showModal();
   }
 
+  private forgetFromMenu(share: RecentShare): void {
+    if (share.role === 'spectator') {
+      forgetRecentShare(share.id);
+      this.renderRecentLinks();
+      this.showToast('Share forgotten');
+      return;
+    }
+    this.openForgetDialog(share);
+  }
+
   private openPinDialog(share: RecentShare): void {
     if (!share.pin) {
       return;
     }
     this.selectedPin = share;
     query<HTMLElement>(this.root, '[data-home-pin-name]').textContent = share.name;
+    query<HTMLImageElement>(this.root, '[data-home-pin-logo]').src = shareAssetUrl(`crabs/${share.crab}-light.svg`);
     const code = query<HTMLElement>(this.root, '[data-home-pin-code]');
     code.dataset.revealed = 'false';
     code.replaceChildren(...pinCells(share.pin));
@@ -320,11 +362,14 @@ function homeTemplate(): string {
     <main class="home-shell">
       <header class="home-topbar">
         <a class="home-brand" href="https://rmux.io/" aria-label="RMUX">
-          <img src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
+          <span class="home-brand-mark" aria-hidden="true">
+            <img class="home-brand-logo home-brand-logo-dark" src="${shareAssetUrl('rmux-logo-dark.svg')}" alt="" />
+            <img class="home-brand-logo home-brand-logo-light" src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
+          </span>
           <strong>RMUX</strong>
         </a>
         <span class="home-divider" aria-hidden="true"></span>
-        <span class="home-section">Share</span>
+        <a class="home-section" href="https://share.rmux.io/">SHARE</a>
         <nav class="home-actions" aria-label="Page actions">
           <button class="home-action" data-home-install type="button" hidden>${downloadIcon()}<span>Install app</span></button>
           <button class="home-icon-action" data-home-theme type="button" aria-label="Toggle theme">${sunIcon()}</button>
@@ -347,7 +392,7 @@ function homeTemplate(): string {
           <div class="home-security-note">
             ${shieldIcon()}
             <span>Your browser connects directly to the endpoint in the share link. RMUX does not relay terminal traffic.</span>
-            <a href="https://github.com/Helvesec/rmux-web-share" rel="noreferrer">Learn more ${externalIcon()}</a>
+            <button data-home-provenance-open type="button">Learn more ${externalIcon()}</button>
           </div>
         </div>
       </section>
@@ -374,7 +419,7 @@ function homeTemplate(): string {
         <form method="dialog" class="home-dialog-panel home-pin-panel">
           <button class="home-dialog-close" data-home-pin-close type="button" aria-label="Close">${xIcon()}</button>
           <div class="home-pin-mark" aria-hidden="true">
-            <img src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
+            <img data-home-pin-logo src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
           </div>
           <h2>Pairing code</h2>
           <p>Use this 6-digit code to connect to <strong data-home-pin-name></strong>.</p>
@@ -391,17 +436,22 @@ function homeTemplate(): string {
           </div>
         </form>
       </dialog>
+      ${provenanceDialogTemplate()}
       <div class="home-toast" data-home-toast role="status" aria-live="polite" hidden></div>
     </main>
   `;
 }
 
-function openShareWindow(params: ShareParams): void {
+function openShareWindow(params: ShareParams, options: { pairing?: boolean } = {}): void {
   const url = shareUrl(params);
+  if (shouldOpenShareInCurrentTab()) {
+    window.location.href = url;
+    return;
+  }
   const opened = window.open(
     url,
     `rmux-share-${Date.now()}`,
-    'popup=yes,width=1280,height=820,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=yes',
+    shareWindowFeatures(options.pairing ? 'pairing' : 'terminal'),
   );
   if (!opened) {
     window.location.href = url;

@@ -1,4 +1,5 @@
 import { shareAssetUrl } from './fragment';
+import { provenanceDialogTemplate } from './provenance';
 import type { ShareRole } from './types';
 
 export function shareViewTemplate(): string {
@@ -14,7 +15,7 @@ export function shareViewTemplate(): string {
             <span class="share-brand-title">RMUX</span>
           </a>
           <span class="share-brand-divider" aria-hidden="true"></span>
-          <span class="share-brand-context">Web Multiplex</span>
+          <a class="share-brand-context" href="https://share.rmux.io/">SHARE</a>
         </div>
         <nav class="share-topbar-actions" data-share-session-controls hidden aria-label="Session controls">
           <button class="share-icon-button" data-share-split-horizontal type="button" aria-label="Split right" title="Split right">
@@ -42,9 +43,10 @@ export function shareViewTemplate(): string {
           </button>
         </nav>
         <div class="share-topbar-meta">
-          <span class="share-role-badge" title="Read-only">
+          <span class="share-role-badge" title="Spectator, read-only">
             <svg class="share-role-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M10 5h4M6 9h12M7 9v8h10V9M4 4l16 16" />
+              <rect x="6" y="10" width="12" height="10" rx="2" />
+              <path d="M9 10V7a3 3 0 0 1 6 0v3" />
             </svg>
             <span class="share-visually-hidden" data-share-role>Spectator</span>
           </span>
@@ -177,7 +179,7 @@ export function shareViewTemplate(): string {
       <dialog class="share-confirm" data-share-confirm>
         <form method="dialog" class="share-confirm-panel">
           <div class="share-confirm-mark" data-share-confirm-mark aria-hidden="true">
-            <img src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
+            <img data-share-confirm-logo src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
           </div>
           <h1 data-share-confirm-title></h1>
           <p class="share-confirm-endpoint" data-share-endpoint hidden></p>
@@ -202,35 +204,7 @@ export function shareViewTemplate(): string {
           </div>
         </form>
       </dialog>
-      <dialog class="share-provenance" data-share-provenance>
-        <form method="dialog" class="share-provenance-panel">
-          <h1>Security & provenance</h1>
-          <p data-share-provenance-statement>
-            share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.
-          </p>
-          <dl class="share-provenance-list">
-            <div>
-              <dt>GitHub SHA-1</dt>
-              <dd><a data-share-provenance-commit href="https://github.com/Helvesec/rmux-web-share" target="_blank" rel="noopener noreferrer">loading</a></dd>
-            </div>
-            <div>
-              <dt>Build run</dt>
-              <dd><a data-share-provenance-run href="https://github.com/Helvesec/rmux-web-share/actions" target="_blank" rel="noopener noreferrer">loading</a></dd>
-            </div>
-            <div>
-              <dt>Cloudflare</dt>
-              <dd><a data-share-provenance-cloudflare href="https://github.com/Helvesec/rmux-web-share/actions" target="_blank" rel="noopener noreferrer">deployment proof</a></dd>
-            </div>
-            <div>
-              <dt>Asset hashes</dt>
-              <dd><a href="${shareAssetUrl('checksums.txt')}" target="_blank" rel="noopener noreferrer">checksums.txt</a></dd>
-            </div>
-          </dl>
-          <div class="share-confirm-actions">
-            <button type="submit">Close</button>
-          </div>
-        </form>
-      </dialog>
+      ${provenanceDialogTemplate()}
     </main>
   `;
 }
