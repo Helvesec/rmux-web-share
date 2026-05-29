@@ -1328,7 +1328,7 @@ function bindUserThemeChanges(callback: () => void): void {
 
 function readTerminalTheme(): TerminalThemeName {
   try {
-    const stored = window.localStorage.getItem(TERMINAL_THEME_STORAGE_KEY);
+    const stored = window.sessionStorage.getItem(TERMINAL_THEME_STORAGE_KEY);
     return stored && isTerminalThemeName(stored) ? stored : DEFAULT_TERMINAL_THEME;
   } catch {
     return DEFAULT_TERMINAL_THEME;
@@ -1375,7 +1375,7 @@ async function copyText(text: string): Promise<void> {
 
 function writeTerminalTheme(theme: TerminalThemeName): void {
   try {
-    window.localStorage.setItem(TERMINAL_THEME_STORAGE_KEY, theme);
+    window.sessionStorage.setItem(TERMINAL_THEME_STORAGE_KEY, theme);
   } catch {
     // Theme selection is cosmetic; private browsing storage failures are harmless.
   }

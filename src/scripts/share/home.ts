@@ -517,7 +517,7 @@ async function tryCopyText(text: string): Promise<boolean> {
 }
 
 function readTheme(): HomeTheme {
-  const stored = window.localStorage.getItem(HOME_THEME_STORAGE_KEY);
+  const stored = window.sessionStorage.getItem(HOME_THEME_STORAGE_KEY);
   if (stored === 'light' || stored === 'dark') {
     return stored;
   }
@@ -526,7 +526,7 @@ function readTheme(): HomeTheme {
 
 function writeTheme(theme: HomeTheme): void {
   try {
-    window.localStorage.setItem(HOME_THEME_STORAGE_KEY, theme);
+    window.sessionStorage.setItem(HOME_THEME_STORAGE_KEY, theme);
   } catch {
     // Theme persistence is cosmetic.
   }

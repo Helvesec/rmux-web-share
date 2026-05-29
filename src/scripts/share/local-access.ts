@@ -52,7 +52,7 @@ export function rememberLocalAccess(endpoint: string): void {
     return;
   }
   try {
-    window.localStorage.setItem(LOCAL_ACCESS_CONFIRMED_KEY, '1');
+    window.sessionStorage.setItem(LOCAL_ACCESS_CONFIRMED_KEY, '1');
   } catch {
     // Storage can be disabled; this hint is only an ergonomic optimization.
   }
@@ -79,7 +79,7 @@ function isLoopbackHost(host: string): boolean {
 
 function localAccessWasConfirmed(): boolean {
   try {
-    return window.localStorage.getItem(LOCAL_ACCESS_CONFIRMED_KEY) === '1';
+    return window.sessionStorage.getItem(LOCAL_ACCESS_CONFIRMED_KEY) === '1';
   } catch {
     return false;
   }

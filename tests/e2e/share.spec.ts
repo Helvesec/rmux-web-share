@@ -61,7 +61,7 @@ test('Firefox local links do not show a Chrome permission prompt', async ({ page
 test('local access success is remembered without prompting', async ({ page }) => {
   await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('rmux.share.localAccessConfirmed'))).toBe('1');
+  await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem('rmux.share.localAccessConfirmed'))).toBe('1');
 
   await page.goto(`/?again=1#t=${spectatorToken}`);
 

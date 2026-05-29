@@ -38,7 +38,7 @@ export interface RecentShare {
 
 export function loadRecentShares(): RecentShare[] {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '[]') as unknown;
+    const parsed = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) ?? '[]') as unknown;
     if (!Array.isArray(parsed)) {
       return [];
     }
@@ -140,7 +140,7 @@ export function recentShareCrab(params: ShareParams): string {
 
 function writeRecentShares(shares: RecentShare[]): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(shares));
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(shares));
   } catch {
     // Recent-link storage is best effort.
   }
