@@ -37,6 +37,11 @@
   --share-role-border: rgb(119 199 255 / 0.36);
   --share-scrollbar: rgb(119 148 139 / 0.7);
   --share-scrollbar-track: rgb(6 8 7 / 0.28);
+  --share-terminal-radius: 12px;
+  --share-terminal-surface: color-mix(in srgb, var(--share-bg) 84%, #000000 16%);
+  --share-terminal-outline: color-mix(in srgb, var(--share-text) 4%, transparent);
+  --share-terminal-highlight: color-mix(in srgb, var(--share-text) 4%, transparent);
+  --share-terminal-shadow: 0 24px 80px rgb(0 0 0 / 0.34);
   --share-dialog-bg: #f7fbf6;
   --share-dialog-text: #10211a;
   --share-dialog-muted: #485a53;
@@ -107,6 +112,10 @@
   --share-role-border: rgb(31 111 209 / 0.34);
   --share-scrollbar: rgb(87 108 101 / 0.62);
   --share-scrollbar-track: rgb(68 83 78 / 0.12);
+  --share-terminal-surface: color-mix(in srgb, var(--share-bg) 92%, #ffffff 8%);
+  --share-terminal-outline: rgb(16 33 26 / 0.045);
+  --share-terminal-highlight: rgb(255 255 255 / 0.44);
+  --share-terminal-shadow: 0 22px 72px rgb(42 37 28 / 0.16);
   --share-dialog-bg: #fffaf0;
   --share-dialog-text: #10211a;
   --share-dialog-muted: #56615d;
@@ -127,6 +136,9 @@
   --share-muted: color-mix(in srgb, var(--share-client-fg) 58%, var(--share-client-bg));
   --share-scrollbar: color-mix(in srgb, var(--share-client-fg) 48%, var(--share-client-accent));
   --share-scrollbar-track: color-mix(in srgb, var(--share-client-bg) 82%, transparent);
+  --share-terminal-surface: color-mix(in srgb, var(--share-client-bg) 88%, #000000 12%);
+  --share-terminal-outline: color-mix(in srgb, var(--share-client-fg) 4%, transparent);
+  --share-terminal-highlight: color-mix(in srgb, var(--share-client-fg) 4%, transparent);
   background:
     linear-gradient(
       180deg,
@@ -173,6 +185,13 @@
   box-shadow: none;
 }
 
+.share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='light'] {
+  --share-terminal-surface: color-mix(in srgb, var(--share-client-bg) 94%, #ffffff 6%);
+  --share-terminal-outline: color-mix(in srgb, var(--share-client-fg) 5%, transparent);
+  --share-terminal-highlight: rgb(255 255 255 / 0.44);
+  --share-terminal-shadow: 0 22px 72px rgb(42 37 28 / 0.16);
+}
+
 .share-terminal {
   position: relative;
   display: block;
@@ -182,44 +201,17 @@
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--share-bg) 86%, #000000 14%);
+  border-radius: var(--share-terminal-radius);
+  background: var(--share-terminal-surface);
   box-shadow:
-    0 24px 80px rgb(0 0 0 / 0.35),
-    0 0 0 1px color-mix(in srgb, var(--share-text) 3%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--share-text) 4%, transparent);
+    var(--share-terminal-shadow),
+    0 0 0 1px var(--share-terminal-outline),
+    inset 0 1px 0 var(--share-terminal-highlight);
   overflow: auto;
   overflow-anchor: none;
   scrollbar-color: var(--share-scrollbar) var(--share-scrollbar-track);
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-}
-
-.share-app[data-terminal-mode='light'] .share-terminal {
-  background: color-mix(in srgb, var(--share-bg) 93%, #ffffff 7%);
-  box-shadow:
-    0 24px 80px rgb(36 31 22 / 0.18),
-    0 0 0 1px rgb(16 33 26 / 0.035),
-    inset 0 1px 0 rgb(255 255 255 / 0.42);
-}
-
-.share-app[data-terminal-theme='user'][data-client-palette='present'] .share-terminal {
-  background: color-mix(in srgb, var(--share-client-bg) 88%, #000000 12%);
-}
-
-.share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='dark'] .share-terminal {
-  box-shadow:
-    0 24px 80px rgb(0 0 0 / 0.35),
-    0 0 0 1px color-mix(in srgb, var(--share-client-fg) 3%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--share-client-fg) 4%, transparent);
-}
-
-.share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='light'] .share-terminal {
-  background: color-mix(in srgb, var(--share-client-bg) 94%, #ffffff 6%);
-  box-shadow:
-    0 24px 80px rgb(36 31 22 / 0.18),
-    0 0 0 1px color-mix(in srgb, var(--share-client-fg) 4%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.42);
 }
 
 .share-terminal[data-scope='session'] {
