@@ -41,7 +41,7 @@
 
 .share-session-actions-panel,
 .share-provenance-panel {
-  padding: 28px;
+  padding: 30px;
 }
 
 .share-confirm[data-pin='true'] .share-confirm-panel {
@@ -86,19 +86,9 @@
   margin: 0;
   color: var(--share-dialog-text);
   overflow-wrap: anywhere;
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.share-session-actions h1 {
-  font-size: clamp(28px, 4.2vw, 36px);
-  font-weight: 820;
-  line-height: 1.04;
-}
-
-.share-provenance h1 {
-  font-size: clamp(22px, 3.8vw, 28px);
-  font-weight: 780;
+  font-size: clamp(26px, 3.8vw, 32px);
+  font-weight: 760;
+  line-height: 1.12;
 }
 
 .share-confirm[data-pin='true'] h1 {
@@ -119,8 +109,8 @@
 }
 
 .share-session-actions p {
-  font-size: clamp(15px, 1.8vw, 17px);
-  line-height: 1.45;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 .share-confirm[data-pin='true'] > .share-confirm-panel > p {
@@ -314,23 +304,30 @@
 .share-confirm button:not(.share-provenance-trigger),
 .share-session-actions button:not(.share-provenance-trigger),
 .share-provenance button {
-  min-height: 44px;
-  padding: 0 20px;
+  min-height: 52px;
+  padding: 0 28px;
   border: 1px solid rgb(51 77 68 / 0.28);
   border-radius: 999px;
   background: var(--share-dialog-button-bg);
   color: var(--share-dialog-text);
   cursor: pointer;
   font: inherit;
+  font-size: 17px;
+  font-weight: 740;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
 }
 
 .share-confirm[data-pin='true'] button:not(.share-provenance-trigger) {
-  height: 44px;
+  min-height: 52px;
   border-color: rgb(51 77 68 / 0.28);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--share-dialog-button-bg);
   color: var(--share-dialog-text);
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .share-confirm[data-pin='true'] button.primary {
@@ -352,6 +349,8 @@
 .share-provenance button:focus-visible {
   border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, transparent);
   background: color-mix(in srgb, var(--share-dialog-button-bg) 72%, var(--share-dialog-button-primary-bg));
+  box-shadow: 0 10px 26px rgb(15 23 42 / 0.09);
+  transform: translateY(-1px);
   outline: none;
 }
 
@@ -409,7 +408,7 @@
 .share-session-actions .share-confirm-actions button {
   min-height: 52px;
   min-width: 0;
-  font-size: clamp(15px, 1.8vw, 17px);
+  font-size: 17px;
   font-weight: 780;
   white-space: nowrap;
 }
