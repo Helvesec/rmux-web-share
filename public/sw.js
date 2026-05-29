@@ -26,7 +26,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (isShareAsset(url.pathname)) {
-    event.respondWith(cacheFirstAsset(event.request));
+    event.respondWith(networkFirstAsset(event.request));
   }
 });
 
@@ -117,19 +117,22 @@ async function networkFirstNavigation(request) {
   }
 }
 
-async function cacheFirstAsset(request) {
-  const cached = await caches.match(request);
-  if (cached) {
-    return cached;
-  }
-
+async function networkFirstAsset(request) {
   const manifest = await offlineManifest();
-  const response = await fetch(request);
-  if (response.ok) {
-    const cache = await caches.open(cacheName(manifest.version));
-    await cache.put(request, response.clone());
+  const cache = await caches.open(cacheName(manifest.version));
+  try {
+    const response = await fetch(request, { cache: 'no-cache' });
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) {
+      return cached;
+    }
+    throw error;
   }
-  return response;
 }
 
 function cacheName(version) {

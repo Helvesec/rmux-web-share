@@ -15,3 +15,6 @@
 
 /sw.js
   Cache-Control: no-cache
+
+/_astro/*
+  Cache-Control: no-cache

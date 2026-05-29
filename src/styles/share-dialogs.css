@@ -1,10 +1,10 @@
 .share-confirm,
 .share-session-actions,
 .share-provenance {
-  width: min(620px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid rgb(69 136 87 / 0.24);
-  border-radius: 22px;
+  border-radius: 24px;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
   color-scheme: light;
@@ -12,11 +12,11 @@
 }
 
 .share-confirm[data-pin='true'] {
-  width: min(620px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   overflow: auto;
   border: 1px solid rgb(69 136 87 / 0.28);
-  border-radius: 22px;
+  border-radius: 24px;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
   color-scheme: light;
@@ -32,8 +32,8 @@
 .share-session-actions-panel,
 .share-provenance-panel {
   display: grid;
-  gap: 18px;
-  padding: 32px;
+  gap: 16px;
+  padding: 28px;
   border-radius: inherit;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
@@ -41,13 +41,13 @@
 
 .share-session-actions-panel,
 .share-provenance-panel {
-  padding: 32px;
+  padding: 28px;
 }
 
 .share-confirm[data-pin='true'] .share-confirm-panel {
   justify-items: center;
-  gap: 18px;
-  padding: 34px;
+  gap: 16px;
+  padding: 30px;
   background: var(--share-dialog-bg);
   color: var(--share-dialog-text);
   text-align: center;
@@ -91,20 +91,20 @@
 }
 
 .share-session-actions h1 {
-  font-size: clamp(30px, 4.6vw, 42px);
+  font-size: clamp(28px, 4.2vw, 36px);
   font-weight: 820;
-  line-height: 1.02;
+  line-height: 1.04;
 }
 
 .share-provenance h1 {
-  font-size: clamp(24px, 4vw, 32px);
+  font-size: clamp(22px, 3.8vw, 28px);
   font-weight: 780;
 }
 
 .share-confirm[data-pin='true'] h1 {
   max-width: 520px;
   color: var(--share-dialog-text);
-  font-size: clamp(28px, 4vw, 36px);
+  font-size: clamp(26px, 3.8vw, 32px);
   font-weight: 760;
   line-height: 1.12;
 }
@@ -119,13 +119,13 @@
 }
 
 .share-session-actions p {
-  font-size: clamp(16px, 2vw, 18px);
+  font-size: clamp(15px, 1.8vw, 17px);
   line-height: 1.45;
 }
 
 .share-confirm[data-pin='true'] > .share-confirm-panel > p {
   color: var(--share-dialog-muted);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.42;
 }
 
@@ -190,19 +190,19 @@
 
 .share-confirm[data-pin='true'] .share-pin-boxes {
   display: grid;
-  grid-template-columns: repeat(6, 54px);
-  gap: 10px;
+  grid-template-columns: repeat(6, 48px);
+  gap: 9px;
 }
 
 .share-pin-boxes i {
   display: grid;
-  width: 54px;
-  height: 64px;
+  width: 48px;
+  height: 58px;
   place-items: center;
   border: 1px solid var(--share-border);
   border-radius: 15px;
   color: var(--share-dialog-text);
-  font: 760 28px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 760 26px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   font-style: normal;
   background: var(--share-dialog-field-bg);
 }
@@ -374,10 +374,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  min-width: 48px;
-  height: 48px;
-  min-height: 48px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   box-sizing: border-box;
   border-radius: 999px;
@@ -409,9 +409,9 @@
 }
 
 .share-session-actions .share-confirm-actions button {
-  min-height: 56px;
+  min-height: 52px;
   min-width: 0;
-  font-size: clamp(16px, 2vw, 18px);
+  font-size: clamp(15px, 1.8vw, 17px);
   font-weight: 780;
   white-space: nowrap;
 }
