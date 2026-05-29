@@ -1,4 +1,13 @@
-import { endpointHost, parseShareFragment, shareBasePath, shareBaseUrl, shareUrl } from './fragment';
+import {
+  endpointHost,
+  parseShareFragment,
+  readActiveShareParams,
+  rememberActiveShareParams,
+  shareAssetUrl,
+  shareBasePath,
+  shareBaseUrl,
+  shareUrl,
+} from './fragment';
 import {
   createClientHello,
   createEncryptedTransport,
@@ -98,11 +107,15 @@ export function startShareApp(root: HTMLElement): void {
   });
 
   try {
-    params = parseShareFragment(window.location.hash);
+    params = window.location.hash ? parseShareFragment(window.location.hash) : readActiveShareParams();
+    if (!params) {
+      throw new Error('missing share token');
+    }
   } catch (error) {
     view.showError(error instanceof Error ? error.message : 'invalid share URL');
     return;
   }
+  rememberActiveShareParams(params);
   removeShareSecretFromAddressBar();
   if (params.theme) {
     terminalTheme = params.theme;
@@ -355,7 +368,8 @@ class ShareConnection {
       killWindow: (windowIndex) => this.killWindow(windowIndex),
     });
     this.view.setReady(message);
-    rememberRecentShare(this.params, message, undefined, this.pin);
+    const recent = rememberRecentShare(this.params, message, undefined, this.pin);
+    this.view.setBrandCrab(recent.crab);
     this.view.setViewerCount(message);
     this.bindTerminalViewport();
   }
@@ -616,6 +630,8 @@ class ShareConnection {
 
 class ShareView {
   private readonly app: HTMLElement;
+  private readonly brandLogoDark: HTMLImageElement;
+  private readonly brandLogoLight: HTMLImageElement;
   private readonly endpointHost: HTMLElement;
   private readonly role: HTMLElement;
   private readonly status: HTMLElement;
@@ -697,6 +713,8 @@ class ShareView {
   private constructor(root: HTMLElement) {
     root.innerHTML = shareViewTemplate();
     this.app = query(root, '.share-app');
+    this.brandLogoDark = query(root, '.share-brand-logo-dark');
+    this.brandLogoLight = query(root, '.share-brand-logo-light');
     this.endpointHost = query(root, '[data-share-endpoint]');
     this.role = query(root, '[data-share-role]');
     this.status = query(root, '[data-share-status]');
@@ -849,6 +867,7 @@ class ShareView {
     this.pinInput.value = '';
     this.pinError.textContent = '';
     this.syncPinEntry();
+    this.confirmConnect.disabled = false;
     this.confirmConnect.onclick = () => {
       const pin = this.confirmPin(requiresPin);
       if (pin === false) {
@@ -932,6 +951,11 @@ class ShareView {
     this.role.textContent = titleCase(role);
     this.terminal.dataset.role = role;
     this.rootDataset('role', role);
+  }
+
+  setBrandCrab(color: string): void {
+    this.brandLogoDark.src = shareAssetUrl(`crabs/${color}-dark.svg`);
+    this.brandLogoLight.src = shareAssetUrl(`crabs/${color}-light.svg`);
   }
 
   setSessionActions(canLogout: boolean): void {
@@ -1223,7 +1247,7 @@ class ShareView {
       box.textContent = normalized[index] ?? '';
       box.dataset.filled = String(index < normalized.length);
     });
-    this.confirmConnect.disabled = this.confirmDialog.dataset.pin === 'true' && normalized.length !== 6;
+    this.confirmConnect.disabled = false;
   }
 }
 

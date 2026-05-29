@@ -142,6 +142,10 @@
   cursor: pointer;
 }
 
+.share-app[data-connected='false'] .share-exit-button {
+  display: none;
+}
+
 .share-icon-button svg,
 .share-exit-button svg,
 .share-role-icon,

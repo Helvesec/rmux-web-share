@@ -5,7 +5,7 @@ import '../../styles/share-dialogs.css';
 import '../../styles/share-home.css';
 
 import { startShareApp } from './controller';
-import { hasShareFragment } from './fragment';
+import { hasActiveShareParams, hasShareFragment } from './fragment';
 import { startShareHome } from './home';
 import { registerShareServiceWorker } from './pwa';
 
@@ -16,7 +16,7 @@ export function mountShareApp(target: Element | null = document.body): void {
 
   const root = document.createElement('div');
   root.className = 'share-root';
-  const shareMode = hasShareFragment(window.location.hash);
+  const shareMode = hasShareFragment(window.location.hash) || hasActiveShareParams();
   document.body.classList.toggle('home-page', !shareMode);
   document.body.classList.toggle('share-body', shareMode);
   if (target === document.body) {

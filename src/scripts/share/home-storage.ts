@@ -48,14 +48,6 @@ export function loadRecentShares(): RecentShare[] {
   }
 }
 
-export function clearRecentShares(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Private browsing can reject writes; recent links are an optional convenience.
-  }
-}
-
 export function forgetRecentShare(id: string): void {
   writeRecentShares(loadRecentShares().filter((share) => share.id !== id));
 }
@@ -140,6 +132,10 @@ export function recentShareProgress(share: RecentShare): number | undefined {
 
 export function recentShareId(params: ShareParams): string {
   return stableHash(`${params.endpoint}\n${params.token}`);
+}
+
+export function recentShareCrab(params: ShareParams): string {
+  return crabFor(recentShareId(params));
 }
 
 function writeRecentShares(shares: RecentShare[]): void {

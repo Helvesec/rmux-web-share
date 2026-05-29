@@ -1,11 +1,33 @@
 import type { ShareParams, TerminalThemeName } from './types';
 
 const TOKEN_RE = /^[A-Za-z0-9._~-]{24,512}$/;
+const ACTIVE_SHARE_STORAGE_KEY = 'rmux.share.activeParams.v1';
 export const DEFAULT_SHARE_ENDPOINT = 'ws://127.0.0.1:9777/share';
 
 export function hasShareFragment(hash: string): boolean {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
   return Boolean(params.get('t'));
+}
+
+export function hasActiveShareParams(): boolean {
+  return readActiveShareParams() !== undefined;
+}
+
+export function readActiveShareParams(): ShareParams | undefined {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(ACTIVE_SHARE_STORAGE_KEY) ?? 'null') as unknown;
+    return isShareParams(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function rememberActiveShareParams(params: ShareParams): void {
+  try {
+    window.sessionStorage.setItem(ACTIVE_SHARE_STORAGE_KEY, JSON.stringify(params));
+  } catch {
+    // Refresh resilience is best effort; the share link itself remains the source of truth.
+  }
 }
 
 export function parseShareFragment(hash: string): ShareParams {
@@ -158,4 +180,16 @@ function parseDisclaimer(value: string | null): ShareParams['disclaimer'] {
     return 'off';
   }
   throw new Error('invalid disclaimer option');
+}
+
+function isShareParams(value: unknown): value is ShareParams {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const params = value as Partial<ShareParams>;
+  return typeof params.endpoint === 'string'
+    && typeof params.token === 'string'
+    && (params.theme === undefined || params.theme === 'user' || params.theme === 'dark' || params.theme === 'light')
+    && (params.navbar === 'visible' || params.navbar === 'off')
+    && (params.disclaimer === 'on' || params.disclaimer === 'off');
 }

@@ -12,12 +12,14 @@
 }
 
 .share-confirm[data-pin='true'] {
-  width: min(820px, calc(100vw - 32px));
-  border: 0;
-  border-radius: 22px;
-  background: #202020;
-  color: #f8fafc;
-  color-scheme: dark;
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px solid rgb(69 136 87 / 0.28);
+  border-radius: 18px;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
+  color-scheme: light;
 }
 
 .share-session-actions {
@@ -43,10 +45,10 @@
 
 .share-confirm[data-pin='true'] .share-confirm-panel {
   justify-items: center;
-  gap: 24px;
-  padding: 54px 54px 44px;
-  background: #202020;
-  color: #f8fafc;
+  gap: 18px;
+  padding: 34px;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
   text-align: center;
 }
 
@@ -63,16 +65,17 @@
 
 .share-confirm[data-pin='true'] .share-confirm-mark {
   display: grid;
-  width: 88px;
-  height: 88px;
+  width: 76px;
+  height: 76px;
   place-items: center;
-  border-radius: 24px;
-  background: #fbfbfb;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgb(18 26 44 / 0.12);
 }
 
 .share-confirm-mark img {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   image-rendering: pixelated;
 }
 
@@ -87,11 +90,11 @@
 }
 
 .share-confirm[data-pin='true'] h1 {
-  max-width: 680px;
-  color: #f8fafc;
-  font-size: clamp(34px, 5vw, 54px);
-  font-weight: 650;
-  line-height: 1.2;
+  max-width: 520px;
+  color: var(--share-dialog-text);
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 760;
+  line-height: 1.12;
 }
 
 .share-confirm p,
@@ -104,8 +107,8 @@
 }
 
 .share-confirm[data-pin='true'] > .share-confirm-panel > p {
-  color: #d7dde8;
-  font-size: 22px;
+  color: var(--share-dialog-muted);
+  font-size: 18px;
   line-height: 1.42;
 }
 
@@ -116,7 +119,7 @@
 
 .share-confirm[data-pin='true'] .share-pin {
   justify-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .share-pin[hidden] {
@@ -130,8 +133,8 @@
 }
 
 .share-confirm[data-pin='true'] .share-pin > span {
-  color: #d7dde8;
-  font-size: 18px;
+  color: var(--share-dialog-text);
+  font-size: 14px;
 }
 
 .share-pin-entry {
@@ -170,30 +173,30 @@
 
 .share-confirm[data-pin='true'] .share-pin-boxes {
   display: grid;
-  grid-template-columns: repeat(6, 68px);
-  gap: 14px;
+  grid-template-columns: repeat(6, 54px);
+  gap: 10px;
 }
 
 .share-pin-boxes i {
   display: grid;
-  width: 68px;
-  height: 82px;
+  width: 54px;
+  height: 64px;
   place-items: center;
-  border: 1px solid #414141;
-  border-radius: 22px;
-  color: #f8fafc;
-  font: 700 34px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  border: 1px solid var(--share-border);
+  border-radius: 15px;
+  color: var(--share-dialog-text);
+  font: 760 28px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   font-style: normal;
-  background: rgb(255 255 255 / 0.015);
+  background: var(--share-dialog-field-bg);
 }
 
 .share-pin-entry:focus-within .share-pin-boxes i {
-  border-color: #6b7280;
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, var(--share-border));
 }
 
 .share-pin-boxes i[data-filled='true'] {
-  border-color: #8da2ff;
-  background: rgb(141 162 255 / 0.09);
+  border-color: var(--share-dialog-button-primary-border);
+  background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 64%, var(--share-dialog-field-bg));
 }
 
 .share-pin small {
@@ -203,40 +206,42 @@
 }
 
 .share-confirm[data-pin='true'] .share-pin small {
-  color: #ffb4b4;
-  font-size: 13px;
+  color: var(--share-error);
+  font-size: 12px;
 }
 
 .share-pin-warning {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 16px;
-  width: min(660px, 100%);
-  padding: 22px 24px;
-  border: 1px solid rgb(214 147 66 / 0.78);
-  border-radius: 16px;
-  color: #f8fafc;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 14px;
+  width: min(520px, 100%);
+  padding: 18px;
+  border: 1px solid rgb(214 147 66 / 0.72);
+  border-radius: 14px;
+  color: var(--share-dialog-text);
   text-align: left;
 }
 
 .share-pin-warning::before {
-  width: 28px;
-  height: 28px;
-  color: #ffbd6b;
-  font-size: 22px;
+  width: 26px;
+  height: 26px;
+  color: #d98217;
+  font-size: 21px;
   line-height: 1;
   content: '!';
 }
 
 .share-pin-warning strong {
   display: block;
-  margin-bottom: 10px;
-  font-size: 20px;
+  grid-column: 2;
+  margin-bottom: 7px;
+  font-size: 16px;
 }
 
 .share-pin-warning p {
-  color: #d7dde8;
-  font-size: 17px;
+  grid-column: 2;
+  color: var(--share-dialog-muted);
+  font-size: 14px;
 }
 
 .share-confirm-help {
@@ -314,10 +319,8 @@
 }
 
 .share-confirm[data-pin='true'] .share-confirm-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: min(660px, 100%);
-  gap: 18px;
+  width: min(520px, 100%);
+  gap: 12px;
 }
 
 .share-confirm button:not(.share-provenance-trigger),
@@ -334,18 +337,18 @@
 }
 
 .share-confirm[data-pin='true'] button:not(.share-provenance-trigger) {
-  height: 62px;
-  border-color: #444;
-  border-radius: 999px;
-  background: transparent;
-  color: #f8fafc;
-  font-size: 20px;
+  height: 44px;
+  border-color: rgb(51 77 68 / 0.28);
+  border-radius: 8px;
+  background: var(--share-dialog-button-bg);
+  color: var(--share-dialog-text);
+  font-size: 14px;
 }
 
 .share-confirm[data-pin='true'] button.primary {
-  border-color: transparent;
-  background: #f5f5f5;
-  color: #15171c;
+  border-color: var(--share-dialog-button-primary-border);
+  background: var(--share-dialog-button-primary-bg);
+  color: var(--share-dialog-text);
 }
 
 .share-confirm[data-pin='true'] button.primary:disabled {
@@ -366,13 +369,13 @@
 
 .share-confirm[data-pin='true'] button:not(.share-provenance-trigger):hover,
 .share-confirm[data-pin='true'] button:not(.share-provenance-trigger):focus-visible {
-  border-color: #737373;
-  background: rgb(255 255 255 / 0.08);
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, transparent);
+  background: color-mix(in srgb, var(--share-dialog-button-bg) 72%, var(--share-dialog-button-primary-bg));
 }
 
 .share-confirm[data-pin='true'] button.primary:hover,
 .share-confirm[data-pin='true'] button.primary:focus-visible {
-  background: #ffffff;
+  background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 76%, white);
 }
 
 .share-session-actions .share-dialog-close {

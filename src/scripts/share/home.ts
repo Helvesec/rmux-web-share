@@ -1,7 +1,6 @@
 import { createClientHello, createEncryptedTransport, deriveSpectatorToken, parseChallenge } from './e2ee';
 import { parseShareInput, shareAssetUrl, shareUrl } from './fragment';
 import {
-  clearRecentShares,
   forgetRecentShare,
   loadRecentShares,
   recentShareExpiresLabel,
@@ -27,6 +26,8 @@ class ShareHome {
   private selectedForget?: RecentShare;
   private selectedPin?: RecentShare;
   private installPrompt?: BeforeInstallPromptEvent;
+  private pinRevealTimer?: number;
+  private toastTimer?: number;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -64,15 +65,12 @@ class ShareHome {
     query<HTMLButtonElement>(this.root, '[data-home-install]').addEventListener('click', () => {
       void this.installPrompt?.prompt();
     });
-    query<HTMLButtonElement>(this.root, '[data-home-clear]').addEventListener('click', () => {
-      clearRecentShares();
-      this.renderRecentLinks();
-    });
     query<HTMLButtonElement>(this.root, '[data-home-forget-close]').addEventListener('click', () => this.closeForgetDialog());
     query<HTMLButtonElement>(this.root, '[data-home-forget-local]').addEventListener('click', () => this.forgetSelected(false));
     query<HTMLButtonElement>(this.root, '[data-home-forget-session]').addEventListener('click', () => this.forgetSelected(true));
     query<HTMLButtonElement>(this.root, '[data-home-pin-close]').addEventListener('click', () => this.closePinDialog());
     query<HTMLButtonElement>(this.root, '[data-home-pin-copy]').addEventListener('click', () => this.copySelectedPin());
+    query<HTMLElement>(this.root, '[data-home-pin-code]').addEventListener('pointerdown', () => this.revealPinCode());
     document.addEventListener('pointerdown', (event) => this.closeOpenMenus(event.target as Node | null));
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -218,8 +216,9 @@ class ShareHome {
   }
 
   private async copyShareUrl(url: string, button: HTMLButtonElement): Promise<void> {
-    await copyText(url);
-    button.title = 'Copied';
+    const copied = await tryCopyText(url);
+    this.showToast(copied ? 'Link copied' : 'Copy failed');
+    button.title = copied ? 'Copied' : 'Copy failed';
     window.setTimeout(() => {
       button.title = 'Share actions';
     }, 1200);
@@ -240,13 +239,16 @@ class ShareHome {
     }
     this.selectedPin = share;
     query<HTMLElement>(this.root, '[data-home-pin-name]').textContent = share.name;
-    query<HTMLElement>(this.root, '[data-home-pin-code]').replaceChildren(...pinCells(share.pin));
+    const code = query<HTMLElement>(this.root, '[data-home-pin-code]');
+    code.dataset.revealed = 'false';
+    code.replaceChildren(...pinCells(share.pin));
     query<HTMLDialogElement>(this.root, '[data-home-pin-dialog]').showModal();
   }
 
   private closePinDialog(): void {
     query<HTMLDialogElement>(this.root, '[data-home-pin-dialog]').close();
     this.selectedPin = undefined;
+    window.clearTimeout(this.pinRevealTimer);
   }
 
   private async copySelectedPin(): Promise<void> {
@@ -254,7 +256,28 @@ class ShareHome {
     if (!pin) {
       return;
     }
-    await copyText(pin);
+    this.showToast(await tryCopyText(pin) ? 'PIN copied' : 'Copy failed');
+  }
+
+  private revealPinCode(): void {
+    const code = query<HTMLElement>(this.root, '[data-home-pin-code]');
+    code.dataset.revealed = 'true';
+    window.clearTimeout(this.pinRevealTimer);
+    this.pinRevealTimer = window.setTimeout(() => {
+      code.dataset.revealed = 'false';
+    }, 2200);
+  }
+
+  private showToast(message: string): void {
+    const toast = query<HTMLElement>(this.root, '[data-home-toast]');
+    toast.textContent = message;
+    toast.hidden = false;
+    toast.dataset.visible = 'true';
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => {
+      toast.dataset.visible = 'false';
+      toast.hidden = true;
+    }, 1800);
   }
 
   private closeForgetDialog(): void {
@@ -324,7 +347,6 @@ function homeTemplate(): string {
         <header class="home-recent-header">
           <span class="home-recent-header-icon">${clockIcon()}</span>
           <h2 id="recent-links-title">Recent links</h2>
-          <button class="home-clear-button" data-home-clear type="button">${trashIcon()} Clear</button>
         </header>
         <div class="home-recent-list" data-home-recent-list></div>
         <p class="home-empty" data-home-empty>No recent links on this browser yet.</p>
@@ -348,7 +370,7 @@ function homeTemplate(): string {
           </div>
           <h2>Pairing code</h2>
           <p>Use this 6-digit code to connect to <strong data-home-pin-name></strong>.</p>
-          <output class="home-pin-code" data-home-pin-code></output>
+          <output class="home-pin-code" data-home-pin-code tabindex="0" title="Hold or tap to reveal PIN"></output>
           <div class="home-pin-warning">
             ${warningIcon()}
             <div>
@@ -361,6 +383,7 @@ function homeTemplate(): string {
           </div>
         </form>
       </dialog>
+      <div class="home-toast" data-home-toast role="status" aria-live="polite" hidden></div>
     </main>
   `;
 }
@@ -450,7 +473,7 @@ function separator(): HTMLElement {
 function pinCells(pin: string): HTMLElement[] {
   return Array.from(pin, (digit) => {
     const cell = document.createElement('span');
-    cell.textContent = digit;
+    cell.dataset.digit = digit;
     return cell;
   });
 }
@@ -481,6 +504,15 @@ async function copyText(text: string): Promise<void> {
     }
   } finally {
     textarea.remove();
+  }
+}
+
+async function tryCopyText(text: string): Promise<boolean> {
+  try {
+    await copyText(text);
+    return true;
+  } catch {
+    return false;
   }
 }
 
