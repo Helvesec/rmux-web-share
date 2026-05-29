@@ -15,6 +15,7 @@ test('spectator client connects immediately and receives the initial snapshot', 
   expect(page.url()).not.toContain(spectatorToken);
   await expect(page.locator('[data-share-confirm]')).toBeHidden();
   await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
+  await expect(page.locator('[data-share-terminal-theme] option[value="user"]')).toHaveText('Host');
   await expect(page.locator('.share-brand-context')).toHaveText('Web Multiplex');
   await expect(page.locator('[data-share-role]')).toHaveText('Spectator');
   await expect.poll(() => socketCount(page)).toBe(1);
@@ -749,7 +750,7 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 });
 
-test('user terminal theme applies the palette from the ready message', async ({ page }) => {
+test('host terminal theme applies the palette from the ready message', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareTerminalPalette = {
       foreground: '#d6e7e8',

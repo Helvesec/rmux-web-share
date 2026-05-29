@@ -73,6 +73,11 @@
   padding: 0;
 }
 
+.share-app[data-chrome='hidden'] .share-terminal-shell,
+.share-app[data-navbar='off'] .share-terminal-shell {
+  padding: 8px;
+}
+
 .share-app[data-role='spectator'] {
   --share-bg: #061013;
   --share-panel: rgb(9 20 23 / 0.78);
@@ -148,7 +153,7 @@
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: var(--share-bg);
+  background: transparent;
   box-shadow: none;
 }
 
@@ -157,7 +162,7 @@
 }
 
 .share-app[data-terminal-theme='user'][data-client-palette='present'] .share-terminal-shell {
-  background: var(--share-client-bg);
+  background: transparent;
 }
 
 .share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='dark'] .share-terminal-shell {
@@ -176,12 +181,13 @@
   min-width: 0;
   min-height: 0;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--share-border) 72%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--share-bg) 94%, var(--share-text) 3%);
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--share-bg) 86%, #000000 14%);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--share-text) 7%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--share-bg) 68%, transparent);
+    0 24px 80px rgb(0 0 0 / 0.35),
+    0 0 0 1px color-mix(in srgb, var(--share-text) 3%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--share-text) 4%, transparent);
   overflow: auto;
   overflow-anchor: none;
   scrollbar-color: var(--share-scrollbar) var(--share-scrollbar-track);
@@ -190,26 +196,30 @@
 }
 
 .share-app[data-terminal-mode='light'] .share-terminal {
-  background: color-mix(in srgb, var(--share-bg) 97%, #ffffff 4%);
+  background: color-mix(in srgb, var(--share-bg) 93%, #ffffff 7%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.54),
-    inset 0 0 0 1px rgb(16 33 26 / 0.03);
+    0 24px 80px rgb(36 31 22 / 0.18),
+    0 0 0 1px rgb(16 33 26 / 0.035),
+    inset 0 1px 0 rgb(255 255 255 / 0.42);
 }
 
 .share-app[data-terminal-theme='user'][data-client-palette='present'] .share-terminal {
-  background: color-mix(in srgb, var(--share-client-bg) 96%, var(--share-client-fg) 3%);
+  background: color-mix(in srgb, var(--share-client-bg) 88%, #000000 12%);
 }
 
 .share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='dark'] .share-terminal {
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--share-client-fg) 7%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--share-client-bg) 68%, transparent);
+    0 24px 80px rgb(0 0 0 / 0.35),
+    0 0 0 1px color-mix(in srgb, var(--share-client-fg) 3%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--share-client-fg) 4%, transparent);
 }
 
 .share-app[data-terminal-theme='user'][data-client-palette='present'][data-terminal-mode='light'] .share-terminal {
+  background: color-mix(in srgb, var(--share-client-bg) 94%, #ffffff 6%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.54),
-    inset 0 0 0 1px rgb(16 33 26 / 0.03);
+    0 24px 80px rgb(36 31 22 / 0.18),
+    0 0 0 1px color-mix(in srgb, var(--share-client-fg) 4%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.42);
 }
 
 .share-terminal[data-scope='session'] {

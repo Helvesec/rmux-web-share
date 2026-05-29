@@ -64,7 +64,7 @@ export function shareViewTemplate(): string {
               <path d="M12 2v2.5M12 19.5V22M4.93 4.93 6.7 6.7M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07 6.7 17.3M17.3 6.7l1.77-1.77" />
             </svg>
             <select class="share-theme-select" data-share-terminal-theme aria-label="Terminal theme">
-              <option value="user">Client</option>
+              <option value="user">Host</option>
               <option value="dark">Dark</option>
               <option value="light">Light</option>
             </select>
