@@ -467,6 +467,122 @@ test('session operator toolbar sends typed controls and window actions', async (
   );
 });
 
+test('single-pane session operator hides close-pane actions and ends cleanly when the pane exits', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Honly pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-session-controls]')).toBeVisible();
+  await expect(page.locator('[data-share-kill-pane]')).toBeHidden();
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await expect(page.locator('[data-share-terminal-controls]')).toBeVisible();
+  await expect(page.locator('[data-share-terminal-split-horizontal]')).toBeVisible();
+  await expect(page.locator('[data-share-terminal-kill-pane]')).toBeHidden();
+
+  await page.evaluate(async () => {
+    await window.__rmuxShareSockets?.at(-1)?.serverText({ type: 'pane_process_exit', exit_code: 0 });
+  });
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
+  await expect(page.locator('[data-share-session-controls]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal-placeholder]')).toContainText('Session ended');
+  expect(await jsonFrames(page)).not.toContainEqual(expect.objectContaining({ type: 'kill_pane' }));
+});
+
+test('close-pane controls follow live session pane count', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+
+  await expect(page.locator('[data-share-kill-pane]')).toBeHidden();
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [
+      { id: 1, x: 0, y: 0, cols: 40, rows: 23, active: false, history_size: 0, scroll_offset: 0, alternate_on: false },
+      { id: 2, x: 41, y: 0, cols: 39, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+    ],
+  });
+  await expect(page.locator('[data-share-kill-pane]')).toBeVisible();
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await expect(page.locator('[data-share-terminal-kill-pane]')).toBeVisible();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32);
+
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [
+      { id: 2, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+    ],
+  });
+  await expect(page.locator('[data-share-kill-pane]')).toBeHidden();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+  await expect(page.locator('[data-share-terminal-kill-pane]')).toBeHidden();
+});
+
+test('revoked session marks the terminal disconnected and disables session controls', async ({ page }) => {
+  await page.setViewportSize({ width: 1040, height: 640 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, active: false, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-kill-pane]')).toBeVisible();
+  await page.evaluate(async () => {
+    await window.__rmuxShareSockets?.at(-1)?.serverText({ type: 'share_revoked', reason: 'session_gone' });
+  });
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
+  await expect(page.locator('[data-share-session-controls]')).toBeHidden();
+  await expect(page.locator('[data-share-kill-pane]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal-placeholder]')).toContainText('Session ended');
+});
+
 test('session spectator cannot drag pane dividers', async ({ page }) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
@@ -1043,6 +1159,13 @@ test('invalid terminal theme in the URL is rejected', async ({ page }) => {
   await expect(page.locator('[data-share-terminal]')).toContainText('invalid terminal theme');
   await expect.poll(() => socketCount(page)).toBe(0);
 });
+
+async function dispatchSessionView(page: import('@playwright/test').Page, view: unknown): Promise<void> {
+  await page.evaluate(async (sessionView) => {
+    const bytes = new TextEncoder().encode(JSON.stringify(sessionView));
+    await window.__rmuxShareSockets?.at(-1)?.serverBinary([0x11, ...Array.from(bytes)]);
+  }, view);
+}
 
 async function sentFrames(page: import('@playwright/test').Page) {
   return page.evaluate(() => window.__rmuxShareSockets?.flatMap((socket) => socket.sent) ?? []);

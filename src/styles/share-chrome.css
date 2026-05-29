@@ -165,6 +165,11 @@
   cursor: pointer;
 }
 
+.share-icon-button[hidden],
+.share-terminal-menu button[hidden] {
+  display: none;
+}
+
 .share-app[data-connected='false'] .share-exit-button {
   display: none;
 }

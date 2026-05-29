@@ -31,9 +31,7 @@
   --home-error: #ef4444;
   min-height: 100vh;
   padding: 34px 38px 56px;
-  background:
-    radial-gradient(ellipse 560px 320px at 83% 20%, rgb(36 99 235 / 0.13), transparent 72%),
-    linear-gradient(180deg, #fbfdff, var(--home-bg));
+  background: linear-gradient(180deg, #fbfdff, var(--home-bg));
   color: var(--home-text);
 }
 
@@ -47,9 +45,7 @@
   --home-muted: #99a8bd;
   --home-primary: #5b8cff;
   --home-primary-strong: #3f73f5;
-  background:
-    radial-gradient(ellipse 560px 320px at 83% 20%, rgb(91 140 255 / 0.18), transparent 72%),
-    linear-gradient(180deg, #0b111b, var(--home-bg));
+  background: linear-gradient(180deg, #0b111b, var(--home-bg));
 }
 
 .home-topbar {
@@ -393,6 +389,10 @@
   min-height: 78px;
   padding: 0 32px;
   border-bottom: 1px solid var(--home-border);
+}
+
+.share-root[data-theme='dark'] .home-recent-header {
+  background: color-mix(in srgb, var(--home-surface-soft) 58%, var(--home-surface));
 }
 
 .home-recent-header h2 {

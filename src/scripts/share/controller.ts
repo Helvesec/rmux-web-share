@@ -87,6 +87,7 @@ interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
   canControlSession: boolean;
+  canKillPane: boolean;
   toolbarHidden: boolean;
 }
 
@@ -189,6 +190,8 @@ class ShareConnection {
   private logoutPending = false;
   private logoutFallbackTimer?: number;
   private disposed = false;
+  private shareEnded = false;
+  private sessionPaneCount = 0;
 
   constructor(
     private readonly params: ShareParams,
@@ -296,16 +299,22 @@ class ShareConnection {
         break;
       case 'pane_process_exit':
         this.terminal?.notice(`process exited${message.exit_code === null ? '' : ` (${message.exit_code})`}`);
+        if (this.scope === 'pane' || this.sessionPaneCount <= 1) {
+          this.endShare('Session ended', 'warn');
+        }
         break;
       case 'share_revoked':
         this.terminal?.notice(`share revoked: ${message.reason}`);
-        this.view.setStatus({ connected: true, detail: `revoked: ${message.reason}`, tone: 'warn' });
+        this.endShare(revokedMessage(message.reason), 'warn');
         break;
     }
   }
 
   private handleClose(event: CloseEvent): void {
     if (this.disposed) {
+      return;
+    }
+    if (this.shareEnded) {
       return;
     }
     if (this.socketError && event.code === 1006) {
@@ -358,6 +367,7 @@ class ShareConnection {
     this.role = message.role;
     this.scope = message.scope;
     this.sessionControls = message.controls && message.scope === 'session' && message.role === 'operator';
+    this.sessionPaneCount = 0;
     this.userTerminalTheme = message.terminal_palette;
     this.view.setViewerCountMode(message.show_viewers);
     this.view.setTerminalTheme(this.terminalTheme(), this.userTerminalTheme);
@@ -383,6 +393,7 @@ class ShareConnection {
         canCopy: Boolean(this.terminal?.selection()),
         canPaste: connected && this.role === 'operator' && typeof navigator.clipboard?.readText === 'function',
         canControlSession: connected && this.sessionControls,
+        canKillPane: this.canKillActivePane(),
         toolbarHidden: this.view.toolbarHidden(),
       });
     });
@@ -424,8 +435,10 @@ class ShareConnection {
       this.scheduleTerminalViewportSync();
     } else if (opcode === SESSION_VIEW) {
       const view = parseSessionView(payload);
+      this.sessionPaneCount = view.panes.length;
       this.terminal.setSessionView(view);
       this.view.setSessionView(view);
+      this.view.setCanKillPane(this.canKillActivePane());
       rememberRecentWindowName(this.params, view);
       this.scheduleTerminalViewportSync();
     } else if (opcode === OUTPUT_RAW) {
@@ -508,10 +521,27 @@ class ShareConnection {
   }
 
   private killPane(): void {
+    if (!this.canKillActivePane()) {
+      return;
+    }
     const socket = this.openSessionOperatorSocket();
     if (socket) {
       killSessionPane(socket);
     }
+  }
+
+  private canKillActivePane(): boolean {
+    return this.scope === 'session' && this.sessionPaneCount > 1;
+  }
+
+  private endShare(detail: string, tone: ShareStatus['tone']): void {
+    this.shareEnded = true;
+    markRecentShareUnavailable(this.params);
+    this.view.setCanKillPane(false);
+    this.view.setStatus({ connected: false, detail, tone });
+    this.transport = undefined;
+    this.socket?.close(1000, 'share_ended');
+    this.socket = undefined;
   }
 
   private selectWindow(windowIndex: number): void {
@@ -734,6 +764,7 @@ class ShareView {
   private canLogout = false;
   private viewerCountVisible = false;
   private sessionControlVisible = false;
+  private canKillPane = false;
   private windows: SessionWindowView[] = [];
   private selectedWindowIndex?: number;
   private detachHandler?: () => void;
@@ -984,6 +1015,7 @@ class ShareView {
     this.terminal.dataset.scope = message.scope;
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
     this.setSessionControls(message.scope === 'session' && message.role === 'operator');
+    this.setCanKillPane(false);
     this.setOperatorConnected((finiteCount(message.operators_active) ?? 0) > 0);
     const label = [message.session_name, message.pane_label].filter(Boolean).join(' ');
     this.meta.textContent = label || message.share_id || 'rmux share';
@@ -1008,6 +1040,11 @@ class ShareView {
 
   setSessionControls(visible: boolean): void {
     this.sessionControlVisible = visible;
+    this.updateSessionControlsVisibility();
+  }
+
+  setCanKillPane(visible: boolean): void {
+    this.canKillPane = visible;
     this.updateSessionControlsVisibility();
   }
 
@@ -1119,12 +1156,15 @@ class ShareView {
       return;
     }
     const canControlSession = this.connected && state.canControlSession;
+    const canKillPane = canControlSession && state.canKillPane;
     this.terminalCopy.disabled = !state.canCopy;
     this.terminalPaste.disabled = !this.connected || !state.canPaste;
     this.terminalShowToolbar.hidden = false;
     this.terminalToolbarLabel.textContent = state.toolbarHidden ? 'Show toolbar' : 'Hide toolbar';
     this.terminalControlsSeparator.hidden = !canControlSession;
     this.terminalControls.hidden = !canControlSession;
+    this.terminalKillPane.hidden = !canKillPane;
+    this.terminalKillPane.disabled = !canKillPane;
     this.terminalMenu.hidden = false;
     const rect = this.terminalMenu.getBoundingClientRect();
     const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);
@@ -1229,7 +1269,10 @@ class ShareView {
   }
 
   private updateSessionControlsVisibility(): void {
-    this.sessionControls.hidden = !(this.connected && this.sessionControlVisible);
+    const visible = this.connected && this.sessionControlVisible;
+    this.sessionControls.hidden = !visible;
+    this.killPane.hidden = !visible || !this.canKillPane;
+    this.killPane.disabled = !visible || !this.canKillPane;
   }
 
   private setTerminalPlaceholder(status: ShareStatus): void {
@@ -1360,6 +1403,20 @@ function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {
   }
   const spectators = finiteCount(message.spectators_active) ?? 0;
   return spectators + (finiteCount(message.operators_active) ?? 0);
+}
+
+function revokedMessage(reason: string): string {
+  switch (reason) {
+    case 'pane_gone':
+    case 'session_gone':
+      return 'Session ended';
+    case 'ttl_expired':
+      return 'Share expired';
+    case 'stopped_by_owner':
+      return 'Share stopped by owner';
+    default:
+      return 'Share ended';
+  }
 }
 
 function normalizeWindows(windows: SessionWindowView[] | undefined): SessionWindowView[] {

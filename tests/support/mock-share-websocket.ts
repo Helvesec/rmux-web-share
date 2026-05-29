@@ -44,6 +44,19 @@ export function installMockShareWebSocket(): void {
       this.dispatchEvent(new CloseEvent('close', { code: 1000 }));
     }
 
+    async serverText(message: unknown): Promise<void> {
+      await this.dispatchEncryptedText(typeof message === 'string' ? message : JSON.stringify(message));
+    }
+
+    async serverBinary(bytes: Uint8Array | number[]): Promise<void> {
+      await this.dispatchEncryptedBinary(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+    }
+
+    closeWith(code: number, reason: string): void {
+      this.readyState = MockWebSocket.CLOSED;
+      this.dispatchEvent(new CloseEvent('close', { code, reason }));
+    }
+
     private async handleSend(data: unknown): Promise<void> {
       try {
         if (typeof data === 'string') {
@@ -179,10 +192,6 @@ export function installMockShareWebSocket(): void {
       this.dispatchEvent(new MessageEvent('message', { data }));
     }
 
-    private closeWith(code: number, reason: string): void {
-      this.readyState = MockWebSocket.CLOSED;
-      this.dispatchEvent(new CloseEvent('close', { code, reason }));
-    }
   }
 
   class FrameCodec {
@@ -349,7 +358,12 @@ declare global {
     };
     __rmuxShareRequirePin?: boolean;
     __rmuxShareShowViewers?: boolean;
-    __rmuxShareSockets?: Array<{ sent: unknown[] }>;
+    __rmuxShareSockets?: Array<{
+      sent: unknown[];
+      serverText(message: unknown): Promise<void>;
+      serverBinary(bytes: Uint8Array | number[]): Promise<void>;
+      closeWith(code: number, reason: string): void;
+    }>;
     __rmuxSharePostSnapshotFrames?: ArrayBuffer[];
     __rmuxShareInitialSnapshot?: string;
     __rmuxShareTerminalPalette?: {
