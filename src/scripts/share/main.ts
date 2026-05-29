@@ -2,8 +2,11 @@ import '@xterm/xterm/css/xterm.css';
 import '../../styles/share.css';
 import '../../styles/share-chrome.css';
 import '../../styles/share-dialogs.css';
+import '../../styles/share-home.css';
 
 import { startShareApp } from './controller';
+import { hasShareFragment } from './fragment';
+import { startShareHome } from './home';
 import { registerShareServiceWorker } from './pwa';
 
 export function mountShareApp(target: Element | null = document.body): void {
@@ -13,13 +16,18 @@ export function mountShareApp(target: Element | null = document.body): void {
 
   const root = document.createElement('div');
   root.className = 'share-root';
+  const shareMode = hasShareFragment(window.location.hash);
+  document.body.classList.toggle('home-page', !shareMode);
+  document.body.classList.toggle('share-body', shareMode);
   if (target === document.body) {
     document.body.replaceChildren(root);
-    document.body.classList.remove('home-page');
-    document.body.classList.add('share-body');
   } else {
     target.replaceChildren(root);
   }
   registerShareServiceWorker();
-  startShareApp(root);
+  if (shareMode) {
+    startShareApp(root);
+  } else {
+    startShareHome(root);
+  }
 }

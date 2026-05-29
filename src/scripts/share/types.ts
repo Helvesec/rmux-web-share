@@ -26,6 +26,8 @@ export interface ReadyMessage {
   pane_label?: string;
   role: ShareRole;
   operator: boolean;
+  operator_access: boolean;
+  spectator_access: boolean;
   controls: boolean;
   show_viewers: boolean;
   operators_active?: number;

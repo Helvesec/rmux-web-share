@@ -1,7 +1,12 @@
 import type { ShareParams, TerminalThemeName } from './types';
 
 const TOKEN_RE = /^[A-Za-z0-9._~-]{24,512}$/;
-const DEFAULT_SHARE_ENDPOINT = 'ws://127.0.0.1:9777/share';
+export const DEFAULT_SHARE_ENDPOINT = 'ws://127.0.0.1:9777/share';
+
+export function hasShareFragment(hash: string): boolean {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  return Boolean(params.get('t'));
+}
 
 export function parseShareFragment(hash: string): ShareParams {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
@@ -12,6 +17,40 @@ export function parseShareFragment(hash: string): ShareParams {
   const disclaimer = parseDisclaimer(params.get('disclaimer'));
 
   return { endpoint, token, theme, navbar, disclaimer };
+}
+
+export function parseShareInput(input: string): ShareParams {
+  const value = input.trim();
+  if (!value) {
+    throw new Error('Enter a share link or token.');
+  }
+
+  if (value.startsWith('#')) {
+    return parseShareFragment(value);
+  }
+  if (TOKEN_RE.test(value)) {
+    return defaultShareParams(value);
+  }
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Enter a valid share link or token.');
+  }
+  if (!url.hash) {
+    throw new Error('Share links must include a token fragment.');
+  }
+  return parseShareFragment(url.hash);
+}
+
+export function defaultShareParams(token: string): ShareParams {
+  return {
+    endpoint: DEFAULT_SHARE_ENDPOINT,
+    token: parseToken(token),
+    navbar: 'visible',
+    disclaimer: 'on',
+  };
 }
 
 export function shareBasePath(location: Location = window.location): string {

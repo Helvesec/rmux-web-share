@@ -14,6 +14,7 @@ import {
   shouldShowChromeLocalAccessHelp,
   type ConfirmationCopy,
 } from './local-access';
+import { rememberRecentShare, rememberRecentWindowName } from './home-storage';
 import {
   DEFAULT_TERMINAL_THEME,
   terminalChromePalette,
@@ -354,6 +355,7 @@ class ShareConnection {
       killWindow: (windowIndex) => this.killWindow(windowIndex),
     });
     this.view.setReady(message);
+    rememberRecentShare(this.params, message, undefined, this.pin);
     this.view.setViewerCount(message);
     this.bindTerminalViewport();
   }
@@ -371,6 +373,7 @@ class ShareConnection {
       const view = parseSessionView(payload);
       this.terminal.setSessionView(view);
       this.view.setSessionView(view);
+      rememberRecentWindowName(this.params, view);
       this.scheduleTerminalViewportSync();
     } else if (opcode === OUTPUT_RAW) {
       this.terminal.write(payload);
@@ -666,7 +669,9 @@ class ShareView {
   private readonly provenanceStatement: HTMLElement;
   private readonly pinGroup: HTMLElement;
   private readonly pinInput: HTMLInputElement;
+  private readonly pinBoxes: HTMLElement;
   private readonly pinError: HTMLElement;
+  private readonly pinWarning: HTMLElement;
   private readonly meta: HTMLElement;
   private connected = false;
   private canLogout = false;
@@ -745,7 +750,9 @@ class ShareView {
     this.provenanceStatement = query(root, '[data-share-provenance-statement]');
     this.pinGroup = query(root, '[data-share-pin-group]');
     this.pinInput = query(root, '[data-share-pin]');
+    this.pinBoxes = query(root, '[data-share-pin-boxes]');
     this.pinError = query(root, '[data-share-pin-error]');
+    this.pinWarning = query(root, '[data-share-pin-warning]');
     this.meta = query(root, '[data-share-meta]');
     this.sessionMenuButton.addEventListener('click', () => this.openSessionActions());
     this.splitHorizontal.addEventListener('click', () => this.splitHorizontalHandler?.());
@@ -816,6 +823,7 @@ class ShareView {
       void this.openProvenance();
     });
     this.setTerminalShortcuts();
+    this.pinInput.addEventListener('input', () => this.syncPinEntry());
   }
 
   static render(root: HTMLElement): ShareView {
@@ -834,10 +842,13 @@ class ShareView {
     this.confirmDetail.textContent = copy.detail;
     this.confirmConnect.textContent = copy.button;
     this.confirmDialog.dataset.local = String(copy.local);
+    this.confirmDialog.dataset.pin = String(requiresPin);
     this.pinGroup.hidden = !requiresPin;
+    this.pinWarning.hidden = !requiresPin;
     this.pinInput.required = requiresPin;
     this.pinInput.value = '';
     this.pinError.textContent = '';
+    this.syncPinEntry();
     this.confirmConnect.onclick = () => {
       const pin = this.confirmPin(requiresPin);
       if (pin === false) {
@@ -851,6 +862,9 @@ class ShareView {
       actions.cancel();
     };
     this.confirmDialog.showModal();
+    if (requiresPin) {
+      this.pinInput.focus();
+    }
   }
 
   bindSessionActions(handlers: { detach: () => void; logout: () => void }): void {
@@ -1197,6 +1211,19 @@ class ShareView {
     this.pinInput.focus();
     this.pinInput.select();
     return false;
+  }
+
+  private syncPinEntry(): void {
+    const normalized = this.pinInput.value.replace(/\D/g, '').slice(0, 6);
+    if (this.pinInput.value !== normalized) {
+      this.pinInput.value = normalized;
+    }
+    const boxes = Array.from(this.pinBoxes.querySelectorAll<HTMLElement>('i'));
+    boxes.forEach((box, index) => {
+      box.textContent = normalized[index] ?? '';
+      box.dataset.filled = String(index < normalized.length);
+    });
+    this.confirmConnect.disabled = this.confirmDialog.dataset.pin === 'true' && normalized.length !== 6;
   }
 }
 

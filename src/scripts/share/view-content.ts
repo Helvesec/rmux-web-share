@@ -186,14 +186,26 @@ export function shareViewTemplate(): string {
       </div>
       <dialog class="share-confirm" data-share-confirm>
         <form method="dialog" class="share-confirm-panel">
+          <div class="share-confirm-mark" data-share-confirm-mark aria-hidden="true">
+            <img src="${shareAssetUrl('rmux-logo-light.svg')}" alt="" />
+          </div>
           <h1 data-share-confirm-title></h1>
           <p class="share-confirm-endpoint" data-share-endpoint hidden></p>
           <p data-share-confirm-detail></p>
           <label class="share-pin" data-share-pin-group hidden>
             <span>Pairing code</span>
-            <input data-share-pin inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+            <div class="share-pin-entry">
+              <input data-share-pin inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" aria-label="Pairing code" />
+              <span class="share-pin-boxes" data-share-pin-boxes aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i>
+              </span>
+            </div>
             <small data-share-pin-error></small>
           </label>
+          <div class="share-pin-warning" data-share-pin-warning hidden>
+            <strong>Security warning</strong>
+            <p>Never share this pairing code with third parties. Anyone with the share link and this code can access the terminal.</p>
+          </div>
           <a class="share-confirm-help" href="https://rmux.io/docs/web-share/#first-time-on-chrome" target="_blank" rel="noopener noreferrer">
             Connection help
           </a>

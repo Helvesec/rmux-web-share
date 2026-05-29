@@ -7,6 +7,7 @@ const PLAINTEXT_BINARY = 0x01;
 const CLIENT_DIRECTION = 'c2s';
 const SERVER_DIRECTION = 's2c';
 const TOKEN_ID_DOMAIN = 'rmux-token-id-v1';
+const SPECTATOR_TOKEN_INFO = 'rmux read token v1';
 const INFO_KEY_PREFIX = 'rmux web-share e2ee v1 key ';
 const INFO_NONCE_PREFIX = 'rmux web-share e2ee v1 nonce ';
 
@@ -94,7 +95,7 @@ export class EncryptedShareTransport {
 
 export async function createClientHello(params: ShareParams): Promise<ClientHello> {
   const secretHash = await sha256(encoder.encode(params.token));
-  const tokenId = base64Url(await sha256(concatBytes(encoder.encode(TOKEN_ID_DOMAIN), new Uint8Array(secretHash))).then((value) => new Uint8Array(value).subarray(0, 16)));
+  const tokenId = await tokenIdForToken(params.token);
   const clientNonce = randomNonce();
   return {
     text: JSON.stringify({
@@ -110,6 +111,34 @@ export async function createClientHello(params: ShareParams): Promise<ClientHell
       secretHash,
     },
   };
+}
+
+export async function tokenIdForToken(token: string): Promise<string> {
+  const secretHash = await sha256(encoder.encode(token));
+  const tokenId = await sha256(concatBytes(
+    encoder.encode(TOKEN_ID_DOMAIN),
+    new Uint8Array(secretHash),
+  ));
+  return base64Url(new Uint8Array(tokenId).subarray(0, 16));
+}
+
+export async function deriveSpectatorToken(operatorToken: string): Promise<string> {
+  const secret = base64UrlDecode(operatorToken);
+  if (secret.length !== 32) {
+    throw new Error('operator token is not derivable');
+  }
+  const keyMaterial = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveBits']);
+  const derived = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new Uint8Array(),
+      info: encoder.encode(SPECTATOR_TOKEN_INFO),
+    },
+    keyMaterial,
+    256,
+  );
+  return base64Url(new Uint8Array(derived));
 }
 
 export async function createEncryptedTransport(
