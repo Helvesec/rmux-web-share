@@ -1330,7 +1330,7 @@ function themePalette(
   }
 
   return {
-    background: '#060807',
+    background: '#00343d',
     black: '#0a0d0c',
     blue: '#5aa7ff',
     brightBlack: '#58615e',
@@ -1342,7 +1342,7 @@ function themePalette(
     brightWhite: '#ffffff',
     brightYellow: '#f0d06b',
     cursor: '#e9eeec',
-    cursorAccent: '#060807',
+    cursorAccent: '#00343d',
     cyan: '#4fc5bd',
     foreground: '#e9eeec',
     green: '#72c468',

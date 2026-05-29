@@ -129,6 +129,19 @@
     var(--share-bg);
 }
 
+.share-app[data-terminal-theme='dark'] {
+  --share-bg: #001e24;
+  --share-panel: rgb(4 18 21 / 0.82);
+  --share-border: rgb(118 180 170 / 0.2);
+  --share-terminal-surface: #00343d;
+  --share-terminal-outline: rgb(214 231 232 / 0.05);
+  --share-terminal-highlight: rgb(214 231 232 / 0.02);
+  --share-terminal-shadow: 0 24px 70px rgb(0 0 0 / 0.42);
+  background:
+    linear-gradient(180deg, #002c34, #00171c),
+    var(--share-bg);
+}
+
 .share-app[data-terminal-theme='user'][data-client-palette='present'] {
   --share-bg: color-mix(in srgb, var(--share-client-bg) 86%, #000000 14%);
   --share-border: color-mix(in srgb, var(--share-client-fg) 24%, transparent);
