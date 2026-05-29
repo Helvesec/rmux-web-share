@@ -130,15 +130,15 @@
 }
 
 .share-app[data-terminal-theme='dark'] {
-  --share-bg: #001e24;
-  --share-panel: rgb(4 18 21 / 0.82);
-  --share-border: rgb(118 180 170 / 0.2);
-  --share-terminal-surface: #00343d;
-  --share-terminal-outline: rgb(214 231 232 / 0.05);
-  --share-terminal-highlight: rgb(214 231 232 / 0.02);
+  --share-bg: #050706;
+  --share-panel: rgb(10 14 12 / 0.82);
+  --share-border: rgb(232 238 233 / 0.08);
+  --share-terminal-surface: #0b0f0d;
+  --share-terminal-outline: rgb(232 238 233 / 0.045);
+  --share-terminal-highlight: rgb(232 238 233 / 0.025);
   --share-terminal-shadow: 0 24px 70px rgb(0 0 0 / 0.42);
   background:
-    linear-gradient(180deg, #002c34, #00171c),
+    linear-gradient(180deg, #090d0b, #030403),
     var(--share-bg);
 }
 

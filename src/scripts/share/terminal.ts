@@ -1330,11 +1330,11 @@ function themePalette(
   }
 
   return {
-    background: '#00343d',
+    background: '#0b0f0d',
     black: '#0a0d0c',
-    blue: '#5aa7ff',
+    blue: '#7da7c7',
     brightBlack: '#58615e',
-    brightBlue: '#82bcff',
+    brightBlue: '#9fc0d3',
     brightCyan: '#7bded4',
     brightGreen: '#90d67f',
     brightMagenta: '#d7a1ff',
@@ -1342,9 +1342,9 @@ function themePalette(
     brightWhite: '#ffffff',
     brightYellow: '#f0d06b',
     cursor: '#e9eeec',
-    cursorAccent: '#00343d',
+    cursorAccent: '#0b0f0d',
     cyan: '#4fc5bd',
-    foreground: '#e9eeec',
+    foreground: '#e8eee9',
     green: '#72c468',
     magenta: '#c790e8',
     red: '#ef6f6c',
