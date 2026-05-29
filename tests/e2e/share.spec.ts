@@ -848,6 +848,10 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await expect(page.locator('[data-share-confirm-title]')).toHaveText('Pairing code required');
   await expect(page.locator('[data-share-confirm-logo]')).toHaveAttribute('src', /\/crabs\/orange-light\.svg$/);
+  await page.locator('[data-share-confirm]').evaluate((dialog) => (dialog as HTMLDialogElement).close());
+  await expect(page.locator('.share-placeholder-action')).toHaveText('Pairing code required');
+  await page.locator('.share-placeholder-action').click();
+  await expect(page.locator('[data-share-pin]')).toBeVisible();
   await expect(page.locator('[data-share-pin-warning]')).toHaveCount(0);
   await expect(page.locator('[data-share-confirm-connect]')).toBeHidden();
   await expect(page.locator('[data-share-confirm-cancel]')).toBeHidden();

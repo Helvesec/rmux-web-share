@@ -311,7 +311,12 @@ class ShareConnection {
     }
 
     if (event.code === PIN_REQUIRED_CLOSE_CODE) {
-      this.view.setStatus({ connected: false, detail: 'Pairing code required', tone: 'warn' });
+      this.view.setStatus({
+        connected: false,
+        detail: 'Pairing code required',
+        tone: 'warn',
+        action: () => this.requestPin?.(),
+      });
       this.requestPin?.();
       return;
     }
@@ -1203,7 +1208,17 @@ class ShareView {
     if (!this.terminalPlaceholder.isConnected) {
       return;
     }
-    this.terminalPlaceholder.textContent = status.detail;
+    this.terminalPlaceholder.replaceChildren();
+    if (status.action) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'share-placeholder-action';
+      button.textContent = status.detail;
+      button.addEventListener('click', status.action);
+      this.terminalPlaceholder.append(button);
+    } else {
+      this.terminalPlaceholder.textContent = status.detail;
+    }
     this.terminalPlaceholder.dataset.tone = status.tone ?? 'idle';
   }
 

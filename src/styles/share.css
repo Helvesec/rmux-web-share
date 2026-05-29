@@ -401,6 +401,21 @@
   color: var(--share-error);
 }
 
+.share-placeholder-action {
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.share-placeholder-action:hover,
+.share-placeholder-action:focus-visible {
+  color: var(--share-text);
+  outline: none;
+}
+
 .share-terminal .xterm {
   width: max-content;
   height: max-content;

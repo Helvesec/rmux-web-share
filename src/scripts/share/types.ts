@@ -98,4 +98,5 @@ export interface ShareStatus {
   detail: string;
   connected?: boolean;
   tone?: 'idle' | 'ok' | 'warn' | 'error';
+  action?: () => void;
 }
