@@ -526,6 +526,11 @@ test('close-pane controls follow live session pane count', async ({ page }) => {
   });
   await page.goto(`/#t=${operatorToken}`);
 
+  // Wait until the connection is fully established (initial snapshot rendered)
+  // before pushing runtime session-view frames, so they are sealed and
+  // delivered in order after the handshake frames rather than racing them
+  // (v4's record layer rejects out-of-order frames).
+  await expect(page.locator('.xterm')).toContainText('left pane');
   await expect(page.locator('[data-share-kill-pane]')).toBeHidden();
   await dispatchSessionView(page, {
     size: { cols: 80, rows: 24 },
