@@ -45,9 +45,9 @@ function collectAssets(entryUrl) {
 function assetRefs(text, owner) {
   const refs = [];
   const patterns = [
-    /(?:src|href)=["']([^"']*\/_astro\/[^"']+\.(?:js|css))["']/g,
-    /(?:import\(|from\s*)["']([^"']+\.(?:js|css))["']/g,
-    /["']([^"']*_astro\/[^"']+\.(?:js|css))["']/g,
+    /(?:src|href)=["']([^"']*\/_astro\/[^"']+\.(?:js|css|wasm))["']/g,
+    /(?:import\(|from\s*)["']([^"']+\.(?:js|css|wasm))["']/g,
+    /["']([^"']*_astro\/[^"']+\.(?:js|css|wasm))["']/g,
   ];
 
   for (const pattern of patterns) {
