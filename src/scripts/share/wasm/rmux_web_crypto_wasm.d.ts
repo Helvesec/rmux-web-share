@@ -9,13 +9,12 @@ export class ClientSession {
     free(): void;
     [Symbol.dispose](): void;
     /**
-     * Derives the client session from the PSK, the X25519 DH shared secret, and
-     * the exact handshake transcript bytes.
+     * Derives the client session from the PSK, the X25519 DH shared secret,
+     * and the exact handshake transcript bytes.
      *
-     * - `psk`: `SHA-256(token)`, 32 bytes (computed in the browser).
-     * - `dh`: the X25519 shared secret, exactly 32 bytes (from WebCrypto).
-     * - `client_hello` / `server_challenge`: the exact wire bytes of the two
-     *   handshake messages, as sent/received.
+     * - `psk`: `SHA-256(token)`, 32 bytes, computed in the browser.
+     * - `dh`: X25519 shared secret, exactly 32 bytes, from WebCrypto.
+     * - `client_hello` / `server_challenge`: exact wire bytes.
      */
     constructor(psk: Uint8Array, dh: Uint8Array, client_hello: Uint8Array, server_challenge: Uint8Array);
     /**
@@ -55,9 +54,11 @@ export class Opened {
 }
 
 /**
- * The **server** side of a session. Not used by the production browser client
- * (the daemon is the server); it exists so browser-side tests can drive a real
- * v4 server against [`ClientSession`], exercising the exact native code path.
+ * The server side of a session.
+ *
+ * Production browsers use [`ClientSession`]. This binding exists so
+ * browser-side tests can run a real encrypted daemon mock without duplicating
+ * the crypto in TypeScript.
  */
 export class ServerSession {
     free(): void;
@@ -87,24 +88,22 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_clientsession_free: (a: number, b: number) => void;
     readonly __wbg_opened_free: (a: number, b: number) => void;
-    readonly __wbg_serversession_free: (a: number, b: number) => void;
-    readonly clientsession_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
-    readonly clientsession_open: (a: number, b: number, c: number) => [number, number, number];
-    readonly clientsession_sealBinary: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly clientsession_sealText: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly opened_binary: (a: number) => [number, number];
+    readonly clientsession_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly clientsession_open: (a: number, b: number, c: number, d: number) => void;
+    readonly clientsession_sealBinary: (a: number, b: number, c: number, d: number) => void;
+    readonly clientsession_sealText: (a: number, b: number, c: number, d: number) => void;
+    readonly opened_binary: (a: number, b: number) => void;
     readonly opened_isText: (a: number) => number;
-    readonly opened_text: (a: number) => [number, number];
-    readonly serversession_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
-    readonly serversession_open: (a: number, b: number, c: number) => [number, number, number];
-    readonly serversession_sealBinary: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly serversession_sealText: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_malloc: (a: number, b: number) => number;
-    readonly __externref_table_dealloc: (a: number) => void;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_start: () => void;
+    readonly opened_text: (a: number, b: number) => void;
+    readonly serversession_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly __wbg_serversession_free: (a: number, b: number) => void;
+    readonly serversession_open: (a: number, b: number, c: number, d: number) => void;
+    readonly serversession_sealText: (a: number, b: number, c: number, d: number) => void;
+    readonly serversession_sealBinary: (a: number, b: number, c: number, d: number) => void;
+    readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+    readonly __wbindgen_export: (a: number, b: number) => number;
+    readonly __wbindgen_export2: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

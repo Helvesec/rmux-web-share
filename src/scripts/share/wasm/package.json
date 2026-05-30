@@ -1,7 +1,7 @@
 {
-  "name": "rmux-web-crypto-wasm",
+  "name": "rmux-web-crypto",
   "type": "module",
-  "description": "WebAssembly bindings exposing the rmux web-share client record channel (sealed-channel + kind-byte framing) to the browser. X25519 and SHA-256 are done by the browser's WebCrypto; only the DH shared secret and PSK bytes are passed in.",
+  "description": "rmux web-share E2EE core: ChaCha20-Poly1305 records, HKDF session derivation, X25519 native glue, and WASM bindings.",
   "version": "0.4.0",
   "license": "MIT OR Apache-2.0",
   "files": [

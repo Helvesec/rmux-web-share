@@ -1,10 +1,12 @@
 import type { ShareParams } from './types';
 import { WEB_SHARE_CLIENT_CAPABILITIES, WEB_SHARE_PROTOCOL_VERSION } from './wire';
-// WebAssembly client crypto (sealed-channel + kind-byte framing), built from the
-// `rmux-web-crypto-wasm` crate. Build with:
-//   wasm-pack build rmux-web-crypto-wasm --release --target web \
-//     --out-dir <this repo>/src/scripts/share/wasm
-// (then `wasm-opt -Oz` the produced .wasm). See the v4 runbook in the repo README.
+// WebAssembly client crypto (rmux-web-crypto record layer + kind-byte framing).
+// Build from the rmux workspace with:
+//   wasm-pack build crates/rmux-web-crypto --release --target web \
+//     --no-default-features --features wasm \
+//     --out-dir <this repo>/src/scripts/share/wasm \
+//     --out-name rmux_web_crypto_wasm
+// wasm-pack optimisation is disabled in the crate metadata for deterministic builds.
 import initWasm, { ClientSession } from './wasm/rmux_web_crypto_wasm.js';
 
 const TOKEN_ID_DOMAIN = 'rmux-token-id-v1';
