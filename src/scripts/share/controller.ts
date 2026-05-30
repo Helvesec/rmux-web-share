@@ -83,6 +83,8 @@ const PIN_RE = /^\d{6}$/;
 const PIN_REQUIRED_CLOSE_CODE = 4008;
 const PIN_MASK_DELAY_MS = 330;
 const DISCONNECTED_RECONNECTING = 'Disconnected. Reconnecting...';
+const RECONNECT_BASE_DELAY_MS = 500;
+const RECONNECT_MAX_DELAY_MS = 10_000;
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
@@ -178,6 +180,9 @@ class ShareConnection {
   private transport?: EncryptedShareTransport;
   private handshake?: ClientHandshakeState;
   private socketError = false;
+  private connectionId = 0;
+  private reconnectAttempt = 0;
+  private reconnectTimer?: number;
   private terminal?: ShareTerminal;
   private userTerminalTheme?: TerminalThemePalette;
   private scope: ShareScope = 'pane';
@@ -191,6 +196,7 @@ class ShareConnection {
   private logoutFallbackTimer?: number;
   private disposed = false;
   private shareEnded = false;
+  private everReady = false;
   private sessionPaneCount = 0;
 
   constructor(
@@ -206,27 +212,56 @@ class ShareConnection {
   }
 
   connect(): void {
+    this.clearReconnectTimer();
+    this.openSocket(false);
+  }
+
+  private openSocket(reconnecting: boolean): void {
+    if (this.disposed || this.shareEnded) {
+      return;
+    }
     this.view.setStatus({ connected: false, detail: 'connecting', tone: 'idle' });
+    if (reconnecting) {
+      this.view.setStatus({ connected: false, detail: DISCONNECTED_RECONNECTING, tone: 'warn' });
+    }
+    this.socketError = false;
+    this.handshake = undefined;
+    this.transport = undefined;
+    const connectionId = this.connectionId + 1;
+    this.connectionId = connectionId;
     const socket = new WebSocket(this.params.endpoint);
     socket.binaryType = 'arraybuffer';
     this.socket = socket;
 
     socket.addEventListener('open', () => {
+      if (!this.isCurrentSocket(socket, connectionId)) {
+        return;
+      }
       rememberLocalAccess(this.params.endpoint);
       this.view.setStatus({ connected: false, detail: 'authenticating', tone: 'idle' });
       void this.sendHello(socket);
     });
     socket.addEventListener('message', (event) => {
+      if (!this.isCurrentSocket(socket, connectionId)) {
+        return;
+      }
       void this.handleMessage(event);
     });
     socket.addEventListener('error', () => {
+      if (!this.isCurrentSocket(socket, connectionId)) {
+        return;
+      }
       this.socketError = true;
-      this.view.showError(connectionErrorMessage(this.params.endpoint));
-      if (shouldShowChromeLocalAccessHelp(this.params.endpoint)) {
+      if (!this.everReady && shouldShowChromeLocalAccessHelp(this.params.endpoint)) {
+        this.view.showError(connectionErrorMessage(this.params.endpoint));
         this.requestLocalAccessHelp?.();
       }
     });
-    socket.addEventListener('close', (event) => this.handleClose(event));
+    socket.addEventListener('close', (event) => {
+      if (this.isCurrentSocket(socket, connectionId)) {
+        this.handleClose(event);
+      }
+    });
   }
 
   private async sendHello(socket: WebSocket): Promise<void> {
@@ -317,10 +352,6 @@ class ShareConnection {
     if (this.shareEnded) {
       return;
     }
-    if (this.socketError && event.code === 1006) {
-      return;
-    }
-
     if (event.code === PIN_REQUIRED_CLOSE_CODE) {
       this.view.setStatus({
         connected: false,
@@ -344,9 +375,8 @@ class ShareConnection {
     }
 
     const recovery = `${message}. Lost connection? Try refreshing.`;
-    if (event.code === 1006) {
-      this.view.setStatus({ connected: false, detail: DISCONNECTED_RECONNECTING, tone: 'warn' });
-      this.terminal?.notice(recovery);
+    if (this.shouldReconnect(event.code)) {
+      this.scheduleReconnect(recovery);
       return;
     }
 
@@ -368,6 +398,9 @@ class ShareConnection {
     this.scope = message.scope;
     this.sessionControls = message.controls && message.scope === 'session' && message.role === 'operator';
     this.sessionPaneCount = 0;
+    this.everReady = true;
+    this.reconnectAttempt = 0;
+    this.clearReconnectTimer();
     this.userTerminalTheme = message.terminal_palette;
     this.view.setViewerCountMode(message.show_viewers);
     this.view.setTerminalTheme(this.terminalTheme(), this.userTerminalTheme);
@@ -462,6 +495,7 @@ class ShareConnection {
 
   dispose(reason = 'replaced'): void {
     this.disposed = true;
+    this.clearReconnectTimer();
     if (this.logoutFallbackTimer !== undefined) {
       window.clearTimeout(this.logoutFallbackTimer);
       this.logoutFallbackTimer = undefined;
@@ -536,6 +570,7 @@ class ShareConnection {
 
   private endShare(detail: string, tone: ShareStatus['tone']): void {
     this.shareEnded = true;
+    this.clearReconnectTimer();
     markRecentShareUnavailable(this.params);
     this.view.setCanKillPane(false);
     this.view.setStatus({ connected: false, detail, tone });
@@ -698,6 +733,43 @@ class ShareConnection {
     }
     this.lastResizeRequest = size;
     sendResizeRequest(this.transport, size.cols, size.rows);
+  }
+
+  private isCurrentSocket(socket: WebSocket, connectionId: number): boolean {
+    return this.socket === socket && this.connectionId === connectionId;
+  }
+
+  private shouldReconnect(code: number): boolean {
+    if (!this.everReady && this.socketError && shouldShowChromeLocalAccessHelp(this.params.endpoint)) {
+      return false;
+    }
+    return code === 1001 || code === 1006 || code === 1011 || code === 4001;
+  }
+
+  private scheduleReconnect(message: string): void {
+    if (this.disposed || this.shareEnded || this.reconnectTimer !== undefined) {
+      return;
+    }
+    markRecentShareDisconnected(this.params);
+    this.view.setCanKillPane(false);
+    this.view.setStatus({ connected: false, detail: DISCONNECTED_RECONNECTING, tone: 'warn' });
+    this.terminal?.notice(message);
+    const delay = Math.min(
+      RECONNECT_MAX_DELAY_MS,
+      RECONNECT_BASE_DELAY_MS * (2 ** Math.min(this.reconnectAttempt, 5)),
+    );
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.openSocket(true);
+    }, delay);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== undefined) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
   }
 }
 

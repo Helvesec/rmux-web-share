@@ -833,7 +833,7 @@ test('session operator terminal menu exposes session controls with shortcuts', a
   );
 });
 
-test('disconnected session operator hides session controls and shows reconnecting state', async ({ page }) => {
+test('disconnected session operator hides session controls while reconnecting automatically', async ({ page }) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -869,6 +869,10 @@ test('disconnected session operator hides session controls and shows reconnectin
   await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
   await expect(page.locator('[data-share-terminal-menu]')).toBeHidden();
   await expect(page.locator('[data-share-terminal-controls]')).toBeHidden();
+
+  await expect.poll(() => socketCount(page)).toBe(2);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-session-controls]')).toBeVisible();
 });
 
 test('operator disconnect returns to recent links without reusing the share secret', async ({ page }) => {
