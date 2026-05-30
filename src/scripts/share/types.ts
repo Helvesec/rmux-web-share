@@ -10,8 +10,6 @@ export interface ShareParams {
   theme?: TerminalThemeName;
   navbar: 'visible' | 'off';
   disclaimer: 'on' | 'off';
-  /** Hint from the share link that a pairing code (PIN) is required. */
-  pinRequired?: boolean;
 }
 
 export interface ReadyMessage {

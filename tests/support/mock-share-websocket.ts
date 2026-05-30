@@ -59,9 +59,14 @@ export function installMockShareWebSocket(): void {
     sent: unknown[] = [];
     private session?: Session;
     private token = '';
+    private readonly sessionReady: Promise<void>;
+    private markSessionReady!: () => void;
 
     constructor(readonly url: string | URL) {
       super();
+      this.sessionReady = new Promise((resolve) => {
+        this.markSessionReady = resolve;
+      });
       if (!String(url).includes('/share')) {
         return new NativeWebSocket(url) as unknown as MockWebSocket;
       }
@@ -170,13 +175,13 @@ export function installMockShareWebSocket(): void {
 
       const wasm = await serverCrypto();
       this.session = new wasm.ServerSession(psk, dh, encoder.encode(data), encoder.encode(challengeText));
+      this.markSessionReady();
       this.dispatchMessage(challengeText);
     }
 
     private async handleAuth(auth: { pin?: string }): Promise<void> {
       if (window.__rmuxShareRequirePin && !auth.pin) {
-        // v4 collapses every pre-ready rejection to a single opaque close code.
-        this.closeWith(4000, 'handshake_rejected');
+        this.closeWith(4008, 'pin_required');
         return;
       }
       const role = window.__rmuxShareReadyRole
@@ -226,6 +231,7 @@ export function installMockShareWebSocket(): void {
     }
 
     private async dispatchEncryptedText(text: string): Promise<void> {
+      await this.sessionReady;
       if (!this.session) {
         return;
       }
@@ -233,6 +239,7 @@ export function installMockShareWebSocket(): void {
     }
 
     private async dispatchEncryptedBinary(bytes: Uint8Array): Promise<void> {
+      await this.sessionReady;
       if (!this.session) {
         return;
       }

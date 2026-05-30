@@ -45,9 +45,8 @@ export function parseShareFragment(hash: string): ShareParams {
   const theme = parseTheme(params.get('theme'));
   const navbar = parseNavbar(params.get('navbar'));
   const disclaimer = parseDisclaimer(params.get('disclaimer'));
-  const pinRequired = params.get('pin') === 'required';
 
-  return { endpoint, token, theme, navbar, disclaimer, pinRequired };
+  return { endpoint, token, theme, navbar, disclaimer };
 }
 
 export function parseShareInput(input: string): ShareParams {
@@ -121,9 +120,6 @@ export function shareUrl(params: ShareParams, baseUrl = shareBaseUrl()): string 
   }
   if (params.disclaimer === 'off') {
     fragment.push('disclaimer=off');
-  }
-  if (params.pinRequired) {
-    fragment.push('pin=required');
   }
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return `${base}#${fragment.join('&')}`;
@@ -203,6 +199,5 @@ function isShareParams(value: unknown): value is ShareParams {
     && typeof params.token === 'string'
     && (params.theme === undefined || params.theme === 'user' || params.theme === 'dark' || params.theme === 'light')
     && (params.navbar === 'visible' || params.navbar === 'off')
-    && (params.disclaimer === 'on' || params.disclaimer === 'off')
-    && (params.pinRequired === undefined || typeof params.pinRequired === 'boolean');
+    && (params.disclaimer === 'on' || params.disclaimer === 'off');
 }
