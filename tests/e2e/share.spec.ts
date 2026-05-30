@@ -653,22 +653,38 @@ test('mobile session view opens a pane picker instead of desktop controls', asyn
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-session-controls]')).toBeHidden();
   await expect(page.locator('[data-share-mobile-actions]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-pane-select-row]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('Pane %1');
 
   await page.locator('[data-share-mobile-actions]').click();
+  await expect(page.locator('[data-share-mobile-control-menu]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-stop-process]')).toContainText('Stop process');
+  await expect(page.locator('[data-share-mobile-clear-screen]')).toContainText('Clear screen');
+  await expect(page.locator('[data-share-mobile-reverse-search]')).toContainText('Reverse search');
+  await page.keyboard.press('Escape');
+
+  await page.locator('[data-share-mobile-pane-select]').click();
   await expect(page.locator('[data-share-mobile-pane-menu]')).toBeVisible();
   await expect(page.locator('[data-share-mobile-pane-title]')).toHaveText('Window 0:bash');
-  await expect(page.locator('[data-share-mobile-pane-list] button')).toHaveCount(2);
-  await expect(page.locator('[data-share-mobile-pane-list] button').nth(0)).toContainText('Pane %1');
-  await expect(page.locator('[data-share-mobile-pane-list] button').nth(1)).toContainText('Pane %2');
+  await expect(page.locator('[data-share-mobile-pane-list] button')).toHaveCount(3);
+  await expect(page.locator('[data-share-mobile-pane-list] button').nth(0)).toContainText('Show all panes');
+  await expect(page.locator('[data-share-mobile-pane-list] button').nth(1)).toContainText('Pane %1');
+  await expect(page.locator('[data-share-mobile-pane-list] button').nth(2)).toContainText('Pane %2');
 
-  await page.locator('[data-share-mobile-pane-list] button').nth(1).click();
+  await page.locator('[data-share-mobile-pane-list] button').nth(2).click();
 
   await expect(page.locator('[data-share-mobile-pane-menu]')).toBeHidden();
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-mobile-pane-focus', 'true');
+  await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('Pane %2');
   await expect.poll(() => selectedPaneFrames(page)).toContainEqual({
     type: 'select_pane',
     pane_id: 2,
   });
+
+  await page.locator('[data-share-mobile-pane-select]').click();
+  await page.locator('[data-share-mobile-pane-list] button').nth(0).click();
+  await expect(page.locator('[data-share-terminal]')).not.toHaveAttribute('data-mobile-pane-focus', 'true');
+  await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('All panes');
 });
 
 test('mobile terminal context menu stays read-write only', async ({ page }, testInfo) => {
@@ -709,7 +725,7 @@ test('mobile terminal context menu stays read-write only', async ({ page }, test
   await expect(page.locator('[data-share-terminal-kill-pane]')).toBeHidden();
 });
 
-test('session operator drives the remote size from the browser viewport', async ({ page }) => {
+test('session operator drives the remote size from the browser viewport', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -731,6 +747,11 @@ test('session operator drives the remote size from the browser viewport', async 
   });
 
   await page.setViewportSize({ width: 720, height: 420 });
+  if (testInfo.project.name.includes('mobile')) {
+    await page.waitForTimeout(250);
+    expect((await sentFrames(page)).filter(isResizeFrame)).toHaveLength(1);
+    return;
+  }
   await expect.poll(async () => (await sentFrames(page)).filter(isResizeFrame).length).toBeGreaterThan(1);
   const resizeFrames = (await sentFrames(page)).filter(isResizeFrame);
   const last = decodeResizeFrame(resizeFrames.at(-1)!);

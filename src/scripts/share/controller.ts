@@ -95,6 +95,12 @@ interface TerminalMenuState {
   mobile: boolean;
 }
 
+interface MobileControlHandlers {
+  stopProcess: () => void;
+  clearScreen: () => void;
+  reverseSearch: () => void;
+}
+
 type ShareExitState = 'disconnected' | 'unavailable';
 
 export function startShareApp(root: HTMLElement): void {
@@ -443,6 +449,11 @@ class ShareConnection {
       toggleToolbar: () => this.toggleToolbar(),
     });
     this.view.bindMobilePaneSelect((paneId) => this.chooseMobilePane(paneId));
+    this.view.bindMobileControls({
+      stopProcess: () => this.sendOperatorData('\u0003'),
+      clearScreen: () => this.sendOperatorData('\u000c'),
+      reverseSearch: () => this.sendOperatorData('\u0012'),
+    });
     this.view.bindSessionControls({
       splitHorizontal: () => this.splitPane('horizontal'),
       splitVertical: () => this.splitPane('vertical'),
@@ -537,11 +548,15 @@ class ShareConnection {
     selectSessionPane(this.transport, paneId);
   }
 
-  private chooseMobilePane(paneId: number): void {
+  private chooseMobilePane(paneId?: number): void {
     if (this.scope !== 'session') {
       return;
     }
     this.view.selectMobilePane(paneId);
+    if (paneId === undefined) {
+      this.terminal?.showAllPanes();
+      return;
+    }
     this.terminal?.focusPane(paneId);
     this.selectPane(paneId);
   }
@@ -737,6 +752,9 @@ class ShareConnection {
     ) {
       return;
     }
+    if (isMobileShareViewport()) {
+      return;
+    }
     const size = this.terminal.fitSize();
     if (!size || (
       this.lastResizeRequest?.cols === size.cols
@@ -803,6 +821,13 @@ class ShareView {
   private readonly newWindow: HTMLButtonElement;
   private readonly killPane: HTMLButtonElement;
   private readonly mobileActions: HTMLButtonElement;
+  private readonly mobilePaneSelectRow: HTMLElement;
+  private readonly mobilePaneSelect: HTMLButtonElement;
+  private readonly mobilePaneCurrent: HTMLElement;
+  private readonly mobileControlMenu: HTMLElement;
+  private readonly mobileStopProcess: HTMLButtonElement;
+  private readonly mobileClearScreen: HTMLButtonElement;
+  private readonly mobileReverseSearch: HTMLButtonElement;
   private readonly viewers: HTMLElement;
   private readonly viewersCount: HTMLElement;
   private readonly sessionMenuButton: HTMLButtonElement;
@@ -858,12 +883,14 @@ class ShareView {
   private panes: SessionPaneView[] = [];
   private selectedWindowIndex?: number;
   private selectedPaneId?: number;
+  private mobileShowAllPanes = false;
   private detachHandler?: () => void;
   private logoutHandler?: () => void;
   private copyTerminalHandler?: () => void | Promise<void>;
   private pasteTerminalHandler?: () => void | Promise<void>;
   private toggleToolbarHandler?: () => void;
-  private mobilePaneSelectHandler?: (paneId: number) => void;
+  private mobilePaneSelectHandler?: (paneId?: number) => void;
+  private mobileControlHandlers?: MobileControlHandlers;
   private splitHorizontalHandler?: () => void;
   private splitVerticalHandler?: () => void;
   private newWindowHandler?: () => void;
@@ -893,6 +920,13 @@ class ShareView {
     this.newWindow = query(root, '[data-share-new-window]');
     this.killPane = query(root, '[data-share-kill-pane]');
     this.mobileActions = query(root, '[data-share-mobile-actions]');
+    this.mobilePaneSelectRow = query(root, '[data-share-mobile-pane-select-row]');
+    this.mobilePaneSelect = query(root, '[data-share-mobile-pane-select]');
+    this.mobilePaneCurrent = query(root, '[data-share-mobile-pane-current]');
+    this.mobileControlMenu = query(root, '[data-share-mobile-control-menu]');
+    this.mobileStopProcess = query(root, '[data-share-mobile-stop-process]');
+    this.mobileClearScreen = query(root, '[data-share-mobile-clear-screen]');
+    this.mobileReverseSearch = query(root, '[data-share-mobile-reverse-search]');
     this.viewers = query(root, '[data-share-viewers]');
     this.viewersCount = query(root, '[data-share-viewers-count]');
     this.sessionMenuButton = query(root, '[data-share-session-menu]');
@@ -941,8 +975,15 @@ class ShareView {
     this.killPane.addEventListener('click', () => this.killPaneHandler?.());
     this.mobileActions.addEventListener('click', () => {
       const rect = this.mobileActions.getBoundingClientRect();
-      this.openMobilePaneMenu(rect.right, rect.bottom + 8);
+      this.openMobileControlMenu(rect.left, rect.bottom + 8);
     });
+    this.mobilePaneSelect.addEventListener('click', () => {
+      const rect = this.mobilePaneSelect.getBoundingClientRect();
+      this.openMobilePaneMenu(rect.left, rect.bottom + 8);
+    });
+    this.mobileStopProcess.addEventListener('click', () => this.runMobileControl('stopProcess'));
+    this.mobileClearScreen.addEventListener('click', () => this.runMobileControl('clearScreen'));
+    this.mobileReverseSearch.addEventListener('click', () => this.runMobileControl('reverseSearch'));
     this.windowNew.addEventListener('click', () => {
       this.closeWindowMenu();
       this.newWindowHandler?.();
@@ -957,8 +998,21 @@ class ShareView {
       if (!this.terminalMenu.hidden && !this.terminalMenu.contains(target)) {
         this.closeTerminalMenu();
       }
-      if (!this.mobilePaneMenu.hidden && !this.mobilePaneMenu.contains(target) && target !== this.mobileActions) {
+      if (
+        target
+        && !this.mobilePaneMenu.hidden
+        && !this.mobilePaneMenu.contains(target)
+        && !this.mobilePaneSelect.contains(target)
+      ) {
         this.closeMobilePaneMenu();
+      }
+      if (
+        target
+        && !this.mobileControlMenu.hidden
+        && !this.mobileControlMenu.contains(target)
+        && !this.mobileActions.contains(target)
+      ) {
+        this.closeMobileControlMenu();
       }
     });
     document.addEventListener('keydown', (event) => {
@@ -966,6 +1020,7 @@ class ShareView {
         this.closeWindowMenu();
         this.closeTerminalMenu();
         this.closeMobilePaneMenu();
+        this.closeMobileControlMenu();
       }
     });
     this.terminalCopy.addEventListener('click', () => {
@@ -1102,8 +1157,12 @@ class ShareView {
     this.toggleToolbarHandler = handlers.toggleToolbar;
   }
 
-  bindMobilePaneSelect(handler: (paneId: number) => void): void {
+  bindMobilePaneSelect(handler: (paneId?: number) => void): void {
     this.mobilePaneSelectHandler = handler;
+  }
+
+  bindMobileControls(handlers: MobileControlHandlers): void {
+    this.mobileControlHandlers = handlers;
   }
 
   bindTerminalTheme(handler: (theme: TerminalThemeName) => void): void {
@@ -1126,8 +1185,11 @@ class ShareView {
     this.setCanKillPane(false);
     this.panes = [];
     this.selectedPaneId = undefined;
+    this.mobileShowAllPanes = false;
     this.mobileActions.hidden = true;
+    this.mobilePaneSelectRow.hidden = true;
     this.closeMobilePaneMenu();
+    this.closeMobileControlMenu();
     this.setOperatorConnected((finiteCount(message.operators_active) ?? 0) > 0);
     const label = [message.session_name, message.pane_label].filter(Boolean).join(' ');
     this.meta.textContent = label || message.share_id || 'rmux share';
@@ -1166,11 +1228,18 @@ class ShareView {
       this.selectedWindowIndex = this.activeWindow()?.index;
     }
     this.panes = normalizePanes(view.panes);
-    if (this.selectedPaneId === undefined || !this.panes.some((pane) => pane.id === this.selectedPaneId)) {
+    if (this.panes.length <= 1) {
+      this.mobileShowAllPanes = false;
+    }
+    if (
+      !this.mobileShowAllPanes
+      && (this.selectedPaneId === undefined || !this.panes.some((pane) => pane.id === this.selectedPaneId))
+    ) {
       this.selectedPaneId = this.activePane()?.id ?? this.panes[0]?.id;
     }
-    this.mobileActions.hidden = this.panes.length === 0;
     this.renderMobilePaneMenu();
+    this.updateMobilePaneSelect();
+    this.updateSessionControlsVisibility();
   }
 
   setTerminalTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void {
@@ -1250,12 +1319,21 @@ class ShareView {
     this.selectWindowHandler?.(windowIndex);
   }
 
-  selectMobilePane(paneId: number): void {
+  selectMobilePane(paneId?: number): void {
+    if (paneId === undefined) {
+      this.mobileShowAllPanes = true;
+      this.selectedPaneId = this.activePane()?.id ?? this.panes[0]?.id;
+      this.renderMobilePaneMenu();
+      this.updateMobilePaneSelect();
+      return;
+    }
     if (!this.panes.some((pane) => pane.id === paneId)) {
       return;
     }
+    this.mobileShowAllPanes = false;
     this.selectedPaneId = paneId;
     this.renderMobilePaneMenu();
+    this.updateMobilePaneSelect();
   }
 
   openWindowActions(windowIndex: number, x: number, y: number): void {
@@ -1278,6 +1356,7 @@ class ShareView {
   openMobilePaneMenu(x: number, y: number): void {
     this.closeTerminalMenu();
     this.closeWindowMenu();
+    this.closeMobileControlMenu();
     if (!this.connected || this.panes.length === 0) {
       this.closeMobilePaneMenu();
       return;
@@ -1285,15 +1364,16 @@ class ShareView {
     this.renderMobilePaneMenu();
     this.mobilePaneMenu.hidden = false;
     const rect = this.mobilePaneMenu.getBoundingClientRect();
-    const left = Math.min(Math.max(8, x - rect.width), window.innerWidth - rect.width - 8);
+    const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);
     const top = Math.min(Math.max(8, y), window.innerHeight - rect.height - 8);
     this.mobilePaneMenu.style.left = `${left}px`;
     this.mobilePaneMenu.style.top = `${top}px`;
-    this.mobilePaneMenu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
   }
 
   openTerminalMenu(x: number, y: number, state: TerminalMenuState): void {
     this.closeWindowMenu();
+    this.closeMobileControlMenu();
+    this.closeMobilePaneMenu();
     if (!this.connected) {
       this.closeTerminalMenu();
       return;
@@ -1325,7 +1405,9 @@ class ShareView {
       this.terminalProvenance,
     ]
       .find((button) => !button.hidden && !button.disabled);
-    first?.focus();
+    if (!state.mobile) {
+      first?.focus();
+    }
   }
 
   showError(message: string, status = 'error'): void {
@@ -1398,11 +1480,39 @@ class ShareView {
     this.mobilePaneMenu.hidden = true;
   }
 
+  private openMobileControlMenu(x: number, y: number): void {
+    this.closeTerminalMenu();
+    this.closeWindowMenu();
+    this.closeMobilePaneMenu();
+    if (!this.connected || !this.sessionControlVisible) {
+      this.closeMobileControlMenu();
+      return;
+    }
+    this.mobileControlMenu.hidden = false;
+    const rect = this.mobileControlMenu.getBoundingClientRect();
+    const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);
+    const top = Math.min(Math.max(8, y), window.innerHeight - rect.height - 8);
+    this.mobileControlMenu.style.left = `${left}px`;
+    this.mobileControlMenu.style.top = `${top}px`;
+  }
+
+  private closeMobileControlMenu(): void {
+    this.mobileControlMenu.hidden = true;
+  }
+
   private runTerminalSessionControl(handler?: () => void): void {
     this.closeTerminalMenu();
     if (this.connected) {
       handler?.();
     }
+  }
+
+  private runMobileControl(action: keyof MobileControlHandlers): void {
+    this.closeMobileControlMenu();
+    if (!this.connected || !this.sessionControlVisible) {
+      return;
+    }
+    this.mobileControlHandlers?.[action]();
   }
 
   private setTerminalShortcuts(): void {
@@ -1423,7 +1533,31 @@ class ShareView {
     this.mobilePaneTitle.textContent = this.activeWindow()
       ? `Window ${this.activeWindow()?.index}:${this.activeWindow()?.name}`
       : 'Session panes';
-    this.mobilePaneList.replaceChildren(...this.panes.map((pane) => this.renderMobilePaneButton(pane)));
+    const buttons = this.panes.map((pane) => this.renderMobilePaneButton(pane));
+    if (this.panes.length > 1) {
+      buttons.unshift(this.renderShowAllPanesButton());
+    }
+    this.mobilePaneList.replaceChildren(...buttons);
+  }
+
+  private renderShowAllPanesButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.role = 'menuitem';
+    button.dataset.selected = String(this.mobileShowAllPanes);
+    const label = document.createElement('span');
+    label.className = 'share-mobile-pane-label';
+    label.textContent = 'Show all panes';
+    const meta = document.createElement('span');
+    meta.className = 'share-mobile-pane-meta';
+    meta.textContent = `${this.panes.length} panes`;
+    button.append(label, meta);
+    button.addEventListener('click', () => {
+      this.closeMobilePaneMenu();
+      this.selectMobilePane(undefined);
+      this.mobilePaneSelectHandler?.(undefined);
+    });
+    return button;
   }
 
   private renderMobilePaneButton(pane: SessionPaneView): HTMLButtonElement {
@@ -1432,7 +1566,7 @@ class ShareView {
     button.role = 'menuitem';
     button.dataset.paneId = String(pane.id);
     button.dataset.active = String(pane.active === true);
-    button.dataset.selected = String(pane.id === this.selectedPaneId);
+    button.dataset.selected = String(!this.mobileShowAllPanes && pane.id === this.selectedPaneId);
     const label = document.createElement('span');
     label.className = 'share-mobile-pane-label';
     label.textContent = `Pane %${pane.id}`;
@@ -1456,8 +1590,26 @@ class ShareView {
     this.killPane.disabled = !visible || !this.canKillPane;
     if (!this.connected) {
       this.closeMobilePaneMenu();
+      this.closeMobileControlMenu();
     }
-    this.mobileActions.hidden = !this.connected || this.panes.length === 0;
+    this.mobileActions.hidden = !visible;
+    this.mobilePaneSelectRow.hidden = !this.connected || this.panes.length === 0;
+    this.updateMobilePaneSelect();
+  }
+
+  private updateMobilePaneSelect(): void {
+    if (!this.panes.length) {
+      this.mobilePaneCurrent.textContent = 'No panes';
+      return;
+    }
+    if (this.mobileShowAllPanes && this.panes.length > 1) {
+      this.mobilePaneCurrent.textContent = 'All panes';
+      return;
+    }
+    const pane = this.panes.find((candidate) => candidate.id === this.selectedPaneId)
+      ?? this.activePane()
+      ?? this.panes[0];
+    this.mobilePaneCurrent.textContent = `Pane %${pane.id}`;
   }
 
   private setTerminalPlaceholder(status: ShareStatus): void {
@@ -1636,7 +1788,7 @@ function finiteCount(value: number | undefined): number | undefined {
 }
 
 function isMobileShareViewport(): boolean {
-  return window.matchMedia('(max-width: 760px)').matches;
+  return window.matchMedia('(max-width: 760px) and (pointer: coarse)').matches;
 }
 
 function primaryShortcutLabel(): string {

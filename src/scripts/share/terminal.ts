@@ -51,6 +51,7 @@ export interface ShareTerminal {
   resize(cols: number, rows: number): void;
   setSessionView(view: SessionView): void;
   focusPane(paneId?: number): void;
+  showAllPanes(): void;
   dispose(): void;
   onData(callback: (data: string) => void): void;
   onPaneSelect(callback: (paneId: number) => void): void;
@@ -77,7 +78,7 @@ export function openShareTerminal(
   controller.open();
   controller.bindLocalWheelScroll();
   controller.resize(cols, rows);
-  if (role === 'operator') {
+  if (role === 'operator' && !window.matchMedia(MOBILE_PANE_QUERY).matches) {
     controller.term.focus();
   }
   return controller;
@@ -124,6 +125,7 @@ class XtermShareTerminal implements ShareTerminal {
   private sessionView?: SessionView;
   private readonly mobilePaneMedia: MediaQueryList;
   private mobilePaneId?: number;
+  private mobileShowAllPanes = false;
   private paneScrollHandler?: (paneId: number, delta: number) => void;
   private paneResizeHandler?: (paneId: number, direction: PaneResizeDirection, cells: number) => void;
   private paneResizeDrag?: PaneResizeDrag;
@@ -304,13 +306,28 @@ class XtermShareTerminal implements ShareTerminal {
     if (this.scope !== 'session') {
       return;
     }
+    this.mobileShowAllPanes = false;
     this.mobilePaneId = paneId;
     this.ensureMobilePane();
     this.fitSessionStage();
     this.scrollToTopLeft();
     this.renderActivePanePrompt();
     this.renderPaneScrollbars();
-    this.focus();
+    if (!this.isMobilePaneMode()) {
+      this.focus();
+    }
+  }
+
+  showAllPanes(): void {
+    if (this.scope !== 'session') {
+      return;
+    }
+    this.mobileShowAllPanes = true;
+    this.mobilePaneId = undefined;
+    this.fitSessionStage();
+    this.scrollToTopLeft();
+    this.renderActivePanePrompt();
+    this.renderPaneScrollbars();
   }
 
   dispose(): void {
@@ -337,7 +354,9 @@ class XtermShareTerminal implements ShareTerminal {
         return;
       }
       event.preventDefault();
-      this.term.focus();
+      if (!this.isMobilePaneMode()) {
+        this.term.focus();
+      }
       callback(pane.id);
     };
     this.stage.addEventListener('mousedown', onMouseDown);
@@ -365,7 +384,9 @@ class XtermShareTerminal implements ShareTerminal {
       }
       event.preventDefault();
       event.stopPropagation();
-      this.term.focus();
+      if (!this.isMobilePaneMode()) {
+        this.term.focus();
+      }
       this.paneResizeDrag = {
         divider,
         startX: event.clientX,
@@ -409,7 +430,9 @@ class XtermShareTerminal implements ShareTerminal {
       }
       event.preventDefault();
       event.stopPropagation();
-      this.term.focus();
+      if (!this.isMobilePaneMode()) {
+        this.term.focus();
+      }
       callback(event.clientX, event.clientY);
     };
     this.stage.addEventListener('contextmenu', onContextMenu);
@@ -429,7 +452,9 @@ class XtermShareTerminal implements ShareTerminal {
       }
       event.preventDefault();
       event.stopPropagation();
-      this.term.focus();
+      if (!this.isMobilePaneMode()) {
+        this.term.focus();
+      }
       callback(window.index);
     };
     this.stage.addEventListener('mousedown', onMouseDown);
@@ -449,7 +474,9 @@ class XtermShareTerminal implements ShareTerminal {
       }
       event.preventDefault();
       event.stopPropagation();
-      this.term.focus();
+      if (!this.isMobilePaneMode()) {
+        this.term.focus();
+      }
       callback(window.index, event.clientX, event.clientY);
     };
     const onPointerMove = (event: PointerEvent) => {
@@ -814,6 +841,14 @@ class XtermShareTerminal implements ShareTerminal {
   private ensureMobilePane(): void {
     if (!this.isMobilePaneMode() || !this.sessionView?.panes.length) {
       this.mobilePaneId = undefined;
+      this.mobileShowAllPanes = false;
+      return;
+    }
+    if (this.sessionView.panes.length <= 1) {
+      this.mobileShowAllPanes = false;
+    }
+    if (this.mobileShowAllPanes) {
+      this.mobilePaneId = undefined;
       return;
     }
     if (this.sessionView.panes.some((pane) => pane.id === this.mobilePaneId)) {
@@ -827,6 +862,9 @@ class XtermShareTerminal implements ShareTerminal {
       return undefined;
     }
     this.ensureMobilePane();
+    if (this.mobileShowAllPanes) {
+      return undefined;
+    }
     const panes = this.sessionView?.panes ?? [];
     return panes.find((pane) => pane.id === this.mobilePaneId);
   }

@@ -18,7 +18,7 @@
 
 .share-app[data-terminal-mode='dark'] .share-topbar,
 .share-app:not([data-terminal-mode='light']) .share-topbar {
-  background: #0a1620;
+  background: #28303dc9;
   color: #f2f6f3;
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.12);
 }
@@ -140,6 +140,10 @@
   white-space: nowrap;
 }
 
+.share-mobile-pane-select-row {
+  display: none;
+}
+
 .share-icon-button,
 .share-exit-button,
 .share-mobile-actions-button,
@@ -237,6 +241,18 @@
   pointer-events: none;
 }
 
+.share-theme-icon-moon {
+  display: none;
+}
+
+.share-app[data-terminal-mode='light'] .share-theme-icon-sun {
+  display: none;
+}
+
+.share-app[data-terminal-mode='light'] .share-theme-icon-moon {
+  display: block;
+}
+
 .share-theme-select {
   position: absolute;
   inset: 0;
@@ -255,7 +271,8 @@
 
 .share-window-menu,
 .share-terminal-menu,
-.share-mobile-pane-menu {
+.share-mobile-pane-menu,
+.share-mobile-control-menu {
   position: fixed;
   z-index: 20;
   display: grid;
@@ -274,13 +291,15 @@
 
 .share-window-menu[hidden],
 .share-terminal-menu[hidden],
-.share-mobile-pane-menu[hidden] {
+.share-mobile-pane-menu[hidden],
+.share-mobile-control-menu[hidden] {
   display: none;
 }
 
 .share-window-menu button,
 .share-terminal-menu button,
-.share-mobile-pane-menu button {
+.share-mobile-pane-menu button,
+.share-mobile-control-menu button {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
@@ -301,9 +320,15 @@
   border-bottom: 0;
 }
 
-.share-mobile-pane-menu {
+.share-mobile-pane-menu,
+.share-mobile-control-menu {
   min-width: 220px;
   max-width: min(320px, calc(100vw - 16px));
+}
+
+.share-mobile-control-menu button {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  height: 42px;
 }
 
 .share-mobile-pane-menu-title {
@@ -358,7 +383,9 @@
 .share-terminal-menu button:hover,
 .share-terminal-menu button:focus-visible,
 .share-mobile-pane-menu button:hover,
-.share-mobile-pane-menu button:focus-visible {
+.share-mobile-pane-menu button:focus-visible,
+.share-mobile-control-menu button:hover,
+.share-mobile-control-menu button:focus-visible {
   background: color-mix(in srgb, var(--share-ok) 16%, transparent);
   outline: none;
 }
@@ -372,7 +399,8 @@
   background: transparent;
 }
 
-.share-terminal-menu svg {
+.share-terminal-menu svg,
+.share-mobile-control-menu svg {
   width: 18px;
   height: 18px;
   stroke: currentColor;
@@ -442,9 +470,9 @@
 @media (max-width: 760px) {
   .share-topbar {
     display: flex;
-    min-height: 64px;
-    padding: 0 14px;
-    gap: 12px;
+    min-height: 76px;
+    padding: 10px 14px;
+    gap: 10px;
   }
 
   .share-topbar-actions {
@@ -455,21 +483,32 @@
     position: static;
     display: flex;
     flex: 0 0 auto;
-    gap: 6px;
+    gap: 7px;
     margin-left: auto;
   }
 
+  .share-brand {
+    flex: 1 1 auto;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .share-brand-home {
+    gap: 9px;
+  }
+
   .share-brand-mark {
-    width: 30px;
-    height: 30px;
+    width: 38px;
+    height: 38px;
   }
 
   .share-brand-title {
-    font-size: 20px;
+    font-size: 24px;
   }
 
   .share-mobile-actions-button {
     display: inline-grid;
+    flex: 0 0 auto;
   }
 
   .share-mobile-actions-button[hidden] {
@@ -511,5 +550,65 @@
 
   .share-brand-divider {
     display: none;
+  }
+
+  .share-mobile-pane-select-row {
+    display: block;
+    grid-row: 2;
+    min-width: 0;
+    padding: 0 6px;
+  }
+
+  .share-mobile-pane-select-row[hidden] {
+    display: none;
+  }
+
+  .share-mobile-pane-select {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--share-text) 16%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--share-text) 7%, transparent);
+    color: var(--share-text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
+  .share-mobile-pane-select span {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--share-text) 62%, transparent);
+    font-size: 12px;
+    font-weight: 760;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .share-mobile-pane-select strong {
+    display: block;
+    overflow: hidden;
+    margin-top: 2px;
+    color: var(--share-text);
+    font-size: 18px;
+    font-weight: 760;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .share-mobile-pane-select svg {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 }

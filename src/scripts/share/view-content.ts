@@ -14,6 +14,11 @@ export function shareViewTemplate(): string {
             </span>
             <span class="share-brand-title">RMUX</span>
           </a>
+          <button class="share-mobile-actions-button" data-share-mobile-actions type="button" aria-haspopup="menu" aria-label="Controls" title="Controls">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M5 7h14M5 12h14M5 17h14" />
+            </svg>
+          </button>
           <span class="share-brand-divider" aria-hidden="true"></span>
           <a class="share-brand-context" data-share-home-link href="${shareBasePath()}">SHARE</a>
         </div>
@@ -59,16 +64,14 @@ export function shareViewTemplate(): string {
             <span data-share-viewers-count>0</span>
           </span>
           <span class="share-visually-hidden" data-share-status>Disconnected</span>
-          <button class="share-mobile-actions-button" data-share-mobile-actions type="button" aria-haspopup="menu" aria-label="Panes" title="Panes">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M5 7h14M5 12h14M5 17h14" />
-            </svg>
-          </button>
           <label class="share-theme-control">
             <span class="share-visually-hidden">Terminal theme</span>
-            <svg class="share-theme-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <svg class="share-theme-icon share-theme-icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="4" />
               <path d="M12 2v2.5M12 19.5V22M4.93 4.93 6.7 6.7M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07 6.7 17.3M17.3 6.7l1.77-1.77" />
+            </svg>
+            <svg class="share-theme-icon share-theme-icon-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M20 14.6A7.4 7.4 0 0 1 9.4 4 8 8 0 1 0 20 14.6Z" />
             </svg>
             <select class="share-theme-select" data-share-terminal-theme aria-label="Terminal theme">
               <option value="user">Host</option>
@@ -86,6 +89,15 @@ export function shareViewTemplate(): string {
           </button>
         </div>
       </header>
+      <div class="share-mobile-pane-select-row" data-share-mobile-pane-select-row hidden>
+        <button class="share-mobile-pane-select" data-share-mobile-pane-select type="button" aria-haspopup="menu">
+          <span>Pane</span>
+          <strong data-share-mobile-pane-current>All panes</strong>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
       <section class="share-terminal-shell" data-share-terminal-shell aria-label="Shared terminal">
         <div class="share-terminal" data-share-terminal>
           <div class="share-terminal-placeholder" data-share-terminal-placeholder data-tone="idle">waiting</div>
@@ -94,7 +106,7 @@ export function shareViewTemplate(): string {
       <dialog class="share-session-actions" data-share-session-actions>
         <form method="dialog" class="share-session-actions-panel">
           <div class="share-dialog-header">
-            <h2>Disconnect</h2>
+            <h1>Disconnect</h1>
             <button class="share-dialog-close" data-share-session-close type="button" aria-label="Close" title="Close">
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
                 <path d="M6 6l12 12M18 6 6 18" />
@@ -116,6 +128,30 @@ export function shareViewTemplate(): string {
       <div class="share-mobile-pane-menu" data-share-mobile-pane-menu role="menu" hidden>
         <div class="share-mobile-pane-menu-title" data-share-mobile-pane-title>Session panes</div>
         <div class="share-mobile-pane-list" data-share-mobile-pane-list></div>
+      </div>
+      <div class="share-mobile-control-menu" data-share-mobile-control-menu role="menu" hidden>
+        <button data-share-mobile-stop-process type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+          <span class="share-menu-label">Stop process</span>
+          <span class="share-menu-shortcut">Ctrl+C</span>
+        </button>
+        <button data-share-mobile-clear-screen type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M5 7h14M5 12h10M5 17h6" />
+          </svg>
+          <span class="share-menu-label">Clear screen</span>
+          <span class="share-menu-shortcut">Ctrl+L</span>
+        </button>
+        <button data-share-mobile-reverse-search type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M11 19a8 8 0 1 1 5.7-2.4" />
+            <path d="M17 17h-4v-4" />
+          </svg>
+          <span class="share-menu-label">Reverse search</span>
+          <span class="share-menu-shortcut">Ctrl+R</span>
+        </button>
       </div>
       <div class="share-terminal-menu" data-share-terminal-menu role="menu" hidden>
         <button data-share-terminal-copy type="button" role="menuitem">
