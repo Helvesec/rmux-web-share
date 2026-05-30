@@ -318,7 +318,9 @@ test('session viewer keeps the status row visible after a remote resize notice',
   });
 });
 
-test('session operator click selects the clicked pane without shell input', async ({ page }) => {
+test('session operator click selects the clicked pane without shell input', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'mobile selects panes from the pane picker.');
+
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'operator';
@@ -619,6 +621,89 @@ test('session spectator cannot drag pane dividers', async ({ page }) => {
   expect(await paneResizeFrames(page)).toEqual([]);
 });
 
+test('mobile session view opens a pane picker instead of desktop controls', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'mobile pane picker depends on coarse pointer layout');
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 28 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Htop pane'
+      + '\x1b[15;1Hbottom pane'
+      + '\x1b[28;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 28 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 13, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 0, y: 14, cols: 80, rows: 13, active: false, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+      windows: [
+        { index: 0, name: 'bash', active: true },
+      ],
+    };
+  });
+
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-session-controls]')).toBeHidden();
+  await expect(page.locator('[data-share-mobile-actions]')).toBeVisible();
+
+  await page.locator('[data-share-mobile-actions]').click();
+  await expect(page.locator('[data-share-mobile-pane-menu]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-pane-title]')).toHaveText('Window 0:bash');
+  await expect(page.locator('[data-share-mobile-pane-list] button')).toHaveCount(2);
+  await expect(page.locator('[data-share-mobile-pane-list] button').nth(0)).toContainText('Pane %1');
+  await expect(page.locator('[data-share-mobile-pane-list] button').nth(1)).toContainText('Pane %2');
+
+  await page.locator('[data-share-mobile-pane-list] button').nth(1).click();
+
+  await expect(page.locator('[data-share-mobile-pane-menu]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-mobile-pane-focus', 'true');
+  await expect.poll(() => selectedPaneFrames(page)).toContainEqual({
+    type: 'select_pane',
+    pane_id: 2,
+  });
+});
+
+test('mobile terminal context menu stays read-write only', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'mobile menu depends on the mobile viewport');
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: async () => 'pwd',
+        writeText: async () => undefined,
+      },
+    });
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
+
+  await expect(page.locator('[data-share-terminal-menu]')).toBeVisible();
+  await expect(page.locator('[data-share-terminal-paste]')).toBeEnabled();
+  await expect(page.locator('[data-share-terminal-show-toolbar]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal-controls]')).toBeHidden();
+  await expect(page.locator('[data-share-terminal-kill-pane]')).toBeHidden();
+});
+
 test('session operator drives the remote size from the browser viewport', async ({ page }) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
@@ -732,7 +817,7 @@ test('operator sends xterm data and can open the disconnect dialog from exit', a
 
   await page.locator('[data-share-session-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
-  await expect(page.locator('[data-share-session-actions] h1')).toHaveText('Disconnect');
+  await expect(page.locator('[data-share-session-actions] :is(h1, h2)')).toHaveText('Disconnect');
   await expect(page.locator('[data-share-session-detach]')).toBeVisible();
   await expect(page.locator('[data-share-session-detach]')).toHaveText('Disconnect only');
   await expect(page.locator('[data-share-session-release]')).toHaveCount(0);
@@ -743,7 +828,8 @@ test('operator sends xterm data and can open the disconnect dialog from exit', a
   await expect(page.locator('[data-share-session-actions]')).toBeHidden();
 });
 
-test('terminal context menu exposes terminal actions without opening window actions', async ({ page }) => {
+test('terminal context menu exposes terminal actions without opening window actions', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'mobile uses a simplified terminal context menu.');
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -892,6 +978,17 @@ test('operator disconnect returns to recent links without reusing the share secr
     .toBeNull();
 });
 
+test('active shares announce recent links to new index tabs', async ({ page, context }) => {
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const index = await context.newPage();
+  await index.goto('/');
+  await expect(index.locator('.home-recent-row')).toHaveCount(1);
+  await expect(index.locator('.home-recent-title strong')).toHaveText('%1');
+  await expect(index.locator('.home-status')).toHaveText('Active');
+});
+
 test('spectator exit returns to recent links without opening a disconnect dialog', async ({ page }) => {
   await page.goto(`/#t=${spectatorToken}`);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
@@ -999,7 +1096,9 @@ test('toolbar remains visible by default across reloads', async ({ page }) => {
   await expect(page.locator('.share-app')).toHaveAttribute('data-chrome', 'visible');
 });
 
-test('URL options can remove chrome and disclaimer', async ({ page }) => {
+test('URL options can remove chrome and disclaimer', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'mobile keeps the toolbar available for navigation.');
+
   const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off&theme=dark`;
   await page.goto(url);
 

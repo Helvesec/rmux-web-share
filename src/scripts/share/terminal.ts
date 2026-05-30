@@ -28,6 +28,8 @@ const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 2;
 const MAX_DIVIDER_DRAG_CELLS = 10_000;
 const DIVIDER_HIT_SLOP_CELLS = 0.75;
+const MOBILE_PANE_QUERY = '(max-width: 760px) and (pointer: coarse)';
+const MOBILE_PANE_MAX_SCALE = 1.08;
 
 export interface TerminalChromePalette {
   accent: string;
@@ -48,6 +50,7 @@ export interface ShareTerminal {
   followLiveOutput(): void;
   resize(cols: number, rows: number): void;
   setSessionView(view: SessionView): void;
+  focusPane(paneId?: number): void;
   dispose(): void;
   onData(callback: (data: string) => void): void;
   onPaneSelect(callback: (paneId: number) => void): void;
@@ -119,9 +122,12 @@ class XtermShareTerminal implements ShareTerminal {
   private operatorCols = 0;
   private operatorRows = 0;
   private sessionView?: SessionView;
+  private readonly mobilePaneMedia: MediaQueryList;
+  private mobilePaneId?: number;
   private paneScrollHandler?: (paneId: number, delta: number) => void;
   private paneResizeHandler?: (paneId: number, direction: PaneResizeDirection, cells: number) => void;
   private paneResizeDrag?: PaneResizeDrag;
+  private touchScroll?: { paneId: number; lastY: number; remainder: number };
 
   constructor(
     private readonly container: HTMLElement,
@@ -131,6 +137,7 @@ class XtermShareTerminal implements ShareTerminal {
     private userTheme?: TerminalThemePalette,
   ) {
     this.role = role;
+    this.mobilePaneMedia = window.matchMedia(MOBILE_PANE_QUERY);
     this.term = new Terminal(optionsForRole(role, theme));
     this.term.loadAddon(
       new ImageAddon({
@@ -155,6 +162,15 @@ class XtermShareTerminal implements ShareTerminal {
     this.setTheme(theme, userTheme);
     this.term.attachCustomKeyEventHandler(() => this.role !== 'spectator');
     this.bindScrollAnchor();
+    const onMobilePaneChange = () => {
+      this.fitSessionStage();
+      this.renderActivePanePrompt();
+      this.renderPaneScrollbars();
+    };
+    this.mobilePaneMedia.addEventListener('change', onMobilePaneChange);
+    this.disposables.push({
+      dispose: () => this.mobilePaneMedia.removeEventListener('change', onMobilePaneChange),
+    });
   }
 
   open(): void {
@@ -278,8 +294,23 @@ class XtermShareTerminal implements ShareTerminal {
 
   setSessionView(view: SessionView): void {
     this.sessionView = view;
+    this.ensureMobilePane();
+    this.fitSessionStage();
     this.renderActivePanePrompt();
     this.renderPaneScrollbars();
+  }
+
+  focusPane(paneId?: number): void {
+    if (this.scope !== 'session') {
+      return;
+    }
+    this.mobilePaneId = paneId;
+    this.ensureMobilePane();
+    this.fitSessionStage();
+    this.scrollToTopLeft();
+    this.renderActivePanePrompt();
+    this.renderPaneScrollbars();
+    this.focus();
   }
 
   dispose(): void {
@@ -463,7 +494,7 @@ class XtermShareTerminal implements ShareTerminal {
         return;
       }
       if (this.scope === 'session') {
-        const pane = this.paneFromMouseEvent(event);
+        const pane = this.focusedMobilePane() ?? this.paneFromMouseEvent(event);
         event.preventDefault();
         event.stopImmediatePropagation();
         if (pane) {
@@ -481,8 +512,51 @@ class XtermShareTerminal implements ShareTerminal {
       this.container.scrollTop += y;
     };
     this.container.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch' || !this.container.contains(event.target as Node | null)) {
+        return;
+      }
+      const pane = this.focusedMobilePane();
+      if (!pane || pane.alternate_on || pane.history_size <= 0) {
+        return;
+      }
+      this.touchScroll = { paneId: pane.id, lastY: event.clientY, remainder: 0 };
+      this.container.setPointerCapture(event.pointerId);
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (!this.touchScroll || !this.paneScrollHandler) {
+        return;
+      }
+      event.preventDefault();
+      const metrics = this.cellMetrics();
+      const lineHeight = metrics?.height ?? WHEEL_PIXEL_LINE;
+      this.touchScroll.remainder += event.clientY - this.touchScroll.lastY;
+      this.touchScroll.lastY = event.clientY;
+      const lines = integralDelta(this.touchScroll.remainder / Math.max(1, lineHeight));
+      if (lines === 0) {
+        return;
+      }
+      this.touchScroll.remainder -= lines * lineHeight;
+      this.paneScrollHandler(this.touchScroll.paneId, -lines);
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      this.touchScroll = undefined;
+      if (this.container.hasPointerCapture(event.pointerId)) {
+        this.container.releasePointerCapture(event.pointerId);
+      }
+    };
+    this.container.addEventListener('pointerdown', onPointerDown, { passive: true });
+    this.container.addEventListener('pointermove', onPointerMove, { passive: false });
+    this.container.addEventListener('pointerup', onPointerUp);
+    this.container.addEventListener('pointercancel', onPointerUp);
     this.disposables.push({
-      dispose: () => this.container.removeEventListener('wheel', onWheel, { capture: true }),
+      dispose: () => {
+        this.container.removeEventListener('wheel', onWheel, { capture: true });
+        this.container.removeEventListener('pointerdown', onPointerDown);
+        this.container.removeEventListener('pointermove', onPointerMove);
+        this.container.removeEventListener('pointerup', onPointerUp);
+        this.container.removeEventListener('pointercancel', onPointerUp);
+      },
     });
   }
 
@@ -685,6 +759,25 @@ class XtermShareTerminal implements ShareTerminal {
     if (width <= 0 || height <= 0) {
       return;
     }
+    const focusedPane = this.focusedMobilePane();
+    const metrics = focusedPane ? this.sessionCellPixels() : undefined;
+    if (focusedPane && metrics) {
+      const paneWidth = Math.max(metrics.width, focusedPane.cols * metrics.width);
+      const paneHeight = Math.max(metrics.height, focusedPane.rows * metrics.height);
+      const scale = Math.min(
+        MOBILE_PANE_MAX_SCALE,
+        this.container.clientWidth / paneWidth,
+        this.container.clientHeight / paneHeight,
+      );
+      this.stage.style.transform = `scale(${scale}) translate(${-focusedPane.x * metrics.width}px, ${-focusedPane.y * metrics.height}px)`;
+      this.container.dataset.mobilePaneFocus = 'true';
+      this.stage.dataset.mobilePaneFocus = 'true';
+      this.renderActivePanePrompt();
+      this.renderPaneScrollbars();
+      return;
+    }
+    delete this.container.dataset.mobilePaneFocus;
+    delete this.stage.dataset.mobilePaneFocus;
     const scale = Math.min(1, this.container.clientWidth / width, this.container.clientHeight / height);
     this.stage.style.transform = scale < 0.999 ? `scale(${scale})` : 'none';
     this.renderActivePanePrompt();
@@ -716,6 +809,30 @@ class XtermShareTerminal implements ShareTerminal {
   private activeSessionPane(): SessionPaneView | undefined {
     const panes = this.sessionView?.panes ?? [];
     return panes.find((pane) => pane.active) ?? (panes.length === 1 ? panes[0] : undefined);
+  }
+
+  private ensureMobilePane(): void {
+    if (!this.isMobilePaneMode() || !this.sessionView?.panes.length) {
+      this.mobilePaneId = undefined;
+      return;
+    }
+    if (this.sessionView.panes.some((pane) => pane.id === this.mobilePaneId)) {
+      return;
+    }
+    this.mobilePaneId = this.activeSessionPane()?.id ?? this.sessionView.panes[0]?.id;
+  }
+
+  private focusedMobilePane(): SessionPaneView | undefined {
+    if (!this.isMobilePaneMode()) {
+      return undefined;
+    }
+    this.ensureMobilePane();
+    const panes = this.sessionView?.panes ?? [];
+    return panes.find((pane) => pane.id === this.mobilePaneId);
+  }
+
+  private isMobilePaneMode(): boolean {
+    return this.scope === 'session' && this.mobilePaneMedia.matches;
   }
 
   private activePromptPoint(pane: SessionPaneView): SessionPoint {
@@ -989,7 +1106,9 @@ class XtermShareTerminal implements ShareTerminal {
     if (!metrics) {
       return;
     }
-    const bars = this.sessionView.panes
+    const focusedPane = this.focusedMobilePane();
+    const panes = focusedPane ? [focusedPane] : this.sessionView.panes;
+    const bars = panes
       .filter((pane) => pane.history_size > 0 && pane.rows > 0 && pane.cols > 0 && !pane.alternate_on)
       .map((pane) => this.renderPaneScrollbar(pane, metrics));
     this.scrollLayer.replaceChildren(...bars);
@@ -1335,8 +1454,8 @@ function themePalette(
   }
 
   return {
-    background: '#0b0f0d',
-    black: '#0a0d0c',
+    background: '#0b1416',
+    black: '#071012',
     blue: '#7da7c7',
     brightBlack: '#58615e',
     brightBlue: '#9fc0d3',
@@ -1347,7 +1466,7 @@ function themePalette(
     brightWhite: '#ffffff',
     brightYellow: '#f0d06b',
     cursor: '#e9eeec',
-    cursorAccent: '#0b0f0d',
+    cursorAccent: '#0b1416',
     cyan: '#4fc5bd',
     foreground: '#e8eee9',
     green: '#72c468',

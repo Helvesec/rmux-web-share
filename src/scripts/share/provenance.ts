@@ -7,7 +7,7 @@ export function provenanceDialogTemplate(): string {
     <dialog class="share-provenance" data-share-provenance>
       <form method="dialog" class="share-provenance-panel">
         <div class="share-dialog-header">
-          <h1>Security & provenance</h1>
+          <h2>Security & provenance</h2>
           <button class="share-dialog-close" type="submit" aria-label="Close" title="Close">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
               <path d="M6 6l12 12M18 6 6 18" />

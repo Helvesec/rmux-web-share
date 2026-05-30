@@ -43,6 +43,7 @@ import type {
   ReadyMessage,
   PaneResizeDirection,
   ServerMessage,
+  SessionPaneView,
   SessionView,
   SessionWindowView,
   SessionSplitDirection,
@@ -91,6 +92,7 @@ interface TerminalMenuState {
   canControlSession: boolean;
   canKillPane: boolean;
   toolbarHidden: boolean;
+  mobile: boolean;
 }
 
 type ShareExitState = 'disconnected' | 'unavailable';
@@ -428,6 +430,7 @@ class ShareConnection {
         canControlSession: connected && this.sessionControls,
         canKillPane: this.canKillActivePane(),
         toolbarHidden: this.view.toolbarHidden(),
+        mobile: isMobileShareViewport(),
       });
     });
     this.view.bindSessionActions({
@@ -439,6 +442,7 @@ class ShareConnection {
       paste: () => this.pasteIntoTerminal(),
       toggleToolbar: () => this.toggleToolbar(),
     });
+    this.view.bindMobilePaneSelect((paneId) => this.chooseMobilePane(paneId));
     this.view.bindSessionControls({
       splitHorizontal: () => this.splitPane('horizontal'),
       splitVertical: () => this.splitPane('vertical'),
@@ -531,6 +535,15 @@ class ShareConnection {
       return;
     }
     selectSessionPane(this.transport, paneId);
+  }
+
+  private chooseMobilePane(paneId: number): void {
+    if (this.scope !== 'session') {
+      return;
+    }
+    this.view.selectMobilePane(paneId);
+    this.terminal?.focusPane(paneId);
+    this.selectPane(paneId);
   }
 
   private resizePane(paneId: number, direction: PaneResizeDirection, cells: number): void {
@@ -789,6 +802,7 @@ class ShareView {
   private readonly splitVertical: HTMLButtonElement;
   private readonly newWindow: HTMLButtonElement;
   private readonly killPane: HTMLButtonElement;
+  private readonly mobileActions: HTMLButtonElement;
   private readonly viewers: HTMLElement;
   private readonly viewersCount: HTMLElement;
   private readonly sessionMenuButton: HTMLButtonElement;
@@ -796,6 +810,9 @@ class ShareView {
   private readonly windowNew: HTMLButtonElement;
   private readonly windowEdit: HTMLButtonElement;
   private readonly windowKill: HTMLButtonElement;
+  private readonly mobilePaneMenu: HTMLElement;
+  private readonly mobilePaneTitle: HTMLElement;
+  private readonly mobilePaneList: HTMLElement;
   private readonly terminalMenu: HTMLElement;
   private readonly terminalCopy: HTMLButtonElement;
   private readonly terminalCopyShortcut: HTMLElement;
@@ -838,12 +855,15 @@ class ShareView {
   private sessionControlVisible = false;
   private canKillPane = false;
   private windows: SessionWindowView[] = [];
+  private panes: SessionPaneView[] = [];
   private selectedWindowIndex?: number;
+  private selectedPaneId?: number;
   private detachHandler?: () => void;
   private logoutHandler?: () => void;
   private copyTerminalHandler?: () => void | Promise<void>;
   private pasteTerminalHandler?: () => void | Promise<void>;
   private toggleToolbarHandler?: () => void;
+  private mobilePaneSelectHandler?: (paneId: number) => void;
   private splitHorizontalHandler?: () => void;
   private splitVerticalHandler?: () => void;
   private newWindowHandler?: () => void;
@@ -872,6 +892,7 @@ class ShareView {
     this.splitVertical = query(root, '[data-share-split-vertical]');
     this.newWindow = query(root, '[data-share-new-window]');
     this.killPane = query(root, '[data-share-kill-pane]');
+    this.mobileActions = query(root, '[data-share-mobile-actions]');
     this.viewers = query(root, '[data-share-viewers]');
     this.viewersCount = query(root, '[data-share-viewers-count]');
     this.sessionMenuButton = query(root, '[data-share-session-menu]');
@@ -879,6 +900,9 @@ class ShareView {
     this.windowNew = query(root, '[data-share-window-new]');
     this.windowEdit = query(root, '[data-share-window-edit]');
     this.windowKill = query(root, '[data-share-window-kill]');
+    this.mobilePaneMenu = query(root, '[data-share-mobile-pane-menu]');
+    this.mobilePaneTitle = query(root, '[data-share-mobile-pane-title]');
+    this.mobilePaneList = query(root, '[data-share-mobile-pane-list]');
     this.terminalMenu = query(root, '[data-share-terminal-menu]');
     this.terminalCopy = query(root, '[data-share-terminal-copy]');
     this.terminalCopyShortcut = query(root, '[data-share-terminal-copy-shortcut]');
@@ -915,6 +939,10 @@ class ShareView {
     this.splitVertical.addEventListener('click', () => this.splitVerticalHandler?.());
     this.newWindow.addEventListener('click', () => this.newWindowHandler?.());
     this.killPane.addEventListener('click', () => this.killPaneHandler?.());
+    this.mobileActions.addEventListener('click', () => {
+      const rect = this.mobileActions.getBoundingClientRect();
+      this.openMobilePaneMenu(rect.right, rect.bottom + 8);
+    });
     this.windowNew.addEventListener('click', () => {
       this.closeWindowMenu();
       this.newWindowHandler?.();
@@ -929,11 +957,15 @@ class ShareView {
       if (!this.terminalMenu.hidden && !this.terminalMenu.contains(target)) {
         this.closeTerminalMenu();
       }
+      if (!this.mobilePaneMenu.hidden && !this.mobilePaneMenu.contains(target) && target !== this.mobileActions) {
+        this.closeMobilePaneMenu();
+      }
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         this.closeWindowMenu();
         this.closeTerminalMenu();
+        this.closeMobilePaneMenu();
       }
     });
     this.terminalCopy.addEventListener('click', () => {
@@ -1070,6 +1102,10 @@ class ShareView {
     this.toggleToolbarHandler = handlers.toggleToolbar;
   }
 
+  bindMobilePaneSelect(handler: (paneId: number) => void): void {
+    this.mobilePaneSelectHandler = handler;
+  }
+
   bindTerminalTheme(handler: (theme: TerminalThemeName) => void): void {
     this.themeSelect.addEventListener('change', () => {
       if (isTerminalThemeName(this.themeSelect.value)) {
@@ -1088,6 +1124,10 @@ class ShareView {
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
     this.setSessionControls(message.scope === 'session' && message.role === 'operator');
     this.setCanKillPane(false);
+    this.panes = [];
+    this.selectedPaneId = undefined;
+    this.mobileActions.hidden = true;
+    this.closeMobilePaneMenu();
     this.setOperatorConnected((finiteCount(message.operators_active) ?? 0) > 0);
     const label = [message.session_name, message.pane_label].filter(Boolean).join(' ');
     this.meta.textContent = label || message.share_id || 'rmux share';
@@ -1125,6 +1165,12 @@ class ShareView {
     if (this.selectedWindowIndex === undefined || !this.windows.some((window) => window.index === this.selectedWindowIndex)) {
       this.selectedWindowIndex = this.activeWindow()?.index;
     }
+    this.panes = normalizePanes(view.panes);
+    if (this.selectedPaneId === undefined || !this.panes.some((pane) => pane.id === this.selectedPaneId)) {
+      this.selectedPaneId = this.activePane()?.id ?? this.panes[0]?.id;
+    }
+    this.mobileActions.hidden = this.panes.length === 0;
+    this.renderMobilePaneMenu();
   }
 
   setTerminalTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void {
@@ -1204,6 +1250,14 @@ class ShareView {
     this.selectWindowHandler?.(windowIndex);
   }
 
+  selectMobilePane(paneId: number): void {
+    if (!this.panes.some((pane) => pane.id === paneId)) {
+      return;
+    }
+    this.selectedPaneId = paneId;
+    this.renderMobilePaneMenu();
+  }
+
   openWindowActions(windowIndex: number, x: number, y: number): void {
     if (!this.connected || !this.sessionControlVisible) {
       return;
@@ -1221,17 +1275,34 @@ class ShareView {
     this.windowNew.focus();
   }
 
+  openMobilePaneMenu(x: number, y: number): void {
+    this.closeTerminalMenu();
+    this.closeWindowMenu();
+    if (!this.connected || this.panes.length === 0) {
+      this.closeMobilePaneMenu();
+      return;
+    }
+    this.renderMobilePaneMenu();
+    this.mobilePaneMenu.hidden = false;
+    const rect = this.mobilePaneMenu.getBoundingClientRect();
+    const left = Math.min(Math.max(8, x - rect.width), window.innerWidth - rect.width - 8);
+    const top = Math.min(Math.max(8, y), window.innerHeight - rect.height - 8);
+    this.mobilePaneMenu.style.left = `${left}px`;
+    this.mobilePaneMenu.style.top = `${top}px`;
+    this.mobilePaneMenu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+  }
+
   openTerminalMenu(x: number, y: number, state: TerminalMenuState): void {
     this.closeWindowMenu();
     if (!this.connected) {
       this.closeTerminalMenu();
       return;
     }
-    const canControlSession = this.connected && state.canControlSession;
+    const canControlSession = this.connected && state.canControlSession && !state.mobile;
     const canKillPane = canControlSession && state.canKillPane;
     this.terminalCopy.disabled = !state.canCopy;
     this.terminalPaste.disabled = !this.connected || !state.canPaste;
-    this.terminalShowToolbar.hidden = false;
+    this.terminalShowToolbar.hidden = state.mobile;
     this.terminalToolbarLabel.textContent = state.toolbarHidden ? 'Show toolbar' : 'Hide toolbar';
     this.terminalControlsSeparator.hidden = !canControlSession;
     this.terminalControls.hidden = !canControlSession;
@@ -1323,6 +1394,10 @@ class ShareView {
     this.terminalMenu.hidden = true;
   }
 
+  private closeMobilePaneMenu(): void {
+    this.mobilePaneMenu.hidden = true;
+  }
+
   private runTerminalSessionControl(handler?: () => void): void {
     this.closeTerminalMenu();
     if (this.connected) {
@@ -1340,11 +1415,49 @@ class ShareView {
     return this.windows.find((window) => window.active);
   }
 
+  private activePane(): SessionPaneView | undefined {
+    return this.panes.find((pane) => pane.active) ?? (this.panes.length === 1 ? this.panes[0] : undefined);
+  }
+
+  private renderMobilePaneMenu(): void {
+    this.mobilePaneTitle.textContent = this.activeWindow()
+      ? `Window ${this.activeWindow()?.index}:${this.activeWindow()?.name}`
+      : 'Session panes';
+    this.mobilePaneList.replaceChildren(...this.panes.map((pane) => this.renderMobilePaneButton(pane)));
+  }
+
+  private renderMobilePaneButton(pane: SessionPaneView): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.role = 'menuitem';
+    button.dataset.paneId = String(pane.id);
+    button.dataset.active = String(pane.active === true);
+    button.dataset.selected = String(pane.id === this.selectedPaneId);
+    const label = document.createElement('span');
+    label.className = 'share-mobile-pane-label';
+    label.textContent = `Pane %${pane.id}`;
+    const meta = document.createElement('span');
+    meta.className = 'share-mobile-pane-meta';
+    meta.textContent = pane.active ? 'active' : `${pane.cols}x${pane.rows}`;
+    button.append(label, meta);
+    button.addEventListener('click', () => {
+      this.closeMobilePaneMenu();
+      this.selectedPaneId = pane.id;
+      this.renderMobilePaneMenu();
+      this.mobilePaneSelectHandler?.(pane.id);
+    });
+    return button;
+  }
+
   private updateSessionControlsVisibility(): void {
     const visible = this.connected && this.sessionControlVisible;
     this.sessionControls.hidden = !visible;
     this.killPane.hidden = !visible || !this.canKillPane;
     this.killPane.disabled = !visible || !this.canKillPane;
+    if (!this.connected) {
+      this.closeMobilePaneMenu();
+    }
+    this.mobileActions.hidden = !this.connected || this.panes.length === 0;
   }
 
   private setTerminalPlaceholder(status: ShareStatus): void {
@@ -1502,10 +1615,28 @@ function normalizeWindows(windows: SessionWindowView[] | undefined): SessionWind
     .sort((left, right) => left.index - right.index);
 }
 
+function normalizePanes(panes: SessionPaneView[]): SessionPaneView[] {
+  return panes
+    .filter((pane) => Number.isInteger(pane.id) && pane.id >= 0)
+    .map((pane) => ({
+      ...pane,
+      active: Boolean(pane.active),
+      cols: Math.max(1, Math.floor(pane.cols)),
+      rows: Math.max(1, Math.floor(pane.rows)),
+      x: Math.max(0, Math.floor(pane.x)),
+      y: Math.max(0, Math.floor(pane.y)),
+    }))
+    .sort((left, right) => (left.y - right.y) || (left.x - right.x) || (left.id - right.id));
+}
+
 function finiteCount(value: number | undefined): number | undefined {
   return value === undefined || !Number.isFinite(value)
     ? undefined
     : Math.max(0, Math.floor(value));
+}
+
+function isMobileShareViewport(): boolean {
+  return window.matchMedia('(max-width: 760px)').matches;
 }
 
 function primaryShortcutLabel(): string {

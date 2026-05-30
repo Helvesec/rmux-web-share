@@ -18,7 +18,7 @@
 
 .share-app[data-terminal-mode='dark'] .share-topbar,
 .share-app:not([data-terminal-mode='light']) .share-topbar {
-  background: rgb(12 16 15 / 0.93);
+  background: #0a1620;
   color: #f2f6f3;
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.12);
 }
@@ -142,6 +142,7 @@
 
 .share-icon-button,
 .share-exit-button,
+.share-mobile-actions-button,
 .share-role-badge,
 .share-theme-control,
 .share-viewer-count {
@@ -160,9 +161,14 @@
 }
 
 .share-icon-button,
-.share-exit-button {
+.share-exit-button,
+.share-mobile-actions-button {
   appearance: none;
   cursor: pointer;
+}
+
+.share-mobile-actions-button {
+  display: none;
 }
 
 .share-icon-button[hidden],
@@ -176,6 +182,7 @@
 
 .share-icon-button svg,
 .share-exit-button svg,
+.share-mobile-actions-button svg,
 .share-role-icon,
 .share-viewer-icon,
 .share-theme-icon {
@@ -191,6 +198,8 @@
 .share-icon-button:focus-visible,
 .share-exit-button:hover,
 .share-exit-button:focus-visible,
+.share-mobile-actions-button:hover,
+.share-mobile-actions-button:focus-visible,
 .share-theme-control:focus-within,
 .share-theme-control:hover {
   color: color-mix(in srgb, currentColor 72%, var(--share-ok));
@@ -245,7 +254,8 @@
 }
 
 .share-window-menu,
-.share-terminal-menu {
+.share-terminal-menu,
+.share-mobile-pane-menu {
   position: fixed;
   z-index: 20;
   display: grid;
@@ -263,12 +273,14 @@
 }
 
 .share-window-menu[hidden],
-.share-terminal-menu[hidden] {
+.share-terminal-menu[hidden],
+.share-mobile-pane-menu[hidden] {
   display: none;
 }
 
 .share-window-menu button,
-.share-terminal-menu button {
+.share-terminal-menu button,
+.share-mobile-pane-menu button {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
@@ -289,6 +301,49 @@
   border-bottom: 0;
 }
 
+.share-mobile-pane-menu {
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+}
+
+.share-mobile-pane-menu-title {
+  padding: 11px 14px 9px;
+  border-bottom: 1px solid color-mix(in srgb, var(--share-dialog-text) 12%, transparent);
+  color: color-mix(in srgb, var(--share-dialog-text) 66%, transparent);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.share-mobile-pane-list {
+  display: grid;
+}
+
+.share-mobile-pane-menu button {
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 42px;
+}
+
+.share-mobile-pane-menu button[data-selected='true'] {
+  background: color-mix(in srgb, var(--share-ok) 14%, transparent);
+}
+
+.share-mobile-pane-label {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-mobile-pane-meta {
+  color: color-mix(in srgb, var(--share-dialog-text) 48%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .share-window-menu button {
   display: block;
 }
@@ -301,7 +356,9 @@
 .share-window-menu button:hover,
 .share-window-menu button:focus-visible,
 .share-terminal-menu button:hover,
-.share-terminal-menu button:focus-visible {
+.share-terminal-menu button:focus-visible,
+.share-mobile-pane-menu button:hover,
+.share-mobile-pane-menu button:focus-visible {
   background: color-mix(in srgb, var(--share-ok) 16%, transparent);
   outline: none;
 }
@@ -384,22 +441,22 @@
 
 @media (max-width: 760px) {
   .share-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    min-height: 60px;
-    padding: 0 12px;
+    display: flex;
+    min-height: 64px;
+    padding: 0 14px;
+    gap: 12px;
   }
 
   .share-topbar-actions {
-    grid-column: 2;
-    gap: 10px;
+    display: none !important;
   }
 
   .share-topbar-meta {
-    position: absolute;
-    top: 9px;
-    right: 10px;
+    position: static;
     display: flex;
-    gap: 8px;
+    flex: 0 0 auto;
+    gap: 6px;
+    margin-left: auto;
   }
 
   .share-brand-mark {
@@ -409,6 +466,43 @@
 
   .share-brand-title {
     font-size: 20px;
+  }
+
+  .share-mobile-actions-button {
+    display: inline-grid;
+  }
+
+  .share-mobile-actions-button[hidden] {
+    display: none;
+  }
+
+  .share-icon-button,
+  .share-exit-button,
+  .share-mobile-actions-button,
+  .share-role-badge,
+  .share-theme-control,
+  .share-viewer-count {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+
+  .share-viewer-count {
+    display: inline-flex;
+    min-width: 46px;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .share-icon-button svg,
+  .share-exit-button svg,
+  .share-mobile-actions-button svg,
+  .share-role-icon,
+  .share-viewer-icon,
+  .share-theme-icon {
+    width: 22px;
+    height: 22px;
   }
 
   .share-brand-context {

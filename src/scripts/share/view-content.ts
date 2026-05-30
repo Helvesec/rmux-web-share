@@ -59,6 +59,11 @@ export function shareViewTemplate(): string {
             <span data-share-viewers-count>0</span>
           </span>
           <span class="share-visually-hidden" data-share-status>Disconnected</span>
+          <button class="share-mobile-actions-button" data-share-mobile-actions type="button" aria-haspopup="menu" aria-label="Panes" title="Panes">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M5 7h14M5 12h14M5 17h14" />
+            </svg>
+          </button>
           <label class="share-theme-control">
             <span class="share-visually-hidden">Terminal theme</span>
             <svg class="share-theme-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
@@ -89,7 +94,7 @@ export function shareViewTemplate(): string {
       <dialog class="share-session-actions" data-share-session-actions>
         <form method="dialog" class="share-session-actions-panel">
           <div class="share-dialog-header">
-            <h1>Disconnect</h1>
+            <h2>Disconnect</h2>
             <button class="share-dialog-close" data-share-session-close type="button" aria-label="Close" title="Close">
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
                 <path d="M6 6l12 12M18 6 6 18" />
@@ -107,6 +112,10 @@ export function shareViewTemplate(): string {
         <button data-share-window-new type="button" role="menuitem">New</button>
         <button data-share-window-edit type="button" role="menuitem">Edit</button>
         <button data-share-window-kill class="danger" type="button" role="menuitem">Delete</button>
+      </div>
+      <div class="share-mobile-pane-menu" data-share-mobile-pane-menu role="menu" hidden>
+        <div class="share-mobile-pane-menu-title" data-share-mobile-pane-title>Session panes</div>
+        <div class="share-mobile-pane-list" data-share-mobile-pane-list></div>
       </div>
       <div class="share-terminal-menu" data-share-terminal-menu role="menu" hidden>
         <button data-share-terminal-copy type="button" role="menuitem">

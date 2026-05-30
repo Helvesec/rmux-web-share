@@ -18,6 +18,12 @@ const CRAB_COLORS = [
 ] as const;
 
 export type RecentStatus = 'active' | 'checking' | 'disconnected' | 'unavailable';
+type RecentShareBroadcast =
+  | { type: 'recent-shares'; shares: RecentShare[] }
+  | { type: 'recent-shares-request' };
+
+const subscribers = new Set<() => void>();
+let channel: BroadcastChannel | undefined;
 
 export interface RecentShare {
   id: string;
@@ -51,18 +57,11 @@ export function loadRecentShares(): RecentShare[] {
 }
 
 export function subscribeRecentShares(callback: () => void): () => void {
-  if (typeof BroadcastChannel === 'undefined') {
-    return () => {};
-  }
-  const channel = new BroadcastChannel(BROADCAST_CHANNEL);
-  channel.addEventListener('message', (event: MessageEvent<unknown>) => {
-    if (!isRecentShareBroadcast(event.data)) {
-      return;
-    }
-    writeRecentShares(mergeRecentShares(event.data.shares), false);
-    callback();
-  });
-  return () => channel.close();
+  subscribers.add(callback);
+  requestRecentShares();
+  return () => {
+    subscribers.delete(callback);
+  };
 }
 
 export function forgetRecentShare(id: string): void {
@@ -231,12 +230,31 @@ function stableHash(input: string): string {
 }
 
 function broadcastRecentShares(shares: RecentShare[]): void {
-  if (typeof BroadcastChannel === 'undefined') {
-    return;
+  recentChannel()?.postMessage({ type: 'recent-shares', shares });
+}
+
+function requestRecentShares(): void {
+  recentChannel()?.postMessage({ type: 'recent-shares-request' });
+}
+
+function recentChannel(): BroadcastChannel | undefined {
+  if (channel || typeof BroadcastChannel === 'undefined') {
+    return channel;
   }
-  const channel = new BroadcastChannel(BROADCAST_CHANNEL);
-  channel.postMessage({ type: 'recent-shares', shares });
-  channel.close();
+  channel = new BroadcastChannel(BROADCAST_CHANNEL);
+  channel.addEventListener('message', (event: MessageEvent<unknown>) => {
+    const message = parseRecentShareBroadcast(event.data);
+    if (!message) {
+      return;
+    }
+    if (message.type === 'recent-shares-request') {
+      broadcastRecentShares(loadRecentShares());
+      return;
+    }
+    writeRecentShares(mergeRecentShares(message.shares), false);
+    subscribers.forEach((callback) => callback());
+  });
+  return channel;
 }
 
 function mergeRecentShares(incoming: RecentShare[]): RecentShare[] {
@@ -252,14 +270,22 @@ function mergeRecentShares(incoming: RecentShare[]): RecentShare[] {
     .slice(0, MAX_RECENT_LINKS);
 }
 
-function isRecentShareBroadcast(value: unknown): value is { type: 'recent-shares'; shares: RecentShare[] } {
+function parseRecentShareBroadcast(value: unknown): RecentShareBroadcast | undefined {
   if (!value || typeof value !== 'object') {
-    return false;
+    return undefined;
   }
   const message = value as { type?: unknown; shares?: unknown };
-  return message.type === 'recent-shares'
+  if (message.type === 'recent-shares-request') {
+    return { type: 'recent-shares-request' };
+  }
+  if (
+    message.type === 'recent-shares'
     && Array.isArray(message.shares)
-    && message.shares.every(isRecentShare);
+    && message.shares.every(isRecentShare)
+  ) {
+    return { type: 'recent-shares', shares: message.shares };
+  }
+  return undefined;
 }
 
 function isRecentShare(value: unknown): value is RecentShare {

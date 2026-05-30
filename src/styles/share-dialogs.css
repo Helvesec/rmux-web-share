@@ -81,8 +81,8 @@
 }
 
 .share-confirm h1,
-.share-session-actions h1,
-.share-provenance h1 {
+.share-session-actions h2,
+.share-provenance h2 {
   margin: 0;
   color: var(--share-dialog-text);
   overflow-wrap: anywhere;
