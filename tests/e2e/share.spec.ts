@@ -33,7 +33,7 @@ test('spectator client connects immediately and receives the initial snapshot', 
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
       type: 'auth',
-      protocol_version: 3,
+      protocol_version: 4,
       capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
     }),
   );
@@ -91,7 +91,7 @@ test('explicit endpoint links keep the short e/t fragment contract', async ({ pa
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
       type: 'auth',
-      protocol_version: 3,
+      protocol_version: 4,
       capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
     }),
   );
@@ -1122,7 +1122,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
-  await page.goto(`/#t=${spectatorToken}`);
+  await page.goto(`/#t=${spectatorToken}&pin=required`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await expect(page.locator('[data-share-pin]')).toBeFocused();
@@ -1145,7 +1145,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
   await expect.poll(() => sentFrames(page)).toContainEqual(
     JSON.stringify({
       type: 'auth',
-      protocol_version: 3,
+      protocol_version: 4,
       capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
       pin: '123456',
     }),
@@ -1164,7 +1164,7 @@ test('pin prompt escape returns to the recent links dashboard', async ({ page })
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
-  await page.goto(`/#t=${spectatorToken}`);
+  await page.goto(`/#t=${spectatorToken}&pin=required`);
 
   await expect(page.locator('[data-share-pin]')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -1180,7 +1180,7 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
-  const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off`;
+  const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off&pin=required`;
   await page.goto(url);
 
   await expect(page.locator('[data-share-confirm]')).toBeVisible();

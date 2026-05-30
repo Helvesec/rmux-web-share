@@ -81,7 +81,6 @@ const SNAPSHOT_FULL = 0x10;
 const SESSION_VIEW = 0x11;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const PIN_RE = /^\d{6}$/;
-const PIN_REQUIRED_CLOSE_CODE = 4008;
 const PIN_MASK_DELAY_MS = 330;
 const DISCONNECTED_RECONNECTING = 'Disconnected. Reconnecting...';
 const RECONNECT_BASE_DELAY_MS = 500;
@@ -354,7 +353,10 @@ class ShareConnection {
     if (this.shareEnded) {
       return;
     }
-    if (event.code === PIN_REQUIRED_CLOSE_CODE) {
+    if (event.code === 4000 && this.params.pinRequired && !this.everReady) {
+      // v4 collapses every pre-ready rejection to 4000; for a pinned share
+      // refused before it ever became ready, the most likely cause is a wrong
+      // or missing pairing code, so re-prompt.
       this.view.setStatus({
         connected: false,
         detail: 'Pairing code required',

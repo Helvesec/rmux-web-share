@@ -1,6 +1,6 @@
 import type { PaneResizeDirection, SessionSplitDirection } from './types';
 
-export const WEB_SHARE_PROTOCOL_VERSION = 3;
+export const WEB_SHARE_PROTOCOL_VERSION = 4;
 export const WEB_SHARE_CLIENT_CAPABILITIES = [
   'e2ee-token-auth',
   'terminal-palette-v1',
@@ -157,21 +157,16 @@ export function closeMessage(code: number): string {
     case 1011:
       return 'server error; reconnect when the share is still active';
     case 4000:
-      return 'auth refused';
+      // v4 collapses every pre-ready rejection (bad link, wrong pairing code,
+      // capacity, or origin) to this single code; the server never discloses
+      // which, to avoid an identity/PIN oracle.
+      return 'connection refused — check the share link and pairing code';
     case 4001:
       return 'evicted due to backpressure';
     case 4002:
       return 'frame too large';
-    case 4003:
-      return 'spectator limit reached';
-    case 4004:
-      return 'origin not allowed; check --frontend-url';
     case 4006:
       return 'protocol violation';
-    case 4007:
-      return 'operator limit reached';
-    case 4008:
-      return 'Pairing code required';
     default:
       return code ? `connection closed (${code})` : 'connection closed';
   }

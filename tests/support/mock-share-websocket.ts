@@ -1,14 +1,52 @@
+// A browser-side mock of the rmux web-share daemon speaking the real v4
+// protocol: ephemeral X25519 (WebCrypto) + ChaCha20-Poly1305 via the same
+// `rmux-web-crypto` WASM the client uses (the `ServerSession` binding). Because
+// it is injected with `page.addInitScript` (a serialized function with no module
+// scope), it loads the WASM at runtime from the stable public path
+// `/share-crypto/...` (served verbatim in dev and in production).
 export function installMockShareWebSocket(): void {
   const NativeWebSocket = window.WebSocket;
   const nativeReplaceState = window.history.replaceState;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const serverNonce = 'EDEODQwLCgkIBwYFBAMCAQ';
+  const PROTOCOL_VERSION = 4;
+  const CAPABILITIES = ['e2ee-token-auth', 'terminal-palette-v1'];
+
+  // Loose typing for the dynamically imported WASM module.
+  type WasmModule = {
+    default: (input?: unknown) => Promise<unknown>;
+    ServerSession: new (
+      psk: Uint8Array,
+      dh: Uint8Array,
+      clientHello: Uint8Array,
+      serverChallenge: Uint8Array,
+    ) => {
+      sealText(text: string): Uint8Array;
+      sealBinary(body: Uint8Array): Uint8Array;
+      open(frame: Uint8Array): { isText: boolean; text?: string; binary?: Uint8Array };
+    };
+  };
+  let wasmPromise: Promise<WasmModule> | undefined;
+  function serverCrypto(): Promise<WasmModule> {
+    if (!wasmPromise) {
+      wasmPromise = import(/* @vite-ignore */ '/share-crypto/rmux_web_crypto_wasm.js').then(
+        async (module) => {
+          const wasm = module as unknown as WasmModule;
+          await wasm.default();
+          return wasm;
+        },
+      );
+    }
+    return wasmPromise;
+  }
 
   window.history.replaceState = function replaceState(...args) {
     window.__rmuxShareMockToken ??= tokenFromLocation();
     return nativeReplaceState.apply(this, args);
   };
+
+  type Session = InstanceType<WasmModule['ServerSession']>;
 
   class MockWebSocket extends EventTarget {
     static CONNECTING = 0;
@@ -19,8 +57,7 @@ export function installMockShareWebSocket(): void {
     binaryType = 'blob';
     readyState = MockWebSocket.CONNECTING;
     sent: unknown[] = [];
-    private opener?: FrameCodec;
-    private sealer?: FrameCodec;
+    private session?: Session;
     private token = '';
 
     constructor(readonly url: string | URL) {
@@ -68,13 +105,13 @@ export function installMockShareWebSocket(): void {
           : data instanceof ArrayBuffer
             ? new Uint8Array(data)
             : undefined;
-        if (!frame || !this.opener) {
-          this.closeWith(4006, 'invalid_frame');
+        if (!frame || !this.session) {
+          this.closeWith(4000, 'handshake_rejected');
           return;
         }
-        const message = await this.opener.open(frame);
-        if (message.kind === 0) {
-          const text = decoder.decode(message.body);
+        const message = this.session.open(frame);
+        if (message.isText) {
+          const text = message.text ?? '';
           this.sent.push(text);
           const parsed = JSON.parse(text);
           if (parsed.type === 'auth') {
@@ -84,52 +121,70 @@ export function installMockShareWebSocket(): void {
           }
           return;
         }
-        this.sent.push(Array.from(message.body));
+        this.sent.push(Array.from(message.binary ?? new Uint8Array()));
       } catch {
-        this.closeWith(4006, 'e2ee_failed');
+        this.closeWith(4000, 'handshake_rejected');
       }
     }
 
     private async handleHello(data: string): Promise<void> {
       const hello = JSON.parse(data);
       if (hello.type !== 'hello') {
-        this.closeWith(4006, 'first_frame_must_hello');
+        this.closeWith(4000, 'handshake_rejected');
         return;
       }
       this.token = tokenFromLocation();
       const secretHash = await sha256(encoder.encode(this.token));
       const expectedTokenId = await tokenIdFromSecretHash(secretHash);
       if (hello.token_id !== expectedTokenId) {
-        this.closeWith(4000, 'invalid_auth');
+        this.closeWith(4000, 'handshake_rejected');
         return;
       }
       this.sent.push({ type: 'hello', token_id: hello.token_id });
-      const salt = concatBytes(
-        encoder.encode(hello.token_id),
-        base64UrlDecode(hello.client_nonce),
-        base64UrlDecode(serverNonce),
+
+      // Server ephemeral X25519 + DH with the client's public key.
+      const serverKeyPair = (await crypto.subtle.generateKey({ name: 'X25519' }, false, [
+        'deriveBits',
+      ])) as CryptoKeyPair;
+      const serverPublic = new Uint8Array(await crypto.subtle.exportKey('raw', serverKeyPair.publicKey));
+      const clientKey = await crypto.subtle.importKey(
+        'raw',
+        base64UrlDecode(hello.client_public),
+        { name: 'X25519' },
+        false,
+        [],
       );
-      this.opener = await FrameCodec.derive(secretHash, salt, 'c2s');
-      this.sealer = await FrameCodec.derive(secretHash, salt, 's2c');
-      this.dispatchMessage(JSON.stringify({
+      const dh = new Uint8Array(
+        await crypto.subtle.deriveBits({ name: 'X25519', public: clientKey }, serverKeyPair.privateKey, 256),
+      );
+      const psk = new Uint8Array(secretHash);
+
+      // The challenge text is bound (as bytes) into the transcript AND sent.
+      const challengeText = JSON.stringify({
         type: 'challenge',
-        protocol_version: 3,
-        capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
+        protocol_version: PROTOCOL_VERSION,
+        capabilities: CAPABILITIES,
         server_nonce: serverNonce,
-      }));
+        server_public: base64Url(serverPublic),
+      });
+
+      const wasm = await serverCrypto();
+      this.session = new wasm.ServerSession(psk, dh, encoder.encode(data), encoder.encode(challengeText));
+      this.dispatchMessage(challengeText);
     }
 
     private async handleAuth(auth: { pin?: string }): Promise<void> {
       if (window.__rmuxShareRequirePin && !auth.pin) {
-        this.closeWith(4008, 'pin_required');
+        // v4 collapses every pre-ready rejection to a single opaque close code.
+        this.closeWith(4000, 'handshake_rejected');
         return;
       }
       const role = window.__rmuxShareReadyRole
         ?? (this.token.includes('operator') ? 'operator' : 'spectator');
       const ready = {
         type: 'ready',
-        protocol_version: 3,
-        capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
+        protocol_version: PROTOCOL_VERSION,
+        capabilities: CAPABILITIES,
         pane_size: window.__rmuxShareReadySize ?? { cols: 24, rows: 6 },
         scope: window.__rmuxShareReadyScope ?? 'pane',
         share_id: 'abcdefgh',
@@ -171,86 +226,22 @@ export function installMockShareWebSocket(): void {
     }
 
     private async dispatchEncryptedText(text: string): Promise<void> {
-      await this.dispatchEncrypted(0, encoder.encode(text));
+      if (!this.session) {
+        return;
+      }
+      this.dispatchMessage(this.session.sealText(text).buffer);
     }
 
     private async dispatchEncryptedBinary(bytes: Uint8Array): Promise<void> {
-      await this.dispatchEncrypted(1, bytes);
-    }
-
-    private async dispatchEncrypted(kind: number, body: Uint8Array): Promise<void> {
-      if (!this.sealer) {
+      if (!this.session) {
         return;
       }
-      const payload = new Uint8Array(1 + body.length);
-      payload[0] = kind;
-      payload.set(body, 1);
-      this.dispatchMessage((await this.sealer.seal(payload)).buffer);
+      this.dispatchMessage(this.session.sealBinary(bytes).buffer);
     }
 
     private dispatchMessage(data: string | ArrayBuffer): void {
       this.dispatchEvent(new MessageEvent('message', { data }));
     }
-
-  }
-
-  class FrameCodec {
-    private nextSeq = 0n;
-
-    constructor(
-      private readonly key: CryptoKey,
-      private readonly noncePrefix: Uint8Array,
-    ) {}
-
-    static async derive(secretHash: ArrayBuffer, salt: Uint8Array, direction: string): Promise<FrameCodec> {
-      return new FrameCodec(
-        await deriveAesKey(secretHash, salt, `rmux web-share e2ee v1 key ${direction}`),
-        await deriveBits(secretHash, salt, `rmux web-share e2ee v1 nonce ${direction}`, 32),
-      );
-    }
-
-    async seal(plain: Uint8Array): Promise<Uint8Array> {
-      const seq = this.nextSeq;
-      const header = encryptedHeader(seq);
-      const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: nonceFrom(this.noncePrefix, seq), additionalData: header },
-        this.key,
-        plain,
-      ));
-      this.nextSeq += 1n;
-      return concatBytes(header, ciphertext);
-    }
-
-    async open(frame: Uint8Array): Promise<{ kind: number; body: Uint8Array }> {
-      const seq = readSeq(frame.subarray(1, 9));
-      const plain = new Uint8Array(await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: nonceFrom(this.noncePrefix, seq), additionalData: frame.subarray(0, 9) },
-        this.key,
-        frame.subarray(9),
-      ));
-      this.nextSeq += 1n;
-      return { kind: plain[0], body: plain.subarray(1) };
-    }
-  }
-
-  async function deriveAesKey(secretHash: ArrayBuffer, salt: Uint8Array, info: string): Promise<CryptoKey> {
-    const keyMaterial = await crypto.subtle.importKey('raw', secretHash, 'HKDF', false, ['deriveKey']);
-    return crypto.subtle.deriveKey(
-      { name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(info) },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt'],
-    );
-  }
-
-  async function deriveBits(secretHash: ArrayBuffer, salt: Uint8Array, info: string, bits: number): Promise<Uint8Array> {
-    const keyMaterial = await crypto.subtle.importKey('raw', secretHash, 'HKDF', false, ['deriveBits']);
-    return new Uint8Array(await crypto.subtle.deriveBits(
-      { name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode(info) },
-      keyMaterial,
-      bits,
-    ));
   }
 
   async function tokenIdFromSecretHash(secretHash: ArrayBuffer): Promise<string> {
@@ -260,35 +251,6 @@ export function installMockShareWebSocket(): void {
 
   async function sha256(bytes: Uint8Array): Promise<ArrayBuffer> {
     return crypto.subtle.digest('SHA-256', bytes);
-  }
-
-  function encryptedHeader(seq: bigint): Uint8Array {
-    const header = new Uint8Array(9);
-    header[0] = 0xe0;
-    writeSeq(header, 1, seq);
-    return header;
-  }
-
-  function nonceFrom(prefix: Uint8Array, seq: bigint): Uint8Array {
-    const nonce = new Uint8Array(12);
-    nonce.set(prefix, 0);
-    writeSeq(nonce, 4, seq);
-    return nonce;
-  }
-
-  function writeSeq(target: Uint8Array, offset: number, seq: bigint): void {
-    for (let index = 7; index >= 0; index -= 1) {
-      target[offset + index] = Number(seq & 0xffn);
-      seq >>= 8n;
-    }
-  }
-
-  function readSeq(bytes: Uint8Array): bigint {
-    let seq = 0n;
-    for (const byte of bytes) {
-      seq = (seq << 8n) | BigInt(byte);
-    }
-    return seq;
   }
 
   function tokenFromLocation(): string {
