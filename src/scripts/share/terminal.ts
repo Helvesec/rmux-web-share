@@ -797,6 +797,10 @@ class XtermShareTerminal implements ShareTerminal {
         this.container.clientHeight / paneHeight,
       );
       this.stage.style.transform = `scale(${scale}) translate(${-focusedPane.x * metrics.width}px, ${-focusedPane.y * metrics.height}px)`;
+      // Translating only pushes panes above/left of the focused one off-screen;
+      // a shorter or narrower pane still leaves room for its neighbours below or
+      // to the right. Clip the stage to the focused pane so it stands alone.
+      this.stage.style.clipPath = paneClipPath(focusedPane, metrics, this.stage.offsetWidth, this.stage.offsetHeight);
       this.container.dataset.mobilePaneFocus = 'true';
       this.stage.dataset.mobilePaneFocus = 'true';
       this.renderActivePanePrompt();
@@ -805,6 +809,7 @@ class XtermShareTerminal implements ShareTerminal {
     }
     delete this.container.dataset.mobilePaneFocus;
     delete this.stage.dataset.mobilePaneFocus;
+    this.stage.style.clipPath = 'none';
     const scale = Math.min(1, this.container.clientWidth / width, this.container.clientHeight / height);
     this.stage.style.transform = scale < 0.999 ? `scale(${scale})` : 'none';
     this.renderActivePanePrompt();
@@ -838,25 +843,19 @@ class XtermShareTerminal implements ShareTerminal {
     return panes.find((pane) => pane.active) ?? (panes.length === 1 ? panes[0] : undefined);
   }
 
+  // Mirrors the picker logic in the controller: a pane is "focused" only when
+  // more than one pane exists and a still-present pane is selected. Anything
+  // else (single pane, fresh split, focused pane closed) shows all panes.
   private ensureMobilePane(): void {
-    if (!this.isMobilePaneMode() || !this.sessionView?.panes.length) {
+    const panes = this.sessionView?.panes ?? [];
+    const hasSelection = this.isMobilePaneMode()
+      && panes.length > 1
+      && this.mobilePaneId !== undefined
+      && panes.some((pane) => pane.id === this.mobilePaneId);
+    this.mobileShowAllPanes = !hasSelection;
+    if (!hasSelection) {
       this.mobilePaneId = undefined;
-      this.mobileShowAllPanes = false;
-      return;
     }
-    if (this.sessionView.panes.length <= 1) {
-      this.mobileShowAllPanes = false;
-    } else if (this.mobilePaneId === undefined) {
-      this.mobileShowAllPanes = true;
-    }
-    if (this.mobileShowAllPanes) {
-      this.mobilePaneId = undefined;
-      return;
-    }
-    if (this.sessionView.panes.some((pane) => pane.id === this.mobilePaneId)) {
-      return;
-    }
-    this.mobilePaneId = this.activeSessionPane()?.id ?? this.sessionView.panes[0]?.id;
   }
 
   private focusedMobilePane(): SessionPaneView | undefined {
@@ -1319,6 +1318,19 @@ function windowStatusLabelContains(text: string, window: SessionWindowView, col:
 
 function integralDelta(value: number): number {
   return value < 0 ? Math.ceil(value) : Math.floor(value);
+}
+
+function paneClipPath(
+  pane: SessionPaneView,
+  metrics: { width: number; height: number },
+  stageWidth: number,
+  stageHeight: number,
+): string {
+  const top = Math.max(0, pane.y * metrics.height);
+  const left = Math.max(0, pane.x * metrics.width);
+  const right = Math.max(0, stageWidth - (pane.x + pane.cols) * metrics.width);
+  const bottom = Math.max(0, stageHeight - (pane.y + pane.rows) * metrics.height);
+  return `inset(${top}px ${right}px ${bottom}px ${left}px)`;
 }
 
 function snapshotGeometry(text: string): { cols: number; rows: number } {

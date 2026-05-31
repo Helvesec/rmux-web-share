@@ -668,7 +668,7 @@ test('mobile session view opens a pane picker instead of desktop controls', asyn
   await expect(page.locator('[data-share-mobile-pane-menu]')).toBeVisible();
   await expect(page.locator('[data-share-mobile-pane-title]')).toHaveText('Window 0:bash');
   await expect(page.locator('[data-share-mobile-pane-list] button')).toHaveCount(3);
-  await expect(page.locator('[data-share-mobile-pane-list] button').nth(0)).toContainText('Show all panes');
+  await expect(page.locator('[data-share-mobile-pane-list] button').nth(0)).toContainText('All panes');
   await expect(page.locator('[data-share-mobile-pane-list] button').nth(1)).toContainText('Pane %1');
   await expect(page.locator('[data-share-mobile-pane-list] button').nth(2)).toContainText('Pane %2');
 
@@ -677,6 +677,10 @@ test('mobile session view opens a pane picker instead of desktop controls', asyn
   await expect(page.locator('[data-share-mobile-pane-menu]')).toBeHidden();
   await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-mobile-pane-focus', 'true');
   await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('Pane %2');
+  // Focusing a single pane clips the stage to that pane so neighbours cannot leak in.
+  await expect
+    .poll(() => page.locator('.share-terminal-stage').evaluate((el) => (el as HTMLElement).style.clipPath))
+    .not.toBe('none');
   await expect.poll(() => selectedPaneFrames(page)).toContainEqual({
     type: 'select_pane',
     pane_id: 2,
@@ -686,6 +690,37 @@ test('mobile session view opens a pane picker instead of desktop controls', asyn
   await page.locator('[data-share-mobile-pane-list] button').nth(0).click();
   await expect(page.locator('[data-share-terminal]')).not.toHaveAttribute('data-mobile-pane-focus', 'true');
   await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('All panes');
+  // All-panes mode shows the full grid, so the clip is removed.
+  await expect
+    .poll(() => page.locator('.share-terminal-stage').evaluate((el) => (el as HTMLElement).style.clipPath))
+    .toBe('none');
+});
+
+test('mobile single-pane session hides the redundant pane picker row', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'mobile pane picker depends on coarse pointer layout');
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Honly pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+      windows: [
+        { index: 0, name: 'bash', active: true },
+      ],
+    };
+  });
+
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-mobile-actions]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-pane-select-row]')).toBeHidden();
 });
 
 test('mobile terminal context menu stays read-write only', async ({ page }, testInfo) => {
@@ -726,7 +761,7 @@ test('mobile terminal context menu stays read-write only', async ({ page }, test
   await expect(page.locator('[data-share-terminal-kill-pane]')).toBeHidden();
 });
 
-test('session operator drives the remote size from the browser viewport', async ({ page }, testInfo) => {
+test('session operator drives the remote size from the browser viewport', async ({ page }) => {
   await page.setViewportSize({ width: 1040, height: 640 });
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -748,11 +783,8 @@ test('session operator drives the remote size from the browser viewport', async 
   });
 
   await page.setViewportSize({ width: 720, height: 420 });
-  if (testInfo.project.name.includes('mobile')) {
-    await page.waitForTimeout(250);
-    expect((await sentFrames(page)).filter(isResizeFrame)).toHaveLength(1);
-    return;
-  }
+  // Both desktop and mobile operators drive the remote size from the browser
+  // viewport, so shrinking the window sends a smaller follow-up resize.
   await expect.poll(async () => (await sentFrames(page)).filter(isResizeFrame).length).toBeGreaterThan(1);
   const resizeFrames = (await sentFrames(page)).filter(isResizeFrame);
   const last = decodeResizeFrame(resizeFrames.at(-1)!);

@@ -110,17 +110,26 @@
 }
 
 .share-session-actions p {
+  max-width: 420px;
   font-size: 17px;
   line-height: 1.5;
 }
 
-.share-session-actions .share-dialog-header {
-  align-items: start;
+.share-session-actions-panel {
+  position: relative;
+  justify-items: center;
+  gap: 16px;
+  padding: 44px 34px 34px;
+  text-align: center;
 }
 
-.share-session-actions-panel {
-  gap: 18px;
-  padding: 34px 40px 38px;
+.share-session-actions .share-dialog-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  border: 1px solid rgb(51 77 68 / 0.24);
+  background: color-mix(in srgb, var(--share-dialog-button-bg) 80%, transparent);
+  color: var(--share-dialog-text);
 }
 
 .share-confirm[data-pin='true'] > .share-confirm-panel > p {
@@ -312,7 +321,7 @@
 }
 
 .share-confirm button:not(.share-provenance-trigger),
-.share-session-actions button:not(.share-provenance-trigger),
+.share-session-actions button:not(.share-provenance-trigger):not(.share-dialog-close),
 .share-provenance button {
   min-height: 52px;
   padding: 0 28px;
@@ -413,6 +422,8 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  margin-top: 4px;
 }
 
 .share-session-actions .share-confirm-actions button {

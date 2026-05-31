@@ -760,9 +760,6 @@ class ShareConnection {
     ) {
       return;
     }
-    if (isMobileShareViewport()) {
-      return;
-    }
     const size = this.terminal.fitSize();
     if (!size || (
       this.lastResizeRequest?.cols === size.cols
@@ -883,6 +880,7 @@ class ShareView {
   private readonly meta: HTMLElement;
   private pinSubmitHandler?: (pin?: string) => void;
   private confirmCancelHandler?: () => void;
+  private dialogKeyboardCleanup?: () => void;
   private readonly pinMaskTimers: Array<number | undefined> = [];
   private readonly pinBoxDigits: Array<string | undefined> = [];
   private pinSubmitted = false;
@@ -1087,6 +1085,7 @@ class ShareView {
       this.confirmDialog.close();
       this.confirmCancelHandler?.();
     });
+    this.confirmDialog.addEventListener('close', () => this.unbindDialogKeyboard());
     this.pinInput.addEventListener('input', () => this.syncPinEntry());
     this.pinInput.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') {
@@ -1141,6 +1140,7 @@ class ShareView {
     this.confirmDialog.showModal();
     if (requiresPin) {
       this.focusPinInput();
+      this.bindDialogKeyboard();
     }
   }
 
@@ -1248,20 +1248,24 @@ class ShareView {
       this.selectedWindowIndex = this.activeWindow()?.index;
     }
     this.panes = normalizePanes(view.panes);
-    if (this.panes.length <= 1) {
-      this.mobileShowAllPanes = false;
-    } else if (this.selectedPaneId === undefined || !this.panes.some((pane) => pane.id === this.selectedPaneId)) {
-      this.mobileShowAllPanes = true;
-    }
-    if (
-      !this.mobileShowAllPanes
-      && (this.selectedPaneId === undefined || !this.panes.some((pane) => pane.id === this.selectedPaneId))
-    ) {
-      this.selectedPaneId = this.activePane()?.id ?? this.panes[0]?.id;
-    }
+    this.ensureMobilePaneSelection();
     this.renderMobilePaneMenu();
     this.updateMobilePaneSelect();
     this.updateSessionControlsVisibility();
+  }
+
+  // A pane is "focused" only when more than one pane exists and a still-present
+  // pane is selected; every other case (single pane, fresh split, focused pane
+  // closed) falls back to showing all panes so the picker label matches the
+  // grid the operator actually sees.
+  private ensureMobilePaneSelection(): void {
+    const hasSelection = this.panes.length > 1
+      && this.selectedPaneId !== undefined
+      && this.panes.some((pane) => pane.id === this.selectedPaneId);
+    this.mobileShowAllPanes = !hasSelection;
+    if (!hasSelection) {
+      this.selectedPaneId = undefined;
+    }
   }
 
   setTerminalTheme(theme: TerminalThemeName, userTheme?: TerminalThemePalette): void {
@@ -1344,7 +1348,7 @@ class ShareView {
   selectMobilePane(paneId?: number): void {
     if (paneId === undefined) {
       this.mobileShowAllPanes = true;
-      this.selectedPaneId = this.activePane()?.id ?? this.panes[0]?.id;
+      this.selectedPaneId = undefined;
       this.renderMobilePaneMenu();
       this.updateMobilePaneSelect();
       return;
@@ -1570,7 +1574,7 @@ class ShareView {
     button.dataset.selected = String(this.mobileShowAllPanes);
     const label = document.createElement('span');
     label.className = 'share-mobile-pane-label';
-    label.textContent = 'Show all panes';
+    label.textContent = 'All panes';
     const meta = document.createElement('span');
     meta.className = 'share-mobile-pane-meta';
     meta.textContent = `${this.panes.length} panes`;
@@ -1615,7 +1619,7 @@ class ShareView {
       this.closeMobileControlMenu();
     }
     this.mobileActions.hidden = !visible;
-    this.mobilePaneSelectRow.hidden = !this.connected || this.panes.length === 0;
+    this.mobilePaneSelectRow.hidden = !this.connected || this.panes.length <= 1;
     this.updateMobilePaneSelect();
   }
 
@@ -1732,6 +1736,71 @@ class ShareView {
     window.requestAnimationFrame(focus);
     window.setTimeout(focus, 0);
     window.setTimeout(focus, 80);
+  }
+
+  // On mobile the on-screen keyboard slides up over the bottom of a centered
+  // dialog and hides the pairing-code boxes. Anchor the dialog to the top of
+  // the (keyboard-shrunk) visual viewport and reveal the boxes so the operator
+  // can always see what they type.
+  private bindDialogKeyboard(): void {
+    this.unbindDialogKeyboard();
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+    const margin = 8;
+    const apply = () => {
+      if (!this.confirmDialog.open || this.confirmDialog.dataset.pin !== 'true') {
+        return;
+      }
+      if (viewport.height >= window.innerHeight - 80) {
+        this.clearDialogKeyboardOffset();
+        return;
+      }
+      const style = this.confirmDialog.style;
+      style.position = 'fixed';
+      style.margin = '0';
+      style.left = '50%';
+      style.transform = 'translateX(-50%)';
+      style.top = `${viewport.offsetTop + margin}px`;
+      style.bottom = 'auto';
+      style.maxHeight = `${Math.max(200, viewport.height - margin * 2)}px`;
+    };
+    const reveal = () => {
+      apply();
+      if (this.confirmDialog.open && this.confirmDialog.dataset.pin === 'true') {
+        this.pinBoxes.scrollIntoView({ block: 'nearest' });
+      }
+    };
+    // The keyboard animates the viewport height over several frames and can
+    // settle after the timed reveals below. 'resize' (keyboard show/hide/rotate)
+    // re-reveals the boxes; 'scroll' (viewport pan) only repositions so it does
+    // not fight the user.
+    viewport.addEventListener('resize', reveal);
+    viewport.addEventListener('scroll', apply);
+    this.dialogKeyboardCleanup = () => {
+      viewport.removeEventListener('resize', reveal);
+      viewport.removeEventListener('scroll', apply);
+    };
+    window.setTimeout(reveal, 60);
+    window.setTimeout(reveal, 240);
+  }
+
+  private unbindDialogKeyboard(): void {
+    this.dialogKeyboardCleanup?.();
+    this.dialogKeyboardCleanup = undefined;
+    this.clearDialogKeyboardOffset();
+  }
+
+  private clearDialogKeyboardOffset(): void {
+    const style = this.confirmDialog.style;
+    style.removeProperty('position');
+    style.removeProperty('margin');
+    style.removeProperty('left');
+    style.removeProperty('transform');
+    style.removeProperty('top');
+    style.removeProperty('bottom');
+    style.removeProperty('max-height');
   }
 }
 

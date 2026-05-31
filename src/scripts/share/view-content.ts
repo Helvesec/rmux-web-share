@@ -105,14 +105,12 @@ export function shareViewTemplate(): string {
       </section>
       <dialog class="share-session-actions" data-share-session-actions>
         <form method="dialog" class="share-session-actions-panel">
-          <div class="share-dialog-header">
-            <h1>Disconnect</h1>
-            <button class="share-dialog-close" data-share-session-close type="button" aria-label="Close" title="Close">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-          </div>
+          <button class="share-dialog-close" data-share-session-close type="button" aria-label="Close" title="Close">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+          <h1>Disconnect</h1>
           <p>Disconnect closes only this browser. The rmux session keeps running.</p>
           <div class="share-confirm-actions">
             <button data-share-session-detach class="primary" type="button">Disconnect only</button>
