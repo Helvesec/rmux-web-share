@@ -345,6 +345,13 @@ class ShareHome {
 
   private showToast(message: string, kind: 'success' | 'error' = 'success'): void {
     const toast = query<HTMLElement>(this.root, '[data-home-toast]');
+    // A modal <dialog> renders in the top layer above any z-index, so a toast
+    // fired from a dialog (e.g. "PIN copied") would be hidden behind it. Move
+    // the toast into the open dialog — its descendants share the top layer.
+    const host = this.root.querySelector<HTMLElement>('dialog[open]') ?? this.root;
+    if (toast.parentElement !== host) {
+      host.append(toast);
+    }
     toast.textContent = message;
     toast.dataset.kind = kind;
     toast.hidden = false;
@@ -477,7 +484,7 @@ function homeTemplate(): string {
 function openShareWindow(params: ShareParams, options: { pairing?: boolean } = {}): void {
   const url = shareUrl(params);
   if (shouldOpenShareInCurrentTab()) {
-    window.location.href = url;
+    openShareInCurrentTab(url);
     return;
   }
   const opened = window.open(
@@ -486,7 +493,21 @@ function openShareWindow(params: ShareParams, options: { pairing?: boolean } = {
     shareWindowFeatures(options.pairing ? 'pairing' : 'terminal'),
   );
   if (!opened) {
-    window.location.href = url;
+    openShareInCurrentTab(url);
+  }
+}
+
+function openShareInCurrentTab(url: string): void {
+  const target = new URL(url, window.location.href);
+  // A share URL differs from the dashboard only by its hash fragment, and a
+  // hash-only change does not reload the page — so the share app would never
+  // boot. Assign, then force a reload when we stayed on the same document.
+  const samePage = target.origin === window.location.origin
+    && target.pathname === window.location.pathname
+    && target.search === window.location.search;
+  window.location.href = url;
+  if (samePage) {
+    window.location.reload();
   }
 }
 

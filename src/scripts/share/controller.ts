@@ -1715,6 +1715,8 @@ class ShareView {
         }, PIN_MASK_DELAY_MS);
       }
       box.dataset.filled = String(index < normalized.length);
+      // Mark the next empty box so a blinking caret can show where input is expected.
+      box.dataset.caret = String(index === normalized.length);
     });
     this.confirmConnect.disabled = requiresPinVisible(this.confirmDialog) && normalized.length !== 6;
     if (normalized.length === 6) {

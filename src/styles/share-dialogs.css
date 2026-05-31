@@ -235,6 +235,33 @@
   background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 64%, var(--share-dialog-field-bg));
 }
 
+/* A blinking block caret on the next empty box shows where input is expected. */
+.share-pin-boxes i[data-caret='true'] {
+  position: relative;
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 60%, var(--share-border));
+}
+
+.share-pin-boxes i[data-caret='true']::after {
+  content: '';
+  width: 0.34em;
+  height: 0.66em;
+  border-radius: 2px;
+  background: var(--share-dialog-button-primary-border);
+  animation: share-pin-caret 1.06s steps(2, start) infinite;
+}
+
+@keyframes share-pin-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-pin-boxes i[data-caret='true']::after {
+    animation: none;
+  }
+}
+
 .share-pin small {
   min-height: 16px;
   color: var(--share-error);

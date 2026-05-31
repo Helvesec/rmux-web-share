@@ -610,6 +610,21 @@ body.home-page {
   transform: translateY(-1px);
 }
 
+/* Press feedback so a tap visibly registers (especially on touch, where there
+   is no hover state). */
+.home-connect-button:active,
+.home-secondary-button:active,
+.home-danger-button:active,
+.home-row-connect:active,
+.home-row-forget:active,
+.home-menu-button:active,
+.home-action:active,
+.home-icon-action:active,
+.home-dialog-close:active {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
+
 .home-row-forget {
   gap: 9px;
   min-height: 46px;
