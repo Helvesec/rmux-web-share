@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
-    "build": "astro build && node scripts/prepare-share-offline.mjs && node scripts/write-build-provenance.mjs && npm run share:budget",
+    "build": "astro build && node scripts/write-build-provenance.mjs && npm run share:budget",
     "preview": "astro preview --host 127.0.0.1",
     "test:e2e": "playwright test",
     "share:budget": "node scripts/check-share-bundle-budget.mjs"

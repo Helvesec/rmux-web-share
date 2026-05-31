@@ -7,7 +7,7 @@ import '../../styles/share-home.css';
 import { startShareApp } from './controller';
 import { hasActiveShareParams, hasShareFragment } from './fragment';
 import { startShareHome } from './home';
-import { registerShareServiceWorker } from './pwa';
+import { purgeShareServiceWorker } from './pwa';
 import { trackShareWindowBounds } from './window-bounds';
 
 export function mountShareApp(target: Element | null = document.body): void {
@@ -29,7 +29,7 @@ export function mountShareApp(target: Element | null = document.body): void {
   } else {
     target.replaceChildren(root);
   }
-  registerShareServiceWorker();
+  purgeShareServiceWorker();
   if (shareMode) {
     trackShareWindowBounds();
     startShareApp(root);
