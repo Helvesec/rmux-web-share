@@ -723,16 +723,9 @@ test('mobile single-pane session hides the redundant pane picker row', async ({ 
   await expect(page.locator('[data-share-mobile-pane-select-row]')).toBeHidden();
 });
 
-test('mobile terminal context menu stays read-write only', async ({ page }, testInfo) => {
+test('mobile leaves the terminal long-press to native selection and puts clipboard in the actions menu', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes('mobile'), 'mobile menu depends on the mobile viewport');
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        readText: async () => 'pwd',
-        writeText: async () => undefined,
-      },
-    });
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'operator';
     window.__rmuxShareReadyControls = true;
@@ -754,11 +747,13 @@ test('mobile terminal context menu stays read-write only', async ({ page }, test
   expect(screen).not.toBeNull();
   await page.mouse.click(screen!.x + 32, screen!.y + 32, { button: 'right' });
 
-  await expect(page.locator('[data-share-terminal-menu]')).toBeVisible();
-  await expect(page.locator('[data-share-terminal-paste]')).toBeEnabled();
-  await expect(page.locator('[data-share-terminal-show-toolbar]')).toBeHidden();
-  await expect(page.locator('[data-share-terminal-controls]')).toBeHidden();
-  await expect(page.locator('[data-share-terminal-kill-pane]')).toBeHidden();
+  // The custom terminal menu no longer hijacks a long-press on mobile, so the
+  // browser can do native text selection; clipboard lives in the actions menu.
+  await expect(page.locator('[data-share-terminal-menu]')).toBeHidden();
+  await page.locator('[data-share-mobile-actions]').click();
+  await expect(page.locator('[data-share-mobile-control-menu]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-copy]')).toBeVisible();
+  await expect(page.locator('[data-share-mobile-paste]')).toBeVisible();
 });
 
 test('session operator drives the remote size from the browser viewport', async ({ page }) => {

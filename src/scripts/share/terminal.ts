@@ -135,6 +135,8 @@ class XtermShareTerminal implements ShareTerminal {
   private paneResizeDrag?: PaneResizeDrag;
   private touchScroll?: { paneId: number; lastY: number; remainder: number };
   private touchPending?: { paneId: number; startY: number; lastY: number; pointerId: number };
+  private lastStageTransform?: string;
+  private lastStageClip?: string;
 
   constructor(
     private readonly container: HTMLElement,
@@ -197,7 +199,7 @@ class XtermShareTerminal implements ShareTerminal {
         }
         this.fitSessionStage();
         this.scrollToTopLeft();
-        this.refreshTerminalFrame();
+        this.refreshTerminalFrame(false);
         done();
       });
       return;
@@ -351,6 +353,11 @@ class XtermShareTerminal implements ShareTerminal {
       if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
         return;
       }
+      // On mobile, panes are switched from the pane picker, so leave touch (and
+      // its default action) alone for native text selection.
+      if (this.isMobilePaneMode()) {
+        return;
+      }
       if (this.dividerFromMouseEvent(event)) {
         return;
       }
@@ -359,9 +366,7 @@ class XtermShareTerminal implements ShareTerminal {
         return;
       }
       event.preventDefault();
-      if (!this.isMobilePaneMode()) {
-        this.term.focus();
-      }
+      this.term.focus();
       callback(pane.id);
     };
     this.stage.addEventListener('mousedown', onMouseDown);
@@ -430,14 +435,17 @@ class XtermShareTerminal implements ShareTerminal {
 
   onTerminalMenu(callback: (x: number, y: number) => void): void {
     const onContextMenu = (event: MouseEvent) => {
+      // On mobile a long-press should trigger the native selection callout, not
+      // the custom terminal menu (clipboard actions live in the actions menu).
+      if (this.isMobilePaneMode()) {
+        return;
+      }
       if (this.windowFromStatusEvent(event) || this.dividerFromMouseEvent(event)) {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
-      if (!this.isMobilePaneMode()) {
-        this.term.focus();
-      }
+      this.term.focus();
       callback(event.clientX, event.clientY);
     };
     this.stage.addEventListener('contextmenu', onContextMenu);
@@ -666,7 +674,7 @@ class XtermShareTerminal implements ShareTerminal {
     this.writeDecodedNow(this.renderSessionFrame(text), false, () => {
       this.fitSessionStage();
       this.scrollToTopLeft();
-      this.refreshTerminalFrame();
+      this.refreshTerminalFrame(false);
       done();
     });
   }
@@ -788,8 +796,13 @@ class XtermShareTerminal implements ShareTerminal {
     return true;
   }
 
-  private refreshTerminalFrame(): void {
-    this.term.clearTextureAtlas();
+  // rebuildAtlas clears the glyph texture cache, which briefly blanks the whole
+  // canvas — needed after a theme/font change, but it must NOT run on routine
+  // content frames or the screen flashes on every keystroke.
+  private refreshTerminalFrame(rebuildAtlas = true): void {
+    if (rebuildAtlas) {
+      this.term.clearTextureAtlas();
+    }
     this.term.refresh(0, Math.max(0, this.term.rows - 1));
     window.requestAnimationFrame(() => {
       if (!this.disposed) {
@@ -824,8 +837,16 @@ class XtermShareTerminal implements ShareTerminal {
       const prompt = this.activePromptPoint(focusedPane);
       const maxTopRow = Math.max(focusedPane.y, focusedPane.y + focusedPane.rows - visibleRows);
       const topRow = Math.min(maxTopRow, Math.max(focusedPane.y, prompt.row - (visibleRows - 1)));
-      this.stage.style.transform = `scale(${scale}) translate(${-focusedPane.x * metrics.width}px, ${-topRow * metrics.height}px)`;
-      this.stage.style.clipPath = paneClipPath(focusedPane, metrics, this.stage.offsetWidth, this.stage.offsetHeight);
+      const transform = `scale(${scale}) translate(${-focusedPane.x * metrics.width}px, ${-topRow * metrics.height}px)`;
+      // Re-applying the transform/clip every output frame repaints the scaled GPU
+      // layer and flashes the whole screen on each keystroke, so only touch the
+      // styles when they actually change.
+      if (transform !== this.lastStageTransform || this.lastStageClip !== 'pane') {
+        this.stage.style.transform = transform;
+        this.stage.style.clipPath = paneClipPath(focusedPane, metrics, this.stage.offsetWidth, this.stage.offsetHeight);
+        this.lastStageTransform = transform;
+        this.lastStageClip = 'pane';
+      }
       this.container.dataset.mobilePaneFocus = 'true';
       this.stage.dataset.mobilePaneFocus = 'true';
       this.renderActivePanePrompt();
@@ -834,9 +855,14 @@ class XtermShareTerminal implements ShareTerminal {
     }
     delete this.container.dataset.mobilePaneFocus;
     delete this.stage.dataset.mobilePaneFocus;
-    this.stage.style.clipPath = 'none';
     const scale = Math.min(1, this.container.clientWidth / width, this.container.clientHeight / height);
-    this.stage.style.transform = scale < 0.999 ? `scale(${scale})` : 'none';
+    const transform = scale < 0.999 ? `scale(${scale})` : 'none';
+    if (transform !== this.lastStageTransform || this.lastStageClip !== 'none') {
+      this.stage.style.transform = transform;
+      this.stage.style.clipPath = 'none';
+      this.lastStageTransform = transform;
+      this.lastStageClip = 'none';
+    }
     this.renderActivePanePrompt();
     this.renderPaneScrollbars();
   }

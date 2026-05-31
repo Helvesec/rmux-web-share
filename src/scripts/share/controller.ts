@@ -86,6 +86,9 @@ const PIN_MASK_DELAY_MS = 330;
 const DISCONNECTED_RECONNECTING = 'Disconnected. Reconnecting...';
 const RECONNECT_BASE_DELAY_MS = 500;
 const RECONNECT_MAX_DELAY_MS = 10_000;
+// Ignore sub-threshold resize churn (e.g. the on-screen keyboard nudging the
+// viewport by a row) so it does not trigger a remote redraw on every keystroke.
+const RESIZE_HYSTERESIS_CELLS = 2;
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
@@ -782,9 +785,11 @@ class ShareConnection {
       return;
     }
     const size = this.focusFillSize(fit) ?? fit;
+    const last = this.lastResizeRequest;
     if (
-      this.lastResizeRequest?.cols === size.cols
-      && this.lastResizeRequest?.rows === size.rows
+      last
+      && Math.abs(last.cols - size.cols) <= RESIZE_HYSTERESIS_CELLS
+      && Math.abs(last.rows - size.rows) <= RESIZE_HYSTERESIS_CELLS
     ) {
       return;
     }
