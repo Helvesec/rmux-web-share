@@ -244,7 +244,8 @@
 .share-terminal[data-scope='session'] {
   overflow: hidden;
   scrollbar-gutter: auto;
-  touch-action: pan-y;
+  /* Leave touch-action at the default so iOS can do native long-press text
+     selection; the pane scrollbar and the deferred drag handler cover scrolling. */
 }
 
 .share-app[data-connected='false'] .share-terminal {

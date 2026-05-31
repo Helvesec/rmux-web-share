@@ -1163,6 +1163,27 @@ class ShareView {
       event.preventDefault();
       this.tryAutoSubmitPin();
     });
+    this.bindKeyboardInsets();
+  }
+
+  // While the on-screen keyboard is open, shrink the app to the visible area so
+  // the pane you are typing in (and its cursor) stays above the keyboard rather
+  // than being hidden behind it.
+  private bindKeyboardInsets(): void {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+    const apply = () => {
+      const keyboardOpen = window.innerHeight - viewport.height - viewport.offsetTop > 90;
+      if (this.connected && !this.confirmDialog.open && isMobileShareViewport() && keyboardOpen) {
+        this.app.style.height = `${Math.round(viewport.height)}px`;
+      } else {
+        this.app.style.removeProperty('height');
+      }
+    };
+    viewport.addEventListener('resize', apply);
+    viewport.addEventListener('scroll', apply);
   }
 
   static render(root: HTMLElement): ShareView {

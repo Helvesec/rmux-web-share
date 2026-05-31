@@ -197,9 +197,11 @@ class XtermShareTerminal implements ShareTerminal {
           this.writeSessionSnapshotFrame(this.lastSnapshotText, done);
           return;
         }
+        // The content is already on screen from the write path; syncViewport only
+        // re-fits the CSS transform, so do NOT force a full term.refresh() here —
+        // that re-rendered every row on each keystroke and flashed the screen.
         this.fitSessionStage();
         this.scrollToTopLeft();
-        this.refreshTerminalFrame(false);
         done();
       });
       return;
@@ -349,16 +351,21 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   onPaneSelect(callback: (paneId: number) => void): void {
-    const onMouseDown = (event: MouseEvent) => {
-      if (this.scope !== 'session' || this.role !== 'operator' || event.button !== 0) {
+    // Desktop: select on mouse-down (preventDefault keeps a click from starting a
+    // text selection). Touch: only select on a quick tap (no drag, short hold) so
+    // a long-press is still free for native text selection and a drag for scroll.
+    let tap: { x: number; y: number; time: number; pointerId: number; moved: boolean } | undefined;
+    const onPointerDown = (event: PointerEvent) => {
+      if (this.scope !== 'session' || this.role !== 'operator') {
         return;
       }
-      // On mobile, panes are switched from the pane picker, so leave touch (and
-      // its default action) alone for native text selection.
-      if (this.isMobilePaneMode()) {
+      if (event.pointerType === 'touch') {
+        tap = this.dividerFromMouseEvent(event)
+          ? undefined
+          : { x: event.clientX, y: event.clientY, time: nowMs(), pointerId: event.pointerId, moved: false };
         return;
       }
-      if (this.dividerFromMouseEvent(event)) {
+      if (event.button !== 0 || this.dividerFromMouseEvent(event)) {
         return;
       }
       const pane = this.paneFromMouseEvent(event);
@@ -369,9 +376,35 @@ class XtermShareTerminal implements ShareTerminal {
       this.term.focus();
       callback(pane.id);
     };
-    this.stage.addEventListener('mousedown', onMouseDown);
+    const onPointerMove = (event: PointerEvent) => {
+      if (tap && event.pointerId === tap.pointerId
+        && (Math.abs(event.clientX - tap.x) > 10 || Math.abs(event.clientY - tap.y) > 10)) {
+        tap.moved = true;
+      }
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      if (!tap || event.pointerId !== tap.pointerId) {
+        return;
+      }
+      const wasTap = !tap.moved && nowMs() - tap.time < 400;
+      tap = undefined;
+      if (!wasTap) {
+        return;
+      }
+      const pane = this.paneFromMouseEvent(event);
+      if (pane && !this.dividerFromMouseEvent(event)) {
+        callback(pane.id);
+      }
+    };
+    this.stage.addEventListener('pointerdown', onPointerDown);
+    this.stage.addEventListener('pointermove', onPointerMove);
+    this.stage.addEventListener('pointerup', onPointerUp);
     this.disposables.push({
-      dispose: () => this.stage.removeEventListener('mousedown', onMouseDown),
+      dispose: () => {
+        this.stage.removeEventListener('pointerdown', onPointerDown);
+        this.stage.removeEventListener('pointermove', onPointerMove);
+        this.stage.removeEventListener('pointerup', onPointerUp);
+      },
     });
   }
 
@@ -1369,6 +1402,10 @@ function windowStatusLabelContains(text: string, window: SessionWindowView, col:
 
 function integralDelta(value: number): number {
   return value < 0 ? Math.ceil(value) : Math.floor(value);
+}
+
+function nowMs(): number {
+  return performance.now();
 }
 
 function paneClipPath(
