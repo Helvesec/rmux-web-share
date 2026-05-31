@@ -123,11 +123,21 @@
   text-align: center;
 }
 
-.share-session-actions .share-dialog-close {
+/* The [data-...] attribute lifts this above the generic action-button rule
+   (specificity 0,2,1) so the close button keeps its 44x44 circle instead of
+   inheriting the 52px pill geometry — without inflating that generic rule and
+   accidentally outranking the .primary/.danger colours. */
+.share-session-actions .share-dialog-close[data-share-session-close] {
   position: absolute;
   top: 20px;
   right: 20px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
   border: 1px solid rgb(51 77 68 / 0.24);
+  border-radius: 999px;
   background: color-mix(in srgb, var(--share-dialog-button-bg) 80%, transparent);
   color: var(--share-dialog-text);
 }
@@ -321,7 +331,7 @@
 }
 
 .share-confirm button:not(.share-provenance-trigger),
-.share-session-actions button:not(.share-provenance-trigger):not(.share-dialog-close),
+.share-session-actions button:not(.share-provenance-trigger),
 .share-provenance button {
   min-height: 52px;
   padding: 0 28px;
@@ -442,16 +452,27 @@
 }
 
 .share-session-actions button.danger {
-  border-color: rgb(177 61 61 / 0.2);
-  background: linear-gradient(180deg, #e35d5d, #b82d2d);
+  border-color: rgb(177 61 61 / 0.36);
+  background: linear-gradient(180deg, #e25555, #b42626);
   color: #ffffff;
   font-weight: 760;
 }
 
 .share-session-actions button.danger:hover,
 .share-session-actions button.danger:focus-visible {
-  border-color: rgb(177 61 61 / 0.36);
-  background: linear-gradient(180deg, #ea6a6a, #a92626);
+  border-color: rgb(177 61 61 / 0.46);
+  background: linear-gradient(180deg, #ec6b6b, #a82323);
+}
+
+/* Tap feedback: a brief brighten + press so a touch clearly registers. */
+.share-session-actions button.primary:active,
+.share-session-actions button.danger:active {
+  transform: translateY(1px);
+  filter: brightness(1.06);
+}
+
+.share-session-actions button.danger:active {
+  background: linear-gradient(180deg, #ef7474, #b42626);
 }
 
 @media (max-width: 480px) {

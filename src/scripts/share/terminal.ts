@@ -29,7 +29,7 @@ const MIN_TERMINAL_ROWS = 2;
 const MAX_DIVIDER_DRAG_CELLS = 10_000;
 const DIVIDER_HIT_SLOP_CELLS = 0.75;
 const MOBILE_PANE_QUERY = '(max-width: 760px) and (pointer: coarse)';
-const MOBILE_PANE_MAX_SCALE = 1.08;
+const MOBILE_PANE_FILL_MAX_SCALE = 4;
 
 export interface TerminalChromePalette {
   accent: string;
@@ -543,7 +543,9 @@ class XtermShareTerminal implements ShareTerminal {
       if (event.pointerType !== 'touch' || !this.container.contains(event.target as Node | null)) {
         return;
       }
-      const pane = this.focusedMobilePane();
+      // In all-panes mode no pane is focused, so fall back to the pane under the
+      // finger; otherwise touch scrolling never engages on the shared grid.
+      const pane = this.focusedMobilePane() ?? this.paneFromMouseEvent(event);
       if (!pane || pane.alternate_on || pane.history_size <= 0) {
         return;
       }
@@ -789,17 +791,17 @@ class XtermShareTerminal implements ShareTerminal {
     const focusedPane = this.focusedMobilePane();
     const metrics = focusedPane ? this.sessionCellPixels() : undefined;
     if (focusedPane && metrics) {
+      // Fill the available width with the focused pane (a side-by-side split pane
+      // is narrower than the screen), then follow its prompt row vertically so the
+      // active line stays in view when the zoomed pane is taller than the viewport.
+      // The clip keeps neighbouring panes out of the leftover space.
       const paneWidth = Math.max(metrics.width, focusedPane.cols * metrics.width);
-      const paneHeight = Math.max(metrics.height, focusedPane.rows * metrics.height);
-      const scale = Math.min(
-        MOBILE_PANE_MAX_SCALE,
-        this.container.clientWidth / paneWidth,
-        this.container.clientHeight / paneHeight,
-      );
-      this.stage.style.transform = `scale(${scale}) translate(${-focusedPane.x * metrics.width}px, ${-focusedPane.y * metrics.height}px)`;
-      // Translating only pushes panes above/left of the focused one off-screen;
-      // a shorter or narrower pane still leaves room for its neighbours below or
-      // to the right. Clip the stage to the focused pane so it stands alone.
+      const scale = Math.min(MOBILE_PANE_FILL_MAX_SCALE, this.container.clientWidth / paneWidth);
+      const visibleRows = Math.max(1, Math.floor(this.container.clientHeight / (metrics.height * scale)));
+      const prompt = this.activePromptPoint(focusedPane);
+      const maxTopRow = Math.max(focusedPane.y, focusedPane.y + focusedPane.rows - visibleRows);
+      const topRow = Math.min(maxTopRow, Math.max(focusedPane.y, prompt.row - (visibleRows - 1)));
+      this.stage.style.transform = `scale(${scale}) translate(${-focusedPane.x * metrics.width}px, ${-topRow * metrics.height}px)`;
       this.stage.style.clipPath = paneClipPath(focusedPane, metrics, this.stage.offsetWidth, this.stage.offsetHeight);
       this.container.dataset.mobilePaneFocus = 'true';
       this.stage.dataset.mobilePaneFocus = 'true';

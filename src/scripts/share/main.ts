@@ -18,6 +18,10 @@ export function mountShareApp(target: Element | null = document.body): void {
   const root = document.createElement('div');
   root.className = 'share-root';
   const shareMode = hasShareFragment(window.location.hash) || hasActiveShareParams();
+  // The static <html>/<body> markup carries `share-page` (overflow:hidden for the
+  // fixed terminal). The dashboard is a normal scrolling document, so mark the
+  // root element too and let the home stylesheet restore vertical scrolling.
+  document.documentElement.classList.toggle('home-page', !shareMode);
   document.body.classList.toggle('home-page', !shareMode);
   document.body.classList.toggle('share-body', shareMode);
   if (target === document.body) {

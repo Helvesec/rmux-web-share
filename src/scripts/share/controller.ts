@@ -915,6 +915,13 @@ class ShareView {
     query<HTMLAnchorElement>(root, '[data-share-home-link]').addEventListener('click', () => {
       clearActiveShareParams();
     });
+    // On mobile the "SHARE" link is hidden, so the RMUX brand itself returns to
+    // the share dashboard (share.rmux.io) rather than the marketing site.
+    const brandHome = query<HTMLAnchorElement>(root, '.share-brand-home');
+    if (isMobileShareViewport()) {
+      brandHome.href = shareBasePath();
+      brandHome.addEventListener('click', () => clearActiveShareParams());
+    }
     this.brandLogoDark = query(root, '.share-brand-logo-dark');
     this.brandLogoLight = query(root, '.share-brand-logo-light');
     this.endpointHost = query(root, '[data-share-endpoint]');
