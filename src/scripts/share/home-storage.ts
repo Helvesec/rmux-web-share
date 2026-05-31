@@ -192,6 +192,12 @@ export function recentShareCrab(params: ShareParams): string {
   return crabFor(recentShareId(params));
 }
 
+/** The pairing code this browser already used for the share, if any. */
+export function recentSharePin(params: ShareParams): string | undefined {
+  const id = recentShareId(params);
+  return loadRecentShares().find((share) => share.id === id)?.pin;
+}
+
 function writeRecentShares(shares: RecentShare[], broadcast = true): void {
   const recent = shares.slice(0, MAX_RECENT_LINKS);
   try {

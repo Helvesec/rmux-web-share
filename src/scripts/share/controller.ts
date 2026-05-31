@@ -26,6 +26,7 @@ import {
   markRecentShareDisconnected,
   markRecentShareUnavailable,
   recentShareCrab,
+  recentSharePin,
   rememberRecentShare,
   rememberRecentWindowName,
   updateRecentShareViewers,
@@ -188,7 +189,10 @@ export function startShareApp(root: HTMLElement): void {
       connect,
     });
   };
-  connect();
+  // Auto-fill the pairing code when this browser already knows it for this share
+  // (the operator's own recent link), so a known PIN never re-prompts. If it is
+  // absent or the daemon rejects it, the requirePin callback shows the prompt.
+  connect(recentSharePin(params));
 }
 
 class ShareConnection {
