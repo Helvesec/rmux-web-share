@@ -1970,6 +1970,10 @@ function readTerminalTheme(): TerminalThemeName {
   }
 }
 
+// Address-bar hygiene only: strips the token from the visible URL and history so
+// it is not shoulder-surfed, screenshotted, or copied from the bar. NOT a security
+// boundary — the token is already known to this origin's JS and is kept in
+// sessionStorage for reconnects.
 function removeShareSecretFromAddressBar(): void {
   if (!window.location.hash) {
     return;

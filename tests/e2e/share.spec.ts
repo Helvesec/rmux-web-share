@@ -834,7 +834,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
       repository: 'https://github.com/Helvesec/rmux-web-share',
       commit_sha1: '0123456789abcdef0123456789abcdef01234567',
       commit_url: 'https://github.com/Helvesec/rmux-web-share/commit/0123456789abcdef0123456789abcdef01234567',
-      security_statement: 'share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.',
+      security_statement: 'For zero-install viewers, your browser trusts whatever origin serves this page; a compromised host could ship modified code that reads the token, pairing code, and keystrokes before they are encrypted. Terminal frames are end-to-end encrypted between your browser and the rmux daemon, so the tunnel and this host never see plaintext frames, and the token rides in the URL fragment that the browser does not send to the host. The source is public and builds are reproducible, so the provenance below is independently auditable evidence to compare against the signed release — not browser-verified proof.',
       github_actions: {
         run_id: '123456',
         run_url: 'https://github.com/Helvesec/rmux-web-share/actions/runs/123456',
@@ -855,7 +855,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
   await page.locator('[data-share-terminal-provenance]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
-  await expect(page.locator('[data-share-provenance-statement]')).toContainText('builds are verifiable');
+  await expect(page.locator('[data-share-provenance-statement]')).toContainText('independently auditable');
   await expect(page.locator('[data-share-provenance-commit]')).toHaveText('0123456789ab');
   await expect(page.locator('[data-share-provenance-run]')).toHaveText('run 123456');
   await expect(page.locator('[data-share-provenance-cloudflare]')).toHaveText('rmux-web-share');

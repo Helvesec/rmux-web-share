@@ -8,8 +8,9 @@ const REPOSITORY = 'Helvesec/rmux-web-share';
 const PUBLIC_ORIGIN = 'https://share.rmux.io';
 const PROJECT_NAME = 'rmux-web-share';
 const SECURITY_STATEMENT = [
-  'share.rmux.io serves only the static frontend and does not relay terminal data.',
-  'Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted.',
+  'For zero-install viewers, your browser trusts whatever origin serves this page; a compromised host could ship modified code that reads the token, pairing code, and keystrokes before they are encrypted.',
+  'Terminal frames are end-to-end encrypted between your browser and the rmux daemon, so the tunnel and this host never see plaintext frames, and the token rides in the URL fragment that the browser does not send to the host.',
+  'The source is public and builds are reproducible, so the provenance below is independently auditable evidence to compare against the signed release — not browser-verified proof.',
 ].join(' ');
 
 const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
