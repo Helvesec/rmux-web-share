@@ -56,9 +56,13 @@ const metadata = {
   },
   security_statement: SECURITY_STATEMENT,
   verification: {
-    metadata: `${PUBLIC_ORIGIN}/.well-known/rmux-web-share.json`,
-    checksums: `${PUBLIC_ORIGIN}/checksums.txt`,
+    // Independently auditable, NOT browser-verified: these hashes are served by
+    // the same origin as the page, so a fully compromised host could rewrite both
+    // the assets and this file. The trustworthy comparison is to rebuild from the
+    // public source at the commit below and diff the result against checksums.txt.
+    note: 'Independently auditable, not browser-verified. Rebuild from source at the commit below and compare against checksums.txt; a compromised host could rewrite both the assets and these hashes.',
     source_checkout: `git clone https://github.com/${REPOSITORY}.git && cd rmux-web-share && git checkout ${commit}`,
+    reproduce: 'npm ci && npm run build',
   },
   assets,
 };
@@ -101,10 +105,12 @@ function publicFiles(root) {
 
 function assetProof(file) {
   const content = readFileSync(file);
+  const digest = createHash('sha256').update(content).digest();
   return {
     path: publicPath(file),
     bytes: content.byteLength,
-    sha256: createHash('sha256').update(content).digest('hex'),
+    sha256: digest.toString('hex'),
+    integrity: `sha256-${digest.toString('base64')}`,
   };
 }
 

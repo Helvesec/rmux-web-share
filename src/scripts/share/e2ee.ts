@@ -8,18 +8,31 @@ import { WEB_SHARE_CLIENT_CAPABILITIES, WEB_SHARE_PROTOCOL_VERSION } from './wir
 //     --out-name rmux_web_crypto_wasm
 // wasm-pack optimisation is disabled in the crate metadata for deterministic builds.
 import initWasm, { ClientSession } from './wasm/rmux_web_crypto_wasm.js';
+import wasmUrl from './wasm/rmux_web_crypto_wasm_bg.wasm?url';
 
 const TOKEN_ID_DOMAIN = 'rmux-token-id-v1';
 const SPECTATOR_TOKEN_INFO = 'rmux read token v1';
 
 const encoder = new TextEncoder();
 
+// Replaced at build time by scripts/inject-integrity.mjs with the WASM's
+// `sha256-<base64>`. The regex guard (not a literal compare) keeps the bundler
+// from constant-folding the placeholder away, so both the pinned branch and the
+// token survive into dist for the post-build replacement. In dev (placeholder
+// intact) we skip pinning and let the loader resolve the URL itself. This pins
+// the wasm only relative to an honest bundle; a malicious origin can ship JS that
+// omits the pin — it is not protection against a compromised host.
+const WASM_INTEGRITY = '__RMUX_WASM_INTEGRITY__';
+
 let wasmReady: Promise<void> | undefined;
 
 /** Lazily initialises the WASM crypto module exactly once. */
 function ensureWasm(): Promise<void> {
   if (!wasmReady) {
-    wasmReady = initWasm().then(() => undefined);
+    const init = /^sha256-/.test(WASM_INTEGRITY)
+      ? initWasm({ module_or_path: new Request(wasmUrl, { integrity: WASM_INTEGRITY }) })
+      : initWasm();
+    wasmReady = init.then(() => undefined);
   }
   return wasmReady;
 }
