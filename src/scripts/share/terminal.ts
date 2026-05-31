@@ -29,7 +29,10 @@ const MIN_TERMINAL_ROWS = 2;
 const MAX_DIVIDER_DRAG_CELLS = 10_000;
 const DIVIDER_HIT_SLOP_CELLS = 0.75;
 const MOBILE_PANE_QUERY = '(max-width: 760px) and (pointer: coarse)';
-const MOBILE_PANE_FILL_MAX_SCALE = 4;
+// Focused panes zoom to fill the width, but capped so a very narrow split pane
+// stays a comfortable reading size instead of becoming oversized. Panes wider
+// than ~1/1.8 of the screen still fill it; narrower ones top out here.
+const MOBILE_PANE_FILL_MAX_SCALE = 1.8;
 
 export interface TerminalChromePalette {
   accent: string;
