@@ -654,7 +654,8 @@ test('mobile session view opens a pane picker instead of desktop controls', asyn
   await expect(page.locator('[data-share-session-controls]')).toBeHidden();
   await expect(page.locator('[data-share-mobile-actions]')).toBeVisible();
   await expect(page.locator('[data-share-mobile-pane-select-row]')).toBeVisible();
-  await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('Pane %1');
+  await expect(page.locator('[data-share-mobile-pane-current]')).toHaveText('All panes');
+  await expect(page.locator('[data-share-terminal]')).not.toHaveAttribute('data-mobile-pane-focus', 'true');
 
   await page.locator('[data-share-mobile-actions]').click();
   await expect(page.locator('[data-share-mobile-control-menu]')).toBeVisible();

@@ -1,9 +1,9 @@
 // A browser-side mock of the rmux web-share daemon speaking the real v4
 // protocol: ephemeral X25519 (WebCrypto) + ChaCha20-Poly1305 via the same
-// `rmux-web-crypto` WASM the client uses (the `ServerSession` binding). Because
-// it is injected with `page.addInitScript` (a serialized function with no module
-// scope), it loads the WASM at runtime from the stable public path
-// `/share-crypto/...` (served verbatim in dev and in production).
+// `rmux-web-crypto` WASM test build (the `ServerSession` binding). Because it
+// is injected with `page.addInitScript` (a serialized function with no module
+// scope), it loads the test-only WASM at runtime from Vite's `/src/...` dev path.
+// The production bundle only includes the client binding.
 export function installMockShareWebSocket(): void {
   const NativeWebSocket = window.WebSocket;
   const nativeReplaceState = window.history.replaceState;
@@ -30,7 +30,7 @@ export function installMockShareWebSocket(): void {
   let wasmPromise: Promise<WasmModule> | undefined;
   function serverCrypto(): Promise<WasmModule> {
     if (!wasmPromise) {
-      wasmPromise = import(/* @vite-ignore */ '/share-crypto/rmux_web_crypto_wasm.js').then(
+      wasmPromise = import(/* @vite-ignore */ '/src/scripts/share/wasm-test/rmux_web_crypto_wasm.js').then(
         async (module) => {
           const wasm = module as unknown as WasmModule;
           await wasm.default();

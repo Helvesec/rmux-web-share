@@ -81,6 +81,7 @@
 }
 
 .share-confirm h1,
+.share-session-actions h1,
 .share-session-actions h2,
 .share-provenance h2 {
   margin: 0;
@@ -111,6 +112,15 @@
 .share-session-actions p {
   font-size: 17px;
   line-height: 1.5;
+}
+
+.share-session-actions .share-dialog-header {
+  align-items: start;
+}
+
+.share-session-actions-panel {
+  gap: 18px;
+  padding: 34px 40px 38px;
 }
 
 .share-confirm[data-pin='true'] > .share-confirm-panel > p {

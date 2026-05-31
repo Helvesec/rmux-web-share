@@ -501,8 +501,8 @@
 @media (max-width: 760px) {
   .share-app {
     grid-template-rows: auto auto minmax(0, 1fr);
-    gap: 8px;
-    padding: 8px;
+    gap: 0;
+    padding: 0;
   }
 
   .share-app[data-chrome='hidden'] {
@@ -520,7 +520,7 @@
 
   .share-terminal-shell {
     grid-row: 3;
-    padding: 6px;
+    padding: 12px 10px 12px;
   }
 
   .share-error {

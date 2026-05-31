@@ -125,7 +125,7 @@ class XtermShareTerminal implements ShareTerminal {
   private sessionView?: SessionView;
   private readonly mobilePaneMedia: MediaQueryList;
   private mobilePaneId?: number;
-  private mobileShowAllPanes = false;
+  private mobileShowAllPanes = true;
   private paneScrollHandler?: (paneId: number, delta: number) => void;
   private paneResizeHandler?: (paneId: number, direction: PaneResizeDirection, cells: number) => void;
   private paneResizeDrag?: PaneResizeDrag;
@@ -846,6 +846,8 @@ class XtermShareTerminal implements ShareTerminal {
     }
     if (this.sessionView.panes.length <= 1) {
       this.mobileShowAllPanes = false;
+    } else if (this.mobilePaneId === undefined) {
+      this.mobileShowAllPanes = true;
     }
     if (this.mobileShowAllPanes) {
       this.mobilePaneId = undefined;

@@ -188,10 +188,9 @@
   margin-top: 36px;
   padding: 25px 42px 23px;
   background:
-    radial-gradient(ellipse 1880px 650px at 52% 54%, rgb(37 99 235 / 0.054), transparent 80%),
-    radial-gradient(ellipse 1180px 420px at 70% 52%, rgb(37 99 235 / 0.058), transparent 80%),
-    radial-gradient(ellipse 760px 300px at 30% 45%, rgb(147 197 253 / 0.046), transparent 84%),
-    radial-gradient(ellipse 520px 210px at 92% 28%, rgb(147 197 253 / 0.036), transparent 84%),
+    radial-gradient(ellipse 1120px 420px at 66% 52%, rgb(37 99 235 / 0.105), transparent 74%),
+    radial-gradient(ellipse 780px 310px at 48% 47%, rgb(147 197 253 / 0.072), transparent 76%),
+    radial-gradient(ellipse 620px 240px at 86% 28%, rgb(96 165 250 / 0.068), transparent 78%),
     linear-gradient(104deg, var(--home-surface) 0%, #fbfdff 100%);
 }
 
@@ -202,10 +201,9 @@
 
 .share-root[data-theme='dark'] .home-connect-card {
   background:
-    radial-gradient(ellipse 1880px 650px at 52% 54%, rgb(91 140 255 / 0.084), transparent 80%),
-    radial-gradient(ellipse 1180px 420px at 70% 52%, rgb(91 140 255 / 0.085), transparent 80%),
-    radial-gradient(ellipse 760px 300px at 30% 45%, rgb(147 197 253 / 0.064), transparent 84%),
-    radial-gradient(ellipse 520px 210px at 92% 28%, rgb(147 197 253 / 0.052), transparent 84%),
+    radial-gradient(ellipse 1120px 420px at 66% 52%, rgb(96 165 250 / 0.14), transparent 74%),
+    radial-gradient(ellipse 780px 310px at 48% 47%, rgb(59 130 246 / 0.095), transparent 76%),
+    radial-gradient(ellipse 620px 240px at 86% 28%, rgb(125 211 252 / 0.074), transparent 78%),
     linear-gradient(104deg, var(--home-surface) 0%, #0f1724 100%);
 }
 

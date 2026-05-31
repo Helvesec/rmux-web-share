@@ -96,6 +96,10 @@ interface TerminalMenuState {
 }
 
 interface MobileControlHandlers {
+  splitHorizontal: () => void;
+  splitVertical: () => void;
+  newWindow: () => void;
+  killPane: () => void;
   stopProcess: () => void;
   clearScreen: () => void;
   reverseSearch: () => void;
@@ -450,6 +454,10 @@ class ShareConnection {
     });
     this.view.bindMobilePaneSelect((paneId) => this.chooseMobilePane(paneId));
     this.view.bindMobileControls({
+      splitHorizontal: () => this.splitPane('horizontal'),
+      splitVertical: () => this.splitPane('vertical'),
+      newWindow: () => this.newWindow(),
+      killPane: () => this.killPane(),
       stopProcess: () => this.sendOperatorData('\u0003'),
       clearScreen: () => this.sendOperatorData('\u000c'),
       reverseSearch: () => this.sendOperatorData('\u0012'),
@@ -825,6 +833,10 @@ class ShareView {
   private readonly mobilePaneSelect: HTMLButtonElement;
   private readonly mobilePaneCurrent: HTMLElement;
   private readonly mobileControlMenu: HTMLElement;
+  private readonly mobileSplitHorizontal: HTMLButtonElement;
+  private readonly mobileSplitVertical: HTMLButtonElement;
+  private readonly mobileNewWindow: HTMLButtonElement;
+  private readonly mobileKillPane: HTMLButtonElement;
   private readonly mobileStopProcess: HTMLButtonElement;
   private readonly mobileClearScreen: HTMLButtonElement;
   private readonly mobileReverseSearch: HTMLButtonElement;
@@ -883,7 +895,7 @@ class ShareView {
   private panes: SessionPaneView[] = [];
   private selectedWindowIndex?: number;
   private selectedPaneId?: number;
-  private mobileShowAllPanes = false;
+  private mobileShowAllPanes = true;
   private detachHandler?: () => void;
   private logoutHandler?: () => void;
   private copyTerminalHandler?: () => void | Promise<void>;
@@ -924,6 +936,10 @@ class ShareView {
     this.mobilePaneSelect = query(root, '[data-share-mobile-pane-select]');
     this.mobilePaneCurrent = query(root, '[data-share-mobile-pane-current]');
     this.mobileControlMenu = query(root, '[data-share-mobile-control-menu]');
+    this.mobileSplitHorizontal = query(root, '[data-share-mobile-split-horizontal]');
+    this.mobileSplitVertical = query(root, '[data-share-mobile-split-vertical]');
+    this.mobileNewWindow = query(root, '[data-share-mobile-new-window]');
+    this.mobileKillPane = query(root, '[data-share-mobile-kill-pane]');
     this.mobileStopProcess = query(root, '[data-share-mobile-stop-process]');
     this.mobileClearScreen = query(root, '[data-share-mobile-clear-screen]');
     this.mobileReverseSearch = query(root, '[data-share-mobile-reverse-search]');
@@ -981,6 +997,10 @@ class ShareView {
       const rect = this.mobilePaneSelect.getBoundingClientRect();
       this.openMobilePaneMenu(rect.left, rect.bottom + 8);
     });
+    this.mobileSplitHorizontal.addEventListener('click', () => this.runMobileControl('splitHorizontal'));
+    this.mobileSplitVertical.addEventListener('click', () => this.runMobileControl('splitVertical'));
+    this.mobileNewWindow.addEventListener('click', () => this.runMobileControl('newWindow'));
+    this.mobileKillPane.addEventListener('click', () => this.runMobileControl('killPane'));
     this.mobileStopProcess.addEventListener('click', () => this.runMobileControl('stopProcess'));
     this.mobileClearScreen.addEventListener('click', () => this.runMobileControl('clearScreen'));
     this.mobileReverseSearch.addEventListener('click', () => this.runMobileControl('reverseSearch'));
@@ -1185,7 +1205,7 @@ class ShareView {
     this.setCanKillPane(false);
     this.panes = [];
     this.selectedPaneId = undefined;
-    this.mobileShowAllPanes = false;
+    this.mobileShowAllPanes = true;
     this.mobileActions.hidden = true;
     this.mobilePaneSelectRow.hidden = true;
     this.closeMobilePaneMenu();
@@ -1230,6 +1250,8 @@ class ShareView {
     this.panes = normalizePanes(view.panes);
     if (this.panes.length <= 1) {
       this.mobileShowAllPanes = false;
+    } else if (this.selectedPaneId === undefined || !this.panes.some((pane) => pane.id === this.selectedPaneId)) {
+      this.mobileShowAllPanes = true;
     }
     if (
       !this.mobileShowAllPanes
@@ -1488,6 +1510,7 @@ class ShareView {
       this.closeMobileControlMenu();
       return;
     }
+    this.mobileKillPane.hidden = !this.canKillPane;
     this.mobileControlMenu.hidden = false;
     const rect = this.mobileControlMenu.getBoundingClientRect();
     const left = Math.min(Math.max(8, x), window.innerWidth - rect.width - 8);
@@ -1576,8 +1599,7 @@ class ShareView {
     button.append(label, meta);
     button.addEventListener('click', () => {
       this.closeMobilePaneMenu();
-      this.selectedPaneId = pane.id;
-      this.renderMobilePaneMenu();
+      this.selectMobilePane(pane.id);
       this.mobilePaneSelectHandler?.(pane.id);
     });
     return button;

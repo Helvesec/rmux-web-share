@@ -130,6 +130,38 @@ export function shareViewTemplate(): string {
         <div class="share-mobile-pane-list" data-share-mobile-pane-list></div>
       </div>
       <div class="share-mobile-control-menu" data-share-mobile-control-menu role="menu" hidden>
+        <button data-share-mobile-split-horizontal type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <rect x="4" y="5" width="16" height="14" rx="1.5" />
+            <path d="M12 5v14" />
+          </svg>
+          <span class="share-menu-label">Split right</span>
+          <span class="share-menu-shortcut">Ctrl+B %</span>
+        </button>
+        <button data-share-mobile-split-vertical type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <rect x="4" y="5" width="16" height="14" rx="1.5" />
+            <path d="M4 12h16" />
+          </svg>
+          <span class="share-menu-label">Split down</span>
+          <span class="share-menu-shortcut">Ctrl+B "</span>
+        </button>
+        <button data-share-mobile-new-window type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="5" width="14" height="14" rx="1.5" />
+            <path d="M12 8v8M8 12h8" />
+          </svg>
+          <span class="share-menu-label">New window</span>
+          <span class="share-menu-shortcut">Ctrl+B C</span>
+        </button>
+        <button data-share-mobile-kill-pane type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+          <span class="share-menu-label">Close active pane</span>
+          <span class="share-menu-shortcut">Ctrl+B X</span>
+        </button>
+        <div class="share-menu-separator" role="separator"></div>
         <button data-share-mobile-stop-process type="button" role="menuitem">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
             <path d="M6 6l12 12M18 6 6 18" />

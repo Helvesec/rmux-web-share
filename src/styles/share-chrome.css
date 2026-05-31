@@ -470,9 +470,10 @@
 @media (max-width: 760px) {
   .share-topbar {
     display: flex;
-    min-height: 76px;
-    padding: 10px 14px;
-    gap: 10px;
+    width: 100%;
+    min-height: 82px;
+    padding: 14px 16px;
+    gap: 12px;
   }
 
   .share-topbar-actions {
@@ -556,7 +557,7 @@
     display: block;
     grid-row: 2;
     min-width: 0;
-    padding: 0 6px;
+    padding: 12px 10px 0;
   }
 
   .share-mobile-pane-select-row[hidden] {
@@ -568,8 +569,8 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     width: 100%;
-    min-height: 48px;
-    padding: 0 14px;
+    min-height: 54px;
+    padding: 0 16px;
     border: 1px solid color-mix(in srgb, var(--share-text) 16%, transparent);
     border-radius: 10px;
     background: color-mix(in srgb, var(--share-text) 7%, transparent);
@@ -595,7 +596,7 @@
     overflow: hidden;
     margin-top: 2px;
     color: var(--share-text);
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 760;
     text-overflow: ellipsis;
     white-space: nowrap;
