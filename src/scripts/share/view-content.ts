@@ -182,6 +182,23 @@ export function shareViewTemplate(): string {
           <span class="share-menu-label">Reverse search</span>
           <span class="share-menu-shortcut">Ctrl+R</span>
         </button>
+        <div class="share-menu-separator" role="separator"></div>
+        <button data-share-mobile-copy type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <rect x="8" y="8" width="10" height="10" rx="1.5" />
+            <path d="M6 16H5.5A1.5 1.5 0 0 1 4 14.5v-9A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5V6" />
+          </svg>
+          <span class="share-menu-label">Copy selection</span>
+          <span class="share-menu-shortcut" aria-hidden="true"></span>
+        </button>
+        <button data-share-mobile-paste type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M9 5h6l1 2h2v13H6V7h2l1-2Z" />
+            <path d="M9 11h6M9 15h5" />
+          </svg>
+          <span class="share-menu-label">Paste</span>
+          <span class="share-menu-shortcut" aria-hidden="true"></span>
+        </button>
       </div>
       <div class="share-terminal-menu" data-share-terminal-menu role="menu" hidden>
         <button data-share-terminal-copy type="button" role="menuitem">

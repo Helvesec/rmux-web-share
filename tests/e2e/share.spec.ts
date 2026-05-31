@@ -1248,7 +1248,8 @@ test('pin-protected minimal links stay readable in a light user theme', async ({
   await expect(page.locator('.share-confirm')).toHaveCSS('background-color', 'rgb(255, 250, 240)');
   await expect(page.locator('.share-confirm h1')).toHaveCSS('color', 'rgb(16, 33, 26)');
   await expect(page.locator('[data-share-pin]')).toBeVisible();
-  await expect(page.locator('[data-share-pin]')).toHaveCSS('color', 'rgb(16, 33, 26)');
+  // The input text is intentionally transparent; the digit boxes carry the colour.
+  await expect(page.locator('[data-share-pin-boxes] i').first()).toHaveCSS('color', 'rgb(16, 33, 26)');
 
   await page.locator('[data-share-pin]').fill('123456');
 

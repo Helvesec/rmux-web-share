@@ -29,6 +29,7 @@ const MIN_TERMINAL_ROWS = 2;
 const MAX_DIVIDER_DRAG_CELLS = 10_000;
 const DIVIDER_HIT_SLOP_CELLS = 0.75;
 const MOBILE_PANE_QUERY = '(max-width: 760px) and (pointer: coarse)';
+const TOUCH_SCROLL_THRESHOLD_PX = 8;
 // Focused panes zoom to fill the width, but capped so a very narrow split pane
 // stays a comfortable reading size instead of becoming oversized. Panes wider
 // than ~1/1.8 of the screen still fill it; narrower ones top out here.
@@ -133,6 +134,7 @@ class XtermShareTerminal implements ShareTerminal {
   private paneResizeHandler?: (paneId: number, direction: PaneResizeDirection, cells: number) => void;
   private paneResizeDrag?: PaneResizeDrag;
   private touchScroll?: { paneId: number; lastY: number; remainder: number };
+  private touchPending?: { paneId: number; startY: number; lastY: number; pointerId: number };
 
   constructor(
     private readonly container: HTMLElement,
@@ -552,11 +554,28 @@ class XtermShareTerminal implements ShareTerminal {
       if (!pane || pane.alternate_on || pane.history_size <= 0) {
         return;
       }
-      this.touchScroll = { paneId: pane.id, lastY: event.clientY, remainder: 0 };
-      this.container.setPointerCapture(event.pointerId);
+      // Defer the scroll capture until the finger actually drags, so a stationary
+      // long-press is left to the browser for native text selection / paste.
+      this.touchPending = {
+        paneId: pane.id,
+        startY: event.clientY,
+        lastY: event.clientY,
+        pointerId: event.pointerId,
+      };
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (!this.touchScroll || !this.paneScrollHandler) {
+      if (!this.touchScroll) {
+        if (!this.touchPending || event.pointerId !== this.touchPending.pointerId) {
+          return;
+        }
+        if (Math.abs(event.clientY - this.touchPending.startY) < TOUCH_SCROLL_THRESHOLD_PX) {
+          return;
+        }
+        this.touchScroll = { paneId: this.touchPending.paneId, lastY: this.touchPending.startY, remainder: 0 };
+        this.touchPending = undefined;
+        this.container.setPointerCapture(event.pointerId);
+      }
+      if (!this.paneScrollHandler) {
         return;
       }
       event.preventDefault();
@@ -573,6 +592,7 @@ class XtermShareTerminal implements ShareTerminal {
     };
     const onPointerUp = (event: PointerEvent) => {
       this.touchScroll = undefined;
+      this.touchPending = undefined;
       if (this.container.hasPointerCapture(event.pointerId)) {
         this.container.releasePointerCapture(event.pointerId);
       }

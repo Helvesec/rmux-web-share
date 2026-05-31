@@ -103,6 +103,8 @@ interface MobileControlHandlers {
   stopProcess: () => void;
   clearScreen: () => void;
   reverseSearch: () => void;
+  copy: () => void;
+  paste: () => void;
 }
 
 type ShareExitState = 'disconnected' | 'unavailable';
@@ -210,6 +212,8 @@ class ShareConnection {
   private shareEnded = false;
   private everReady = false;
   private sessionPaneCount = 0;
+  private mobileFocusPaneId?: number;
+  private lastSessionView?: SessionView;
 
   constructor(
     private readonly params: ShareParams,
@@ -461,6 +465,8 @@ class ShareConnection {
       stopProcess: () => this.sendOperatorData('\u0003'),
       clearScreen: () => this.sendOperatorData('\u000c'),
       reverseSearch: () => this.sendOperatorData('\u0012'),
+      copy: () => void this.copyTerminalSelection(),
+      paste: () => void this.pasteIntoTerminal(),
     });
     this.view.bindSessionControls({
       splitHorizontal: () => this.splitPane('horizontal'),
@@ -492,6 +498,10 @@ class ShareConnection {
     } else if (opcode === SESSION_VIEW) {
       const view = parseSessionView(payload);
       this.sessionPaneCount = view.panes.length;
+      this.lastSessionView = view;
+      if (this.mobileFocusPaneId !== undefined && !view.panes.some((pane) => pane.id === this.mobileFocusPaneId)) {
+        this.mobileFocusPaneId = undefined;
+      }
       this.terminal.setSessionView(view);
       this.view.setSessionView(view);
       this.view.setCanKillPane(this.canKillActivePane());
@@ -561,12 +571,17 @@ class ShareConnection {
       return;
     }
     this.view.selectMobilePane(paneId);
+    this.mobileFocusPaneId = paneId;
     if (paneId === undefined) {
       this.terminal?.showAllPanes();
-      return;
+    } else {
+      this.terminal?.focusPane(paneId);
+      this.selectPane(paneId);
     }
-    this.terminal?.focusPane(paneId);
-    this.selectPane(paneId);
+    // Re-drive the remote size so the focused pane fills the screen (or restore
+    // the whole session on "All panes").
+    this.lastResizeRequest = undefined;
+    this.syncOperatorBrowserSize();
   }
 
   private resizePane(paneId: number, direction: PaneResizeDirection, cells: number): void {
@@ -642,7 +657,9 @@ class ShareConnection {
   }
 
   private async copyTerminalSelection(): Promise<void> {
-    const selected = this.terminal?.selection() ?? '';
+    // Prefer a native long-press selection (mobile) over xterm's mouse selection.
+    const native = window.getSelection()?.toString() ?? '';
+    const selected = native || this.terminal?.selection() || '';
     if (selected) {
       try {
         await copyText(selected);
@@ -760,15 +777,42 @@ class ShareConnection {
     ) {
       return;
     }
-    const size = this.terminal.fitSize();
-    if (!size || (
+    const fit = this.terminal.fitSize();
+    if (!fit) {
+      return;
+    }
+    const size = this.focusFillSize(fit) ?? fit;
+    if (
       this.lastResizeRequest?.cols === size.cols
       && this.lastResizeRequest?.rows === size.rows
-    )) {
+    ) {
       return;
     }
     this.lastResizeRequest = size;
     sendResizeRequest(this.transport, size.cols, size.rows);
+  }
+
+  // When a single pane is focused on mobile, the browser can only show the rows
+  // it actually receives, so it cannot fill the empty space locally. Instead,
+  // ask rmux to grow the session so the focused pane occupies the whole viewport
+  // at its natural character size; "All panes" restores the normal fit.
+  private focusFillSize(fit: { cols: number; rows: number }): { cols: number; rows: number } | undefined {
+    if (this.mobileFocusPaneId === undefined || !isMobileShareViewport() || !this.lastSessionView) {
+      return undefined;
+    }
+    const pane = this.lastSessionView.panes.find((candidate) => candidate.id === this.mobileFocusPaneId);
+    if (!pane) {
+      return undefined;
+    }
+    const fractionW = pane.cols / Math.max(1, this.lastSessionView.size.cols);
+    const fractionH = pane.rows / Math.max(1, this.lastSessionView.size.rows);
+    if (!(fractionW > 0) || !(fractionH > 0)) {
+      return undefined;
+    }
+    return {
+      cols: clampFocusFill(Math.round(fit.cols / fractionW), fit.cols),
+      rows: clampFocusFill(Math.round(fit.rows / fractionH), fit.rows),
+    };
   }
 
   private isCurrentSocket(socket: WebSocket, connectionId: number): boolean {
@@ -837,6 +881,8 @@ class ShareView {
   private readonly mobileStopProcess: HTMLButtonElement;
   private readonly mobileClearScreen: HTMLButtonElement;
   private readonly mobileReverseSearch: HTMLButtonElement;
+  private readonly mobileCopy: HTMLButtonElement;
+  private readonly mobilePaste: HTMLButtonElement;
   private readonly viewers: HTMLElement;
   private readonly viewersCount: HTMLElement;
   private readonly sessionMenuButton: HTMLButtonElement;
@@ -948,6 +994,8 @@ class ShareView {
     this.mobileStopProcess = query(root, '[data-share-mobile-stop-process]');
     this.mobileClearScreen = query(root, '[data-share-mobile-clear-screen]');
     this.mobileReverseSearch = query(root, '[data-share-mobile-reverse-search]');
+    this.mobileCopy = query(root, '[data-share-mobile-copy]');
+    this.mobilePaste = query(root, '[data-share-mobile-paste]');
     this.viewers = query(root, '[data-share-viewers]');
     this.viewersCount = query(root, '[data-share-viewers-count]');
     this.sessionMenuButton = query(root, '[data-share-session-menu]');
@@ -1009,6 +1057,8 @@ class ShareView {
     this.mobileStopProcess.addEventListener('click', () => this.runMobileControl('stopProcess'));
     this.mobileClearScreen.addEventListener('click', () => this.runMobileControl('clearScreen'));
     this.mobileReverseSearch.addEventListener('click', () => this.runMobileControl('reverseSearch'));
+    this.mobileCopy.addEventListener('click', () => this.runMobileControl('copy'));
+    this.mobilePaste.addEventListener('click', () => this.runMobileControl('paste'));
     this.windowNew.addEventListener('click', () => {
       this.closeWindowMenu();
       this.newWindowHandler?.();
@@ -1889,6 +1939,12 @@ function finiteCount(value: number | undefined): number | undefined {
 
 function isMobileShareViewport(): boolean {
   return window.matchMedia('(max-width: 760px) and (pointer: coarse)').matches;
+}
+
+// Never shrink below the viewport fit, and cap growth so a tiny pane cannot blow
+// the session up without bound (a half-split needs 2x, a quarter needs 4x).
+function clampFocusFill(value: number, base: number): number {
+  return Math.max(base, Math.min(value, base * 4));
 }
 
 function primaryShortcutLabel(): string {

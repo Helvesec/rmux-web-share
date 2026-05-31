@@ -195,7 +195,13 @@
   z-index: 1;
   width: 100%;
   height: 100%;
-  opacity: 0.01;
+  padding: 0;
+  border: 0;
+  /* A real (but fully transparent) field rather than opacity:0.01, so iOS still
+     offers the long-press "Paste" menu over the boxes. */
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
 }
 
 .share-pin input:focus-visible {
