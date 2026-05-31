@@ -626,6 +626,9 @@ class ShareConnection {
     this.shareEnded = true;
     this.clearReconnectTimer();
     markRecentShareUnavailable(this.params);
+    // The session is over (revoked / expired / gone): drop the refresh-resilience
+    // copy of the token so a reload does not re-attempt a dead credential.
+    clearActiveShareParams();
     this.view.setCanKillPane(false);
     this.view.setStatus({ connected: false, detail, tone });
     this.transport = undefined;
