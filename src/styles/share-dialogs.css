@@ -115,6 +115,18 @@
   line-height: 1.5;
 }
 
+.share-provenance p a {
+  color: var(--share-dialog-help);
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.share-provenance p a:hover,
+.share-provenance p a:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
 .share-session-actions-panel {
   position: relative;
   justify-items: center;

@@ -276,16 +276,22 @@ test('home provenance opens from learn more and home logo follows the theme', as
 
   await page.goto('/');
   await expect(page.locator('.home-section')).toHaveText('SHARE');
+  await expect(page.locator('[data-home-docs]')).toHaveText('Docs');
+  await expect(page.locator('[data-home-docs]')).toHaveAttribute('href', 'https://rmux.io/docs/web-share/');
+  await expect(page.locator('button[data-home-theme]')).toHaveAttribute('data-target-theme', 'dark');
   await expect(page.locator('.home-brand-logo-light')).toBeVisible();
   await expect(page.locator('.home-brand-logo-dark')).toBeHidden();
 
   await page.locator('[data-home-provenance-open]').click();
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
   await expect(page.locator('.share-provenance-panel')).toHaveCSS('background-color', 'rgb(247, 251, 246)');
+  await expect(page.locator('[data-share-provenance-docs]')).toHaveText('See the docs');
+  await expect(page.locator('[data-share-provenance-docs]')).toHaveAttribute('href', 'https://rmux.io/docs/web-share/');
   await expect(page.locator('[data-share-provenance-commit]')).toHaveText('fedcba987654');
   await page.locator('[data-share-provenance] .share-dialog-close').click();
 
   await page.locator('button[data-home-theme]').click();
+  await expect(page.locator('button[data-home-theme]')).toHaveAttribute('data-target-theme', 'light');
   await expect(page.locator('.home-brand-logo-dark')).toBeVisible();
   await expect(page.locator('.home-brand-logo-light')).toBeHidden();
 });
@@ -1332,6 +1338,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
   await expect(page.locator('[data-share-provenance-statement]')).toContainText('independent security audits');
+  await expect(page.locator('[data-share-provenance-docs]')).toHaveAttribute('href', 'https://rmux.io/docs/web-share/');
   await expect(page.locator('[data-share-provenance-commit]')).toHaveText('0123456789ab');
   await expect(page.locator('[data-share-provenance-run]')).toHaveText('run 123456');
   await expect(page.locator('[data-share-provenance-cloudflare]')).toHaveText('rmux-web-share');

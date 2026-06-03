@@ -1,4 +1,5 @@
 import { shareAssetUrl, shareBaseUrl } from './fragment';
+import { WEB_SHARE_DOCS_URL } from './links';
 
 const PROVENANCE_PATH = '.well-known/rmux-web-share.json';
 
@@ -14,8 +15,9 @@ export function provenanceDialogTemplate(): string {
             </svg>
           </button>
         </div>
-        <p data-share-provenance-statement>
-          This client connects directly to your local rmux daemon over loopback or a secure tunnel. All terminal traffic is encrypted end-to-end in the browser; credentials are kept in the URL fragment and never sent to the hosting server. Builds are public and reproducible for independent security audits.
+        <p>
+          <span data-share-provenance-statement>This client connects directly to your local rmux daemon over loopback or a secure tunnel. All terminal traffic is encrypted end-to-end in the browser; credentials are kept in the URL fragment and never sent to the hosting server. Builds are public and reproducible for independent security audits.</span>
+          <a data-share-provenance-docs href="${WEB_SHARE_DOCS_URL}" target="_blank" rel="noopener noreferrer">See the docs</a>.
         </p>
         <dl class="share-provenance-list">
           <div>
@@ -48,14 +50,14 @@ export class ProvenanceDialog {
   private readonly commit: HTMLAnchorElement;
   private readonly run: HTMLAnchorElement;
   private readonly cloudflare: HTMLAnchorElement;
-  private readonly statement: HTMLElement;
+  private readonly statementText: HTMLElement;
 
   constructor(root: ParentNode) {
     this.dialog = query(root, '[data-share-provenance]');
     this.commit = query(root, '[data-share-provenance-commit]');
     this.run = query(root, '[data-share-provenance-run]');
     this.cloudflare = query(root, '[data-share-provenance-cloudflare]');
-    this.statement = query(root, '[data-share-provenance-statement]');
+    this.statementText = query(root, '[data-share-provenance-statement]');
   }
 
   bind(trigger: HTMLElement): void {
@@ -76,7 +78,7 @@ export class ProvenanceDialog {
       }
       this.set(await response.json() as BuildProvenance);
     } catch {
-      this.statement.textContent = 'Build provenance is unavailable for this deployment.';
+      this.statementText.textContent = 'Build provenance is unavailable for this deployment.';
       setProofLink(this.commit, 'Repository', 'https://github.com/Helvesec/rmux-web-share');
       setProofLink(this.run, 'Actions', 'https://github.com/Helvesec/rmux-web-share/actions');
       setProofLink(this.cloudflare, 'Cloudflare proof in Actions', 'https://github.com/Helvesec/rmux-web-share/actions');
@@ -84,7 +86,7 @@ export class ProvenanceDialog {
   }
 
   private set(provenance: BuildProvenance): void {
-    this.statement.textContent = provenance.security_statement;
+    this.statementText.textContent = provenance.security_statement;
     setProofLink(
       this.commit,
       shortSha(provenance.commit_sha1),

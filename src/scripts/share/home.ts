@@ -9,6 +9,7 @@ import {
   subscribeRecentShares,
   type RecentShare,
 } from './home-storage';
+import { WEB_SHARE_DOCS_URL } from './links';
 import type { ServerMessage, ShareParams } from './types';
 import { ProvenanceDialog, provenanceDialogTemplate } from './provenance';
 import { shareWindowFeatures, shouldOpenShareInCurrentTab } from './window-bounds';
@@ -254,6 +255,16 @@ class ShareHome {
   private setTheme(theme: HomeTheme): void {
     this.root.dataset.theme = theme;
     document.documentElement.dataset.homeTheme = theme;
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    const themeButton = this.root.querySelector<HTMLButtonElement>('[data-home-theme]');
+    if (!themeButton) {
+      return;
+    }
+    const label = nextTheme === 'dark' ? 'Switch to dark theme' : 'Switch to light theme';
+    themeButton.dataset.targetTheme = nextTheme;
+    themeButton.setAttribute('aria-label', label);
+    themeButton.title = label;
+    themeButton.innerHTML = nextTheme === 'dark' ? moonIcon() : sunIcon();
   }
 
   private async copySpectatorUrl(share: RecentShare, button: HTMLButtonElement): Promise<void> {
@@ -401,7 +412,8 @@ function homeTemplate(): string {
         <span class="home-divider" aria-hidden="true"></span>
         <a class="home-section" href="https://share.rmux.io/">SHARE</a>
         <nav class="home-actions" aria-label="Page actions">
-          <button class="home-icon-action" data-home-theme type="button" aria-label="Toggle theme">${sunIcon()}</button>
+          <a class="home-action" data-home-docs href="${WEB_SHARE_DOCS_URL}">Docs</a>
+          <button class="home-icon-action" data-home-theme type="button" aria-label="Switch to dark theme" title="Switch to dark theme">${moonIcon()}</button>
           <a class="home-icon-action" data-home-github aria-label="GitHub" rel="noreferrer">${githubIcon()}</a>
         </nav>
       </header>
@@ -687,6 +699,10 @@ function linkIcon(): string {
 
 function lockIcon(): string {
   return svg('<rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />');
+}
+
+function moonIcon(): string {
+  return svg('<path d="M20 14.6A7.5 7.5 0 0 1 9.4 4 8.2 8.2 0 1 0 20 14.6Z" />');
 }
 
 function shieldIcon(): string {
