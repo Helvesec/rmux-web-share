@@ -150,7 +150,7 @@ test('public-to-local links use browser-specific local access copy', async ({ pa
   });
   expect(policy.edgeBlockedCopy).toEqual({
     button: 'Retry connection',
-    detail: 'Edge blocked access to 127.0.0.1:9777. Click Allow in the browser prompt, then retry.',
+    detail: 'Edge blocked access to 127.0.0.1:9777. If no browser prompt appears, reset Local Network Access for share.rmux.io in Edge site settings, then retry.',
     title: 'Allow local access in Edge',
     local: true,
     action: 'connect',

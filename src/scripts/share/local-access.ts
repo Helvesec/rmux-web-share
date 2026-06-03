@@ -39,9 +39,13 @@ export function localAccessBlockedCopy(
   environment = currentLocalAccessEnvironment(),
 ): ConfirmationCopy {
   const browserName = localAccessBrowserName(environment);
+  const site = environment.hostname || 'this site';
   return {
     button: 'Retry connection',
-    detail: `${browserName} blocked access to ${new URL(endpoint).host}. Click Allow in the browser prompt, then retry.`,
+    detail: [
+      `${browserName} blocked access to ${new URL(endpoint).host}.`,
+      `If no browser prompt appears, reset Local Network Access for ${site} in ${browserName} site settings, then retry.`,
+    ].join(' '),
     title: `Allow local access in ${browserName}`,
     local: true,
     action: 'connect',
