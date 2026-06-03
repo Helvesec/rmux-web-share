@@ -1,0 +1,641 @@
+.share-topbar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-row: 1;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
+  align-items: center;
+  min-width: 0;
+  min-height: 64px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 0;
+  background: rgb(248 248 246 / 0.96);
+  color: #111816;
+  box-shadow: 0 1px 0 rgb(24 33 30 / 0.14);
+  backdrop-filter: blur(16px) saturate(135%);
+}
+
+.share-app[data-terminal-mode='dark'] .share-topbar,
+.share-app:not([data-terminal-mode='light']) .share-topbar {
+  background: #28303dc9;
+  color: #f2f6f3;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+.share-app[data-chrome='hidden'] .share-topbar,
+.share-app[data-navbar='off'] .share-topbar {
+  display: none;
+}
+
+.share-brand,
+.share-brand-home,
+.share-topbar-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.share-brand {
+  justify-self: start;
+  gap: 14px;
+}
+
+.share-brand-home {
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  color: currentColor;
+  text-decoration: none;
+}
+
+.share-brand-mark {
+  display: inline-block;
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+
+.share-brand-logo {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+  image-rendering: pixelated;
+}
+
+.share-app[data-terminal-mode='light'] .share-brand-logo-dark,
+.share-app:not([data-terminal-mode='light']) .share-brand-logo-light {
+  display: none;
+}
+
+.share-brand-title {
+  color: currentColor;
+  font-size: 22px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.share-brand-divider {
+  width: 1px;
+  height: 30px;
+  background: currentColor;
+  opacity: 0.18;
+}
+
+.share-brand-context {
+  color: #2563eb;
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.share-app[data-terminal-mode='dark'] .share-brand-context,
+.share-app:not([data-terminal-mode='light']) .share-brand-context {
+  color: #5b8cff;
+}
+
+.share-brand-context:hover,
+.share-brand-context:focus-visible {
+  color: #1d4ed8;
+  outline: none;
+}
+
+.share-app[data-terminal-mode='dark'] .share-brand-context:hover,
+.share-app:not([data-terminal-mode='light']) .share-brand-context:hover,
+.share-app[data-terminal-mode='dark'] .share-brand-context:focus-visible,
+.share-app:not([data-terminal-mode='light']) .share-brand-context:focus-visible {
+  color: #82a5ff;
+}
+
+.share-topbar-actions {
+  display: inline-flex;
+  grid-column: 2;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  min-width: 0;
+}
+
+.share-topbar-actions[hidden] {
+  display: none;
+}
+
+.share-app[data-connected='false'] .share-topbar-actions {
+  display: none;
+}
+
+.share-topbar-meta {
+  grid-column: 3;
+  justify-self: end;
+  justify-content: flex-end;
+  gap: 18px;
+  color: currentColor;
+  white-space: nowrap;
+}
+
+.share-mobile-pane-select-row {
+  display: none;
+}
+
+.share-icon-button,
+.share-exit-button,
+.share-mobile-actions-button,
+.share-role-badge,
+.share-theme-control,
+.share-viewer-count {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: currentColor;
+}
+
+.share-icon-button,
+.share-exit-button,
+.share-mobile-actions-button {
+  appearance: none;
+  cursor: pointer;
+}
+
+.share-mobile-actions-button {
+  display: none;
+}
+
+.share-icon-button[hidden],
+.share-terminal-menu button[hidden] {
+  display: none;
+}
+
+.share-app[data-connected='false'] .share-exit-button {
+  display: none;
+}
+
+.share-icon-button svg,
+.share-exit-button svg,
+.share-mobile-actions-button svg,
+.share-role-icon,
+.share-viewer-icon,
+.share-theme-icon {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.share-icon-button:hover,
+.share-icon-button:focus-visible,
+.share-exit-button:hover,
+.share-exit-button:focus-visible,
+.share-mobile-actions-button:hover,
+.share-mobile-actions-button:focus-visible,
+.share-theme-control:focus-within,
+.share-theme-control:hover {
+  color: color-mix(in srgb, currentColor 72%, var(--share-ok));
+  outline: none;
+}
+
+.share-app[data-role='operator'] .share-role-badge,
+.share-session-label,
+.share-operator-state {
+  display: none;
+}
+
+.share-viewer-count {
+  display: inline-flex;
+  width: auto;
+  min-width: 56px;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.share-viewer-count[hidden] {
+  display: none;
+}
+
+.share-theme-control {
+  position: relative;
+}
+
+.share-theme-control::after {
+  display: none;
+}
+
+.share-theme-icon {
+  pointer-events: none;
+}
+
+.share-theme-icon-moon {
+  display: none;
+}
+
+.share-app[data-terminal-mode='light'] .share-theme-icon-sun {
+  display: none;
+}
+
+.share-app[data-terminal-mode='light'] .share-theme-icon-moon {
+  display: block;
+}
+
+.share-theme-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.share-theme-select option {
+  color: #111816;
+}
+
+.share-window-menu,
+.share-terminal-menu,
+.share-mobile-pane-menu,
+.share-mobile-control-menu {
+  position: fixed;
+  z-index: 20;
+  display: grid;
+  min-width: 170px;
+  overflow: hidden;
+  border: 1px solid rgb(38 71 57 / 0.24);
+  border-radius: 7px;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 0.22);
+}
+
+.share-terminal-menu {
+  min-width: 270px;
+}
+
+.share-window-menu[hidden],
+.share-terminal-menu[hidden],
+.share-mobile-pane-menu[hidden],
+.share-mobile-control-menu[hidden] {
+  display: none;
+}
+
+.share-window-menu button,
+.share-terminal-menu button,
+.share-mobile-pane-menu button,
+.share-mobile-control-menu button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid rgb(38 71 57 / 0.1);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.share-terminal-menu button {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  border-bottom: 0;
+}
+
+.share-mobile-pane-menu,
+.share-mobile-control-menu {
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+}
+
+.share-mobile-control-menu button {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  height: 42px;
+}
+
+.share-mobile-pane-menu-title {
+  padding: 11px 14px 9px;
+  border-bottom: 1px solid color-mix(in srgb, var(--share-dialog-text) 12%, transparent);
+  color: color-mix(in srgb, var(--share-dialog-text) 66%, transparent);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Inline window headers (for other windows) separate from the section above. */
+.share-mobile-pane-window-header {
+  border-top: 1px solid color-mix(in srgb, var(--share-dialog-text) 12%, transparent);
+}
+
+.share-mobile-pane-list {
+  display: grid;
+}
+
+.share-mobile-pane-menu button {
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 42px;
+}
+
+.share-mobile-pane-menu button[data-selected='true'] {
+  background: color-mix(in srgb, var(--share-ok) 14%, transparent);
+}
+
+.share-mobile-pane-label {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-mobile-pane-meta {
+  color: color-mix(in srgb, var(--share-dialog-text) 48%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.share-window-menu button {
+  display: block;
+}
+
+.share-window-menu button:last-child,
+.share-terminal-menu button:last-child {
+  border-bottom: 0;
+}
+
+.share-window-menu button:hover,
+.share-window-menu button:focus-visible,
+.share-terminal-menu button:hover,
+.share-terminal-menu button:focus-visible,
+.share-mobile-pane-menu button:hover,
+.share-mobile-pane-menu button:focus-visible,
+.share-mobile-control-menu button:hover,
+.share-mobile-control-menu button:focus-visible {
+  background: color-mix(in srgb, var(--share-ok) 16%, transparent);
+  outline: none;
+}
+
+.share-terminal-menu button:disabled {
+  color: color-mix(in srgb, var(--share-dialog-text) 44%, transparent);
+  cursor: not-allowed;
+}
+
+.share-terminal-menu button:disabled:hover {
+  background: transparent;
+}
+
+.share-terminal-menu svg,
+.share-mobile-control-menu svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.share-terminal-menu-section {
+  display: grid;
+}
+
+.share-terminal-menu-section[hidden] {
+  display: none;
+}
+
+.share-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-menu-shortcut {
+  justify-self: end;
+  padding-left: 16px;
+  color: color-mix(in srgb, var(--share-dialog-text) 48%, transparent);
+  font: 11px / 1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  white-space: nowrap;
+}
+
+.share-terminal-menu button:disabled .share-menu-shortcut {
+  color: color-mix(in srgb, var(--share-dialog-text) 28%, transparent);
+}
+
+.share-menu-separator {
+  height: 1px;
+  margin: 5px 12px;
+  background: color-mix(in srgb, var(--share-dialog-text) 12%, transparent);
+}
+
+/* In the mobile actions menu the items already carry their own bottom border, so
+   the inset group separator stacked a second, mismatched line. Drop the border of
+   the item above it and make the separator a single clean full-width divider. */
+.share-mobile-control-menu .share-menu-separator {
+  margin: 0;
+  background: rgb(38 71 57 / 0.12);
+}
+
+.share-mobile-control-menu button:has(+ .share-menu-separator) {
+  border-bottom: 0;
+}
+
+.share-menu-separator[hidden] {
+  display: none;
+}
+
+.share-window-menu button.danger:hover,
+.share-window-menu button.danger:focus-visible {
+  background: #ffe4e4;
+  color: #842121;
+}
+
+@media (max-width: 920px) {
+  .share-topbar {
+    grid-template-columns: minmax(190px, 1fr) auto minmax(170px, 1fr);
+    padding: 0 18px;
+  }
+
+  .share-topbar-actions {
+    gap: 18px;
+  }
+
+  .share-brand-context {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .share-topbar {
+    display: flex;
+    width: 100%;
+    min-height: 82px;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .share-topbar-actions {
+    display: none !important;
+  }
+
+  .share-topbar-meta {
+    position: static;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 7px;
+    margin-left: auto;
+  }
+
+  .share-brand {
+    flex: 1 1 auto;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .share-brand-home {
+    gap: 9px;
+  }
+
+  .share-brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .share-brand-title {
+    font-size: 24px;
+  }
+
+  .share-mobile-actions-button {
+    display: inline-grid;
+    flex: 0 0 auto;
+  }
+
+  .share-mobile-actions-button[hidden] {
+    display: none;
+  }
+
+  .share-icon-button,
+  .share-exit-button,
+  .share-mobile-actions-button,
+  .share-role-badge,
+  .share-theme-control,
+  .share-viewer-count {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+
+  .share-viewer-count {
+    display: inline-flex;
+    min-width: 46px;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .share-icon-button svg,
+  .share-exit-button svg,
+  .share-mobile-actions-button svg,
+  .share-role-icon,
+  .share-viewer-icon,
+  .share-theme-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .share-brand-context {
+    display: none;
+  }
+
+  .share-brand-divider {
+    display: none;
+  }
+
+  .share-mobile-pane-select-row {
+    display: block;
+    grid-row: 2;
+    min-width: 0;
+    padding: 12px 10px 0;
+  }
+
+  .share-mobile-pane-select-row[hidden] {
+    display: none;
+  }
+
+  .share-mobile-pane-select {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    width: 100%;
+    min-height: 54px;
+    padding: 0 16px;
+    border: 1px solid color-mix(in srgb, var(--share-text) 16%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--share-text) 7%, transparent);
+    color: var(--share-text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
+  .share-mobile-pane-select span {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--share-text) 62%, transparent);
+    font-size: 12px;
+    font-weight: 760;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .share-mobile-pane-select strong {
+    display: block;
+    overflow: hidden;
+    margin-top: 2px;
+    color: var(--share-text);
+    font-size: 19px;
+    font-weight: 760;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .share-mobile-pane-select svg {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+/* Short landscape phone: shrink the top bar so the terminal gets more rows. The
+   controls stay visible (just compact) — see the matching reclaim rule in share.css. */
+@media (orientation: landscape) and (max-height: 480px) and (pointer: coarse) {
+  .share-topbar {
+    min-height: 40px;
+    padding: 0 14px;
+  }
+}

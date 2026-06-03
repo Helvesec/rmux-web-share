@@ -1,0 +1,17 @@
+{
+  "name": "rmux-web-crypto",
+  "type": "module",
+  "description": "rmux web-share E2EE core: ChaCha20-Poly1305 records, HKDF session derivation, X25519 native glue, and WASM bindings.",
+  "version": "0.4.0",
+  "license": "MIT OR Apache-2.0",
+  "files": [
+    "rmux_web_crypto_wasm_bg.wasm",
+    "rmux_web_crypto_wasm.js",
+    "rmux_web_crypto_wasm.d.ts"
+  ],
+  "main": "rmux_web_crypto_wasm.js",
+  "types": "rmux_web_crypto_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

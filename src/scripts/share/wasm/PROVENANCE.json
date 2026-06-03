@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact": "rmux-web-crypto WASM (production, X25519 + ML-KEM-768 hybrid, ClientSession only)",
+  "source": {
+    "repository": "https://github.com/Helvesec/rmux",
+    "crate": "crates/rmux-web-crypto",
+    "feature_set": ["wasm"],
+    "source_commit": "e6a6dd32ca9468b3156b4d9bc024c41f8df95984",
+    "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration."
+  },
+  "toolchain": {
+    "rustc": "1.94.1",
+    "rustc_note": "Exact rustc that reproduces these bytes. verify-wasm-from-source.mjs exports it as RUSTUP_TOOLCHAIN so a floating 'stable' runner cannot silently change codegen.",
+    "wasm_bindgen": "0.2.118",
+    "wasm_bindgen_note": "These bytes are produced by wasm-pack 0.13.1's PINNED, DOWNLOADED prebuilt wasm-bindgen 0.2.118 — not a source-built cli. A `cargo install wasm-bindgen-cli --version 0.2.118` built from source emits the same .js glue but a DIFFERENT .wasm, so reproduction must use wasm-pack's prebuilt path (no conflicting wasm-bindgen on PATH). Building the cli reproducibly from source is tracked future hardening.",
+    "wasm_opt": false,
+    "target": "web"
+  },
+  "build_command": "wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm",
+  "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build (fail-closed): committed bytes must match these hashes recorded in the same diff — tamper-evident against accidental drift, but NOT a binding to source on its own. (2) scripts/verify-wasm-from-source.mjs is the source->binary gate: it rebuilds this blob from the rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm, pinned toolchain) and asserts byte-for-byte equality. It enforces FAIL-CLOSED in CI once source_commit is reachable on the public Helvesec/rmux remote; while that commit is not yet public the rebuild is DEFERRED (only gate 1 runs) — so 'tied to public auditable source' holds only after publication. Reproduce locally now: RMUX_SOURCE_DIR=/path/to/rmux node scripts/verify-wasm-from-source.mjs.",
+  "artifacts": {
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:888f44b04481c6687a912ef1eb57e165e28e7eca53204fe4cf4e81bf40e0e9b7",
+    "rmux_web_crypto_wasm.js": "sha256:76b2a107ecb174b5bfff263176de7bdcf77c68e1fe3eceaf04a84625ab45bc8e"
+  }
+}

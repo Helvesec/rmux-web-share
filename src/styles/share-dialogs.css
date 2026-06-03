@@ -1,0 +1,527 @@
+.share-confirm,
+.share-session-actions,
+.share-provenance {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid rgb(69 136 87 / 0.24);
+  border-radius: 24px;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
+  color-scheme: light;
+  box-shadow: 0 28px 100px rgb(0 0 0 / 0.36);
+}
+
+.share-confirm[data-pin='true'] {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px solid rgb(69 136 87 / 0.28);
+  border-radius: 24px;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
+  color-scheme: light;
+}
+
+.share-confirm::backdrop,
+.share-session-actions::backdrop,
+.share-provenance::backdrop {
+  background: rgb(0 0 0 / 0.62);
+}
+
+.share-confirm-panel,
+.share-session-actions-panel,
+.share-provenance-panel {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  border-radius: inherit;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
+}
+
+.share-session-actions-panel,
+.share-provenance-panel {
+  padding: 30px;
+}
+
+.share-confirm[data-pin='true'] .share-confirm-panel {
+  justify-items: center;
+  gap: 16px;
+  padding: 30px;
+  background: var(--share-dialog-bg);
+  color: var(--share-dialog-text);
+  text-align: center;
+}
+
+.share-dialog-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.share-confirm-mark {
+  display: none;
+}
+
+.share-confirm[data-pin='true'] .share-confirm-mark {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgb(18 26 44 / 0.12);
+}
+
+.share-confirm-mark img {
+  width: 52px;
+  height: 52px;
+  image-rendering: pixelated;
+}
+
+.share-confirm h1,
+.share-session-actions h1,
+.share-session-actions h2,
+.share-provenance h2 {
+  margin: 0;
+  color: var(--share-dialog-text);
+  overflow-wrap: anywhere;
+  font-size: clamp(26px, 3.8vw, 32px);
+  font-weight: 760;
+  line-height: 1.12;
+}
+
+.share-confirm[data-pin='true'] h1 {
+  max-width: 520px;
+  color: var(--share-dialog-text);
+  font-size: clamp(26px, 3.8vw, 32px);
+  font-weight: 760;
+  line-height: 1.12;
+}
+
+.share-confirm p,
+.share-session-actions p,
+.share-provenance p {
+  margin: 0;
+  color: var(--share-dialog-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.share-session-actions p {
+  max-width: 420px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.share-session-actions-panel {
+  position: relative;
+  justify-items: center;
+  gap: 16px;
+  padding: 44px 34px 34px;
+  text-align: center;
+}
+
+/* The [data-...] attribute lifts this above the generic action-button rule
+   (specificity 0,2,1) so the close button keeps its 44x44 circle instead of
+   inheriting the 52px pill geometry — without inflating that generic rule and
+   accidentally outranking the .primary/.danger colours. */
+.share-session-actions .share-dialog-close[data-share-session-close] {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid rgb(51 77 68 / 0.24);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--share-dialog-button-bg) 80%, transparent);
+  color: var(--share-dialog-text);
+}
+
+.share-confirm[data-pin='true'] > .share-confirm-panel > p {
+  color: var(--share-dialog-muted);
+  font-size: 17px;
+  line-height: 1.42;
+}
+
+.share-pin {
+  display: grid;
+  gap: 7px;
+}
+
+.share-confirm[data-pin='true'] .share-pin {
+  justify-items: center;
+  gap: 12px;
+}
+
+.share-pin[hidden] {
+  display: none;
+}
+
+.share-pin span {
+  color: var(--share-dialog-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-confirm[data-pin='true'] .share-pin > span {
+  color: var(--share-dialog-text);
+  font-size: 14px;
+}
+
+.share-pin-entry {
+  position: relative;
+}
+
+.share-pin input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--share-border);
+  border-radius: 6px;
+  background: var(--share-dialog-field-bg);
+  color: var(--share-dialog-text);
+  font: 700 16px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0;
+}
+
+.share-confirm[data-pin='true'] .share-pin input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  /* A real (but fully transparent) field rather than opacity:0.01, so iOS still
+     offers the long-press "Paste" menu over the boxes. */
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+}
+
+.share-pin input:focus-visible {
+  border-color: var(--share-dialog-button-primary-border);
+  outline: none;
+}
+
+.share-pin-boxes {
+  display: none;
+}
+
+.share-confirm[data-pin='true'] .share-pin-boxes {
+  display: grid;
+  grid-template-columns: repeat(6, 48px);
+  gap: 9px;
+}
+
+.share-pin-boxes i {
+  display: grid;
+  width: 48px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid var(--share-border);
+  border-radius: 15px;
+  color: var(--share-dialog-text);
+  font: 760 26px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-style: normal;
+  background: var(--share-dialog-field-bg);
+}
+
+.share-pin-entry:focus-within .share-pin-boxes i {
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, var(--share-border));
+}
+
+.share-pin-boxes i[data-filled='true'] {
+  border-color: var(--share-dialog-button-primary-border);
+  background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 64%, var(--share-dialog-field-bg));
+}
+
+/* A blinking block caret on the next empty box shows where input is expected. */
+.share-pin-boxes i[data-caret='true'] {
+  position: relative;
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 60%, var(--share-border));
+}
+
+.share-pin-boxes i[data-caret='true']::after {
+  content: '';
+  width: 0.34em;
+  height: 0.66em;
+  border-radius: 2px;
+  background: var(--share-dialog-button-primary-border);
+  animation: share-pin-caret 1.06s steps(2, start) infinite;
+}
+
+@keyframes share-pin-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-pin-boxes i[data-caret='true']::after {
+    animation: none;
+  }
+}
+
+.share-pin small {
+  min-height: 16px;
+  color: var(--share-error);
+  font-size: 11px;
+}
+
+.share-confirm[data-pin='true'] .share-pin small {
+  color: var(--share-error);
+  font-size: 12px;
+}
+
+.share-provenance-trigger:hover {
+  text-decoration: underline;
+}
+
+.share-provenance-trigger {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--share-dialog-help);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.share-provenance-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid rgb(51 77 68 / 0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.5);
+}
+
+.share-provenance-list div {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgb(51 77 68 / 0.1);
+}
+
+.share-provenance-list div:last-child {
+  border-bottom: 0;
+}
+
+.share-provenance-list dt {
+  color: var(--share-dialog-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.share-provenance-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--share-dialog-text);
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.share-provenance-list a {
+  color: var(--share-dialog-help);
+  text-decoration: none;
+}
+
+.share-provenance-list a:hover {
+  text-decoration: underline;
+}
+
+.share-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.share-confirm[data-pin='true'] .share-provenance-trigger {
+  display: none;
+}
+
+.share-confirm[data-pin='true'] .share-confirm-actions {
+  display: none;
+}
+
+.share-confirm button:not(.share-provenance-trigger),
+.share-session-actions button:not(.share-provenance-trigger),
+.share-provenance button {
+  min-height: 52px;
+  padding: 0 28px;
+  border: 1px solid rgb(51 77 68 / 0.28);
+  border-radius: 999px;
+  background: var(--share-dialog-button-bg);
+  color: var(--share-dialog-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 740;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.share-confirm[data-pin='true'] button:not(.share-provenance-trigger) {
+  min-height: 52px;
+  border-color: rgb(51 77 68 / 0.28);
+  border-radius: 999px;
+  background: var(--share-dialog-button-bg);
+  color: var(--share-dialog-text);
+  font-size: 17px;
+}
+
+.share-confirm[data-pin='true'] button.primary {
+  border-color: var(--share-dialog-button-primary-border);
+  background: var(--share-dialog-button-primary-bg);
+  color: var(--share-dialog-text);
+}
+
+.share-confirm[data-pin='true'] button.primary:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.share-confirm button:not(.share-provenance-trigger):hover,
+.share-confirm button:not(.share-provenance-trigger):focus-visible,
+.share-session-actions button:not(.share-provenance-trigger):hover,
+.share-session-actions button:not(.share-provenance-trigger):focus-visible,
+.share-provenance button:hover,
+.share-provenance button:focus-visible {
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, transparent);
+  background: color-mix(in srgb, var(--share-dialog-button-bg) 72%, var(--share-dialog-button-primary-bg));
+  box-shadow: 0 10px 26px rgb(15 23 42 / 0.09);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.share-confirm[data-pin='true'] button:not(.share-provenance-trigger):hover,
+.share-confirm[data-pin='true'] button:not(.share-provenance-trigger):focus-visible {
+  border-color: color-mix(in srgb, var(--share-dialog-button-primary-border) 48%, transparent);
+  background: color-mix(in srgb, var(--share-dialog-button-bg) 72%, var(--share-dialog-button-primary-bg));
+}
+
+.share-confirm[data-pin='true'] button.primary:hover,
+.share-confirm[data-pin='true'] button.primary:focus-visible {
+  background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 76%, white);
+}
+
+.share-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 999px;
+  line-height: 0;
+}
+
+.share-dialog-close svg {
+  display: none;
+}
+
+.share-dialog-close::before {
+  color: currentColor;
+  content: '\00d7';
+  font-size: 28px;
+  font-weight: 420;
+  line-height: 1;
+}
+
+.share-confirm button.primary,
+.share-session-actions button.primary {
+  border-color: var(--share-dialog-button-primary-border);
+  background: var(--share-dialog-button-primary-bg);
+  color: var(--share-dialog-text);
+  font-weight: 700;
+}
+
+.share-session-actions .share-confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.share-session-actions .share-confirm-actions button {
+  min-height: 52px;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.share-confirm button.primary:hover,
+.share-confirm button.primary:focus-visible,
+.share-session-actions button.primary:hover,
+.share-session-actions button.primary:focus-visible {
+  background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 76%, white);
+}
+
+.share-session-actions button.danger {
+  border-color: rgb(177 61 61 / 0.36);
+  background: linear-gradient(180deg, #e25555, #b42626);
+  color: #ffffff;
+  font-weight: 760;
+}
+
+.share-session-actions button.danger:hover,
+.share-session-actions button.danger:focus-visible {
+  border-color: rgb(177 61 61 / 0.46);
+  background: linear-gradient(180deg, #ec6b6b, #a82323);
+}
+
+/* Tap feedback: a brief brighten + press so a touch clearly registers. */
+.share-session-actions button.primary:active,
+.share-session-actions button.danger:active {
+  transform: translateY(1px);
+  filter: brightness(1.06);
+}
+
+.share-session-actions button.danger:active {
+  background: linear-gradient(180deg, #ef7474, #b42626);
+}
+
+@media (max-width: 480px) {
+  .share-confirm[data-pin='true'] .share-confirm-panel {
+    padding: 34px 22px;
+  }
+
+  .share-confirm[data-pin='true'] .share-pin-boxes {
+    grid-template-columns: repeat(6, minmax(36px, 1fr));
+    gap: 8px;
+  }
+
+  .share-pin-boxes i {
+    width: 100%;
+    height: 58px;
+    border-radius: 14px;
+    font-size: 24px;
+  }
+
+  .share-session-actions .share-confirm-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .share-provenance-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

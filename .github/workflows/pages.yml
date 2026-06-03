@@ -1,0 +1,162 @@
+name: Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # Source -> binary supply-chain SIGNAL. The committed crypto WASM is the opaque
+  # primitive the browser trusts; this job re-derives it from the rmux Rust source
+  # at the pinned source_commit (scripts/verify-wasm-from-source.mjs) and asserts
+  # byte-for-byte equality with the shipped blob.
+  #
+  # It is INFORMATIONAL today and does NOT gate the deploy: `deploy` deliberately
+  # does not `needs:` it, so a skipped/pending check can never silently wave a
+  # deploy through (no fail-open). When the pinned source_commit is reachable on the
+  # public Helvesec/rmux remote it runs FAIL-CLOSED — a divergent blob turns this
+  # job red. While that commit is not yet public (e.g. an unreleased rmux version)
+  # it reports PENDING and exits cleanly. The hash-pin (verify-wasm-provenance.mjs
+  # in `npm run build`) runs in the deploy job regardless.
+  #
+  # TO ENFORCE at deploy time once rmux's source_commit is public: add
+  #   needs: verify-wasm-source
+  # to the deploy job (one line), or mark this check required via branch protection.
+  # Source via Helvesec/rmux public (default) or the RMUX_SOURCE_TOKEN secret — that
+  # token must point only at the PUBLIC repo, else "reachable" no longer means
+  # "publicly auditable".
+  verify-wasm-source:
+    name: WASM source-to-binary signal
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Read pinned rmux commit and toolchain from PROVENANCE
+        id: pin
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const p = JSON.parse(fs.readFileSync("src/scripts/share/wasm/PROVENANCE.json", "utf8"));
+            const commit = p.source.source_commit, rustc = p.toolchain.rustc;
+            if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error("source_commit is not a 40-hex sha");
+            if (!rustc) throw new Error("toolchain.rustc is missing");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `commit=${commit}\nrustc=${rustc}\n`);
+          '
+
+      - name: Check out rmux source
+        uses: actions/checkout@v4
+        with:
+          repository: Helvesec/rmux
+          path: rmux-src
+          fetch-depth: 0
+          token: ${{ secrets.RMUX_SOURCE_TOKEN || github.token }}
+
+      - name: Resolve pinned source_commit reachability
+        id: reach
+        run: |
+          set -euo pipefail
+          git -C rmux-src config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+          git -C rmux-src fetch --quiet --all --tags
+          if git -C rmux-src cat-file -e '${{ steps.pin.outputs.commit }}^{commit}' 2>/dev/null; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@master
+        if: steps.reach.outputs.reachable == 'true'
+        with:
+          toolchain: ${{ steps.pin.outputs.rustc }}
+          targets: wasm32-unknown-unknown
+
+      - name: Install pinned wasm-pack
+        if: steps.reach.outputs.reachable == 'true'
+        run: command -v wasm-pack >/dev/null 2>&1 || cargo install wasm-pack --version 0.13.1 --locked
+
+      - uses: actions/setup-node@v4
+        if: steps.reach.outputs.reachable == 'true'
+        with:
+          node-version: 22
+
+      - name: Rebuild WASM from source and assert byte-equality (fail-closed)
+        if: steps.reach.outputs.reachable == 'true'
+        env:
+          RMUX_SOURCE_DIR: ${{ github.workspace }}/rmux-src
+        run: node scripts/verify-wasm-from-source.mjs
+
+      - name: Source signal PENDING — pinned commit not yet on public rmux
+        if: steps.reach.outputs.reachable != 'true'
+        run: |
+          commit='${{ steps.pin.outputs.commit }}'
+          {
+            echo "## ⏳ WASM source→binary signal: PENDING (not enforced)"
+            echo ""
+            echo "Pinned source_commit \`${commit}\` is not yet reachable on the public"
+            echo "Helvesec/rmux remote, so the rebuild-from-source check could not run."
+            echo ""
+            echo "This job is informational and does NOT gate the deploy, so nothing is"
+            echo "bypassed. The hash-pin (\`scripts/verify-wasm-provenance.mjs\`, run in the"
+            echo "deploy job's \`npm run build\`) still checks the committed bytes against"
+            echo "PROVENANCE.json — tamper-evident vs accidental drift, but NOT a binding to"
+            echo "source. True source binding begins once that commit is public and this"
+            echo "check is made required (add \`needs: verify-wasm-source\` to deploy)."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::warning title=WASM source signal pending::source_commit ${commit} not yet on public rmux; rebuild-from-source not run (informational, deploy not gated)."
+
+  # NOTE: deploy intentionally does NOT `needs: verify-wasm-source` yet — that gate
+  # is informational until rmux's source_commit is public (see its comment). Add the
+  # `needs:` line to enforce the source->binary check at deploy time.
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler pages deploy dist \
+            --project-name=rmux-web-share \
+            --branch=main \
+            --commit-dirty=true | tee wrangler-deploy.log
+          deploy_url="$(grep -Eo 'https://[^[:space:]]+\.pages\.dev' wrangler-deploy.log | tail -n 1 || true)"
+          echo "url=${deploy_url}" >> "$GITHUB_OUTPUT"
+      - name: Publish deployment proof
+        run: |
+          set -euo pipefail
+          {
+            echo "## Deployment proof"
+            echo ""
+            echo "- GitHub SHA-1: \`${GITHUB_SHA}\`"
+            echo "- Source commit: https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+            echo "- GitHub Actions run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Cloudflare Pages project: \`rmux-web-share\`"
+            if [ -n "${{ steps.deploy.outputs.url }}" ]; then
+              echo "- Cloudflare deployment: ${{ steps.deploy.outputs.url }}"
+            fi
+            echo "- Public domain: https://share.rmux.io"
+            echo "- Public provenance: https://share.rmux.io/.well-known/rmux-web-share.json"
+            echo "- Asset checksums: https://share.rmux.io/checksums.txt"
+            echo ""
+            echo "share.rmux.io serves only the static frontend and does not relay terminal data. Terminal frames are end-to-end encrypted, the token stays in the URL fragment, the source is public, builds are verifiable, deployments are traceable, and the frontend can be self-hosted."
+          } >> "$GITHUB_STEP_SUMMARY"
