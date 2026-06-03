@@ -7,27 +7,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Source -> binary supply-chain SIGNAL. The committed crypto WASM is the opaque
+  # Source -> binary supply-chain gate. The committed crypto WASM is the opaque
   # primitive the browser trusts; this job re-derives it from the rmux Rust source
   # at the pinned source_commit (scripts/verify-wasm-from-source.mjs) and asserts
   # byte-for-byte equality with the shipped blob.
-  #
-  # It is INFORMATIONAL today and does NOT gate the deploy: `deploy` deliberately
-  # does not `needs:` it, so a skipped/pending check can never silently wave a
-  # deploy through (no fail-open). When the pinned source_commit is reachable on the
-  # public Helvesec/rmux remote it runs FAIL-CLOSED — a divergent blob turns this
-  # job red. While that commit is not yet public (e.g. an unreleased rmux version)
-  # it reports PENDING and exits cleanly. The hash-pin (verify-wasm-provenance.mjs
-  # in `npm run build`) runs in the deploy job regardless.
-  #
-  # TO ENFORCE at deploy time once rmux's source_commit is public: add
-  #   needs: verify-wasm-source
-  # to the deploy job (one line), or mark this check required via branch protection.
-  # Source via Helvesec/rmux public (default) or the RMUX_SOURCE_TOKEN secret — that
-  # token must point only at the PUBLIC repo, else "reachable" no longer means
-  # "publicly auditable".
   verify-wasm-source:
-    name: WASM source-to-binary signal
+    name: WASM source-to-binary gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,29 +75,21 @@ jobs:
           RMUX_SOURCE_DIR: ${{ github.workspace }}/rmux-src
         run: node scripts/verify-wasm-from-source.mjs
 
-      - name: Source signal PENDING — pinned commit not yet on public rmux
+      - name: Fail if pinned rmux source is not public
         if: steps.reach.outputs.reachable != 'true'
         run: |
           commit='${{ steps.pin.outputs.commit }}'
           {
-            echo "## ⏳ WASM source→binary signal: PENDING (not enforced)"
+            echo "## WASM source→binary gate failed"
             echo ""
             echo "Pinned source_commit \`${commit}\` is not yet reachable on the public"
             echo "Helvesec/rmux remote, so the rebuild-from-source check could not run."
-            echo ""
-            echo "This job is informational and does NOT gate the deploy, so nothing is"
-            echo "bypassed. The hash-pin (\`scripts/verify-wasm-provenance.mjs\`, run in the"
-            echo "deploy job's \`npm run build\`) still checks the committed bytes against"
-            echo "PROVENANCE.json — tamper-evident vs accidental drift, but NOT a binding to"
-            echo "source. True source binding begins once that commit is public and this"
-            echo "check is made required (add \`needs: verify-wasm-source\` to deploy)."
           } | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "::warning title=WASM source signal pending::source_commit ${commit} not yet on public rmux; rebuild-from-source not run (informational, deploy not gated)."
+          echo "::error title=WASM source gate failed::source_commit ${commit} not reachable on public rmux"
+          exit 1
 
-  # NOTE: deploy intentionally does NOT `needs: verify-wasm-source` yet — that gate
-  # is informational until rmux's source_commit is public (see its comment). Add the
-  # `needs:` line to enforce the source->binary check at deploy time.
   deploy:
+    needs: verify-wasm-source
     runs-on: ubuntu-latest
     permissions:
       contents: read

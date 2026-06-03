@@ -16,11 +16,12 @@ export class ClientSession {
         wasm.__wbg_clientsession_free(ptr, 0);
     }
     /**
-     * Derives the client session from the PSK, the X25519 DH shared secret,
-     * and the exact handshake transcript bytes.
+     * Derives the client session from the PSK, the X25519 DH shared secret, the
+     * ML-KEM shared secret, and the exact handshake transcript bytes.
      *
      * - `psk`: `SHA-256(token)`, 32 bytes, computed in the browser.
      * - `dh`: X25519 shared secret, exactly 32 bytes, from WebCrypto.
+     * - `ml_kem_secret`: ML-KEM-768 shared secret, exactly 32 bytes.
      * - `client_hello` / `server_challenge`: exact wire bytes.
      * @param {Uint8Array} psk
      * @param {Uint8Array} dh

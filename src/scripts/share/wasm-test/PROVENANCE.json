@@ -5,7 +5,7 @@
     "repository": "https://github.com/Helvesec/rmux",
     "crate": "crates/rmux-web-crypto",
     "feature_set": ["wasm-test"],
-    "source_commit": "e6a6dd32ca9468b3156b4d9bc024c41f8df95984",
+    "source_commit": "4c3df646623f4fa03ff620d57cfd390f0cb92af7",
     "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration. This blob is test-only and never shipped to production."
   },
   "toolchain": {
@@ -17,9 +17,9 @@
     "target": "web"
   },
   "build_command": "wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm-test",
-  "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build (fail-closed): committed bytes must match these hashes recorded in the same diff — tamper-evident against accidental drift, but NOT a binding to source on its own. (2) scripts/verify-wasm-from-source.mjs is the source->binary gate: it rebuilds this blob from the rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm-test, pinned toolchain) and asserts byte-for-byte equality. It enforces FAIL-CLOSED in CI once source_commit is reachable on the public Helvesec/rmux remote; while that commit is not yet public the rebuild is DEFERRED (only gate 1 runs). This blob is test-only and never shipped to production. Reproduce locally now: RMUX_SOURCE_DIR=/path/to/rmux node scripts/verify-wasm-from-source.mjs.",
+  "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build: committed bytes must match these hashes recorded in the same diff. (2) scripts/verify-wasm-from-source.mjs is the source->binary gate: it rebuilds this blob from the public rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm-test, pinned toolchain) and asserts byte-for-byte equality. CI blocks deploy if the commit is not reachable or if the rebuilt bytes differ. This blob is test-only and never shipped to production. Reproduce locally with: RMUX_SOURCE_DIR=/path/to/rmux node scripts/verify-wasm-from-source.mjs.",
   "artifacts": {
-    "rmux_web_crypto_wasm_bg.wasm": "sha256:457689ed21002f99b3f2cfd307d60dc8fb8fd4fe239a6172210dba31cbc75319",
-    "rmux_web_crypto_wasm.js": "sha256:701394bd83089160c0c548c6e8a4d1f41cf7ed37d7069d659a628f7ef4b5632e"
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:3b7b02abf6adf6d9b3707af98584b2a826e0ab84a067fc3bc7db7d2a17938bf0",
+    "rmux_web_crypto_wasm.js": "sha256:de09e05be0180ee203c5ca0532d55820078f8bb8e8e5ae116f04802b25366ef0"
   }
 }
