@@ -6,6 +6,7 @@ import {
   rememberActiveShareParams,
   shareAssetUrl,
   shareBasePath,
+  shareUrl,
 } from './fragment';
 import {
   createClientHello,
@@ -15,13 +16,15 @@ import {
   type EncryptedShareTransport,
 } from './e2ee';
 import {
-  chromeLocalAccessCopy,
   connectionErrorMessage,
+  localAccessBlockedCopy,
   localAccessPromptCopy,
   pinPromptCopy,
   rememberLocalAccess,
-  shouldShowChromeLocalAccessHelp,
+  safariLocalAccessCopy,
+  shouldShowLocalAccessBlockedHelp,
   shouldShowLocalAccessPrompt,
+  shouldShowSafariLocalAccessPrompt,
   type ConfirmationCopy,
 } from './local-access';
 import {
@@ -185,15 +188,21 @@ export function startShareApp(root: HTMLElement): void {
       () => terminalTheme,
       pin,
       () => showPrompt(host, pinPromptCopy(), true),
-      () => showPrompt(host, chromeLocalAccessCopy(params.endpoint), false),
+      () => showPrompt(host, localAccessBlockedCopy(params.endpoint), false),
       leaveShare,
     );
     connection.connect();
   };
+  const copyShareLink = () => {
+    const link = shareUrl(params);
+    void navigator.clipboard.writeText(link)
+      .then(() => view.setStatus({ connected: false, detail: 'link copied', tone: 'idle' }))
+      .catch(() => view.showError(`Copy this link manually: ${link}`, 'copy failed'));
+  };
   const showPrompt = (promptHost: string, copy: ConfirmationCopy, requiresPin: boolean) => {
     view.confirm(promptHost, copy, requiresPin, {
       cancel: leaveShare,
-      connect,
+      connect: copy.action === 'copy-link' ? copyShareLink : connect,
     });
   };
   // Auto-fill the pairing code when this browser already knows it for this share
@@ -204,6 +213,13 @@ export function startShareApp(root: HTMLElement): void {
     view.confirm(host, localAccessPromptCopy(params.endpoint), false, {
       cancel: leaveShare,
       connect: () => connect(rememberedPin),
+    });
+    return;
+  }
+  if (shouldShowSafariLocalAccessPrompt(params.endpoint)) {
+    view.confirm(host, safariLocalAccessCopy(params.endpoint), false, {
+      cancel: leaveShare,
+      connect: copyShareLink,
     });
     return;
   }
@@ -291,7 +307,7 @@ class ShareConnection {
         return;
       }
       this.socketError = true;
-      if (!this.everReady && shouldShowChromeLocalAccessHelp(this.params.endpoint)) {
+      if (!this.everReady && shouldShowLocalAccessBlockedHelp(this.params.endpoint)) {
         this.view.showError(connectionErrorMessage(this.params.endpoint));
         this.requestLocalAccessHelp?.();
       }
@@ -886,7 +902,7 @@ class ShareConnection {
   }
 
   private shouldReconnect(code: number): boolean {
-    if (!this.everReady && this.socketError && shouldShowChromeLocalAccessHelp(this.params.endpoint)) {
+    if (!this.everReady && this.socketError && shouldShowLocalAccessBlockedHelp(this.params.endpoint)) {
       return false;
     }
     return code === 1001 || code === 1006 || code === 1011 || code === 4001;

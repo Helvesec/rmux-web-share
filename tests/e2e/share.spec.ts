@@ -54,7 +54,7 @@ test('terminal SHARE link returns to the dashboard instead of reopening the shar
     .toBeNull();
 });
 
-test('Firefox local links do not show a Chrome permission prompt', async ({ page }) => {
+test('Firefox local links do not show a local access permission prompt', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'userAgent', {
       configurable: true,
@@ -69,17 +69,20 @@ test('Firefox local links do not show a Chrome permission prompt', async ({ page
   await page.goto(`/?again=1#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-confirm]')).toBeHidden();
-  await expect(page.locator('[data-share-terminal]')).not.toContainText('Chrome');
+  await expect(page.locator('[data-share-terminal]')).not.toContainText('Local Network Access');
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
-test('Chrome public-to-local links ask for local network access before connecting', async ({ page }) => {
+test('public-to-local links use browser-specific local access copy', async ({ page }) => {
   await page.goto('/');
 
   const policy = await page.evaluate(async () => {
     const {
       localAccessPromptCopy,
+      localAccessBlockedCopy,
+      safariLocalAccessCopy,
       shouldShowLocalAccessPromptIn,
+      shouldShowSafariLocalAccessPromptIn,
     } = await import('/src/scripts/share/local-access.ts');
     const endpoint = 'ws://127.0.0.1:9777/share';
     const chromiumDesktop = {
@@ -90,9 +93,25 @@ test('Chrome public-to-local links ask for local network access before connectin
       protocol: 'https:',
       userAgent: 'Mozilla/5.0 Chrome/145.0',
     };
+    const edgeDesktop = {
+      ...chromiumDesktop,
+      brands: [{ brand: 'Microsoft Edge' }],
+      userAgent: 'Mozilla/5.0 Chrome/145.0 Edg/145.0',
+    };
+    const safariDesktop = {
+      ...chromiumDesktop,
+      brands: [],
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+    };
     return {
       copy: localAccessPromptCopy(endpoint),
+      edgeCopy: localAccessPromptCopy(endpoint, edgeDesktop),
+      edgeBlockedCopy: localAccessBlockedCopy(endpoint, edgeDesktop),
+      safariCopy: safariLocalAccessCopy(endpoint),
       chromiumDesktop: shouldShowLocalAccessPromptIn(endpoint, chromiumDesktop),
+      edgeDesktop: shouldShowLocalAccessPromptIn(endpoint, edgeDesktop),
+      safariDesktop: shouldShowSafariLocalAccessPromptIn(endpoint, safariDesktop),
+      safariChromiumPrompt: shouldShowLocalAccessPromptIn(endpoint, safariDesktop),
       confirmedChromium: shouldShowLocalAccessPromptIn(endpoint, {
         ...chromiumDesktop,
         confirmed: true,
@@ -120,8 +139,33 @@ test('Chrome public-to-local links ask for local network access before connectin
     detail: 'Chrome may ask for Local Network Access before it can reach 127.0.0.1:9777. Click Allow if the browser prompts you.',
     title: 'Allow local access',
     local: true,
+    action: 'connect',
+  });
+  expect(policy.edgeCopy).toEqual({
+    button: 'Continue',
+    detail: 'Edge may ask for Local Network Access before it can reach 127.0.0.1:9777. Click Allow if the browser prompts you.',
+    title: 'Allow local access',
+    local: true,
+    action: 'connect',
+  });
+  expect(policy.edgeBlockedCopy).toEqual({
+    button: 'Retry connection',
+    detail: 'Edge blocked access to 127.0.0.1:9777. Click Allow in the browser prompt, then retry.',
+    title: 'Allow local access in Edge',
+    local: true,
+    action: 'connect',
+  });
+  expect(policy.safariCopy).toEqual({
+    button: 'Copy link',
+    detail: 'Safari does not allow this page to connect to RMUX on 127.0.0.1:9777. Open this link in Chrome, Edge, or Firefox, or start the share with a tunnel provider for Safari.',
+    title: 'Safari blocks local web-share',
+    local: true,
+    action: 'copy-link',
   });
   expect(policy.chromiumDesktop).toBe(true);
+  expect(policy.edgeDesktop).toBe(true);
+  expect(policy.safariDesktop).toBe(true);
+  expect(policy.safariChromiumPrompt).toBe(false);
   expect(policy.confirmedChromium).toBe(false);
   expect(policy.firefoxDesktop).toBe(false);
   expect(policy.localFrontend).toBe(false);

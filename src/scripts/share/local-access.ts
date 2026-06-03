@@ -3,6 +3,7 @@ export interface ConfirmationCopy {
   detail: string;
   title: string;
   local: boolean;
+  action: 'connect' | 'copy-link';
 }
 
 export interface LocalAccessEnvironment {
@@ -16,24 +17,47 @@ export interface LocalAccessEnvironment {
 
 const LOCAL_ACCESS_CONFIRMED_KEY = 'rmux.share.localAccessConfirmed';
 
-export function localAccessPromptCopy(endpoint: string): ConfirmationCopy {
+export function localAccessPromptCopy(
+  endpoint: string,
+  environment = currentLocalAccessEnvironment(),
+): ConfirmationCopy {
+  const browserName = localAccessBrowserName(environment);
   return {
     button: 'Continue',
     detail: [
-      `Chrome may ask for Local Network Access before it can reach ${new URL(endpoint).host}.`,
+      `${browserName} may ask for Local Network Access before it can reach ${new URL(endpoint).host}.`,
       'Click Allow if the browser prompts you.',
     ].join(' '),
     title: 'Allow local access',
     local: true,
+    action: 'connect',
   };
 }
 
-export function chromeLocalAccessCopy(endpoint: string): ConfirmationCopy {
+export function localAccessBlockedCopy(
+  endpoint: string,
+  environment = currentLocalAccessEnvironment(),
+): ConfirmationCopy {
+  const browserName = localAccessBrowserName(environment);
   return {
     button: 'Retry connection',
-    detail: `Chrome blocked access to ${new URL(endpoint).host}. Click Allow in the browser prompt, then retry.`,
-    title: 'Allow local access in Chrome',
+    detail: `${browserName} blocked access to ${new URL(endpoint).host}. Click Allow in the browser prompt, then retry.`,
+    title: `Allow local access in ${browserName}`,
     local: true,
+    action: 'connect',
+  };
+}
+
+export function safariLocalAccessCopy(endpoint: string): ConfirmationCopy {
+  return {
+    button: 'Copy link',
+    detail: [
+      `Safari does not allow this page to connect to RMUX on ${new URL(endpoint).host}.`,
+      'Open this link in Chrome, Edge, or Firefox, or start the share with a tunnel provider for Safari.',
+    ].join(' '),
+    title: 'Safari blocks local web-share',
+    local: true,
+    action: 'copy-link',
   };
 }
 
@@ -45,9 +69,10 @@ export function connectionErrorMessage(endpoint: string): string {
       'Phones cannot reach ws://127.0.0.1 on your desktop. Use --tunnel-url for phone or internet sharing.',
     ].join(' ');
   }
-  if (shouldShowChromeLocalAccessHelp(endpoint)) {
+  if (shouldShowLocalAccessBlockedHelp(endpoint)) {
+    const browserName = localAccessBrowserName(environment);
     return [
-      'Chrome blocked Local Network Access to your rmux daemon.',
+      `${browserName} blocked Local Network Access to your rmux daemon.`,
       'Click Allow in the browser prompt, then retry.',
     ].join(' ');
   }
@@ -60,11 +85,16 @@ export function pinPromptCopy(): ConfirmationCopy {
     detail: 'Enter the 6-digit pairing code shown by rmux.',
     title: 'Pairing code required',
     local: false,
+    action: 'connect',
   };
 }
 
-export function shouldShowChromeLocalAccessHelp(endpoint: string): boolean {
+export function shouldShowLocalAccessBlockedHelp(endpoint: string): boolean {
   return shouldShowLocalAccessPrompt(endpoint);
+}
+
+export function shouldShowSafariLocalAccessPrompt(endpoint: string): boolean {
+  return shouldShowSafariLocalAccessPromptIn(endpoint, currentLocalAccessEnvironment());
 }
 
 export function shouldShowLocalAccessPrompt(endpoint: string): boolean {
@@ -76,6 +106,12 @@ export function shouldShowLocalAccessPromptIn(endpoint: string, environment: Loc
     && isChromiumBrowser(environment)
     && !isLikelyMobileBrowser(environment)
     && !environment.confirmed;
+}
+
+export function shouldShowSafariLocalAccessPromptIn(endpoint: string, environment: LocalAccessEnvironment): boolean {
+  return looksLikeBlockedLoopback(endpoint, environment)
+    && isSafariBrowser(environment)
+    && !isLikelyMobileBrowser(environment);
 }
 
 export function rememberLocalAccess(endpoint: string): void {
@@ -136,6 +172,42 @@ function isChromiumBrowser(environment: LocalAccessEnvironment): boolean {
   }
   return /\b(?:Chrome|Chromium|Edg|OPR)\//.test(environment.userAgent)
     && !/\bFirefox\//.test(environment.userAgent);
+}
+
+function localAccessBrowserName(environment = currentLocalAccessEnvironment()): string {
+  if (isEdgeBrowser(environment)) {
+    return 'Edge';
+  }
+  if (isFirefoxBrowser(environment)) {
+    return 'Firefox';
+  }
+  if (isChromeBrowser(environment)) {
+    return 'Chrome';
+  }
+  if (isSafariBrowser(environment)) {
+    return 'Safari';
+  }
+  return 'This browser';
+}
+
+function isChromeBrowser(environment: LocalAccessEnvironment): boolean {
+  return environment.brands.some((brand) => /Google Chrome/i.test(brand.brand))
+    || (/\b(?:Chrome|CriOS)\//.test(environment.userAgent)
+      && !/\b(?:Edg|OPR|Firefox)\//.test(environment.userAgent));
+}
+
+function isEdgeBrowser(environment: LocalAccessEnvironment): boolean {
+  return environment.brands.some((brand) => /Microsoft Edge/i.test(brand.brand))
+    || /\bEdg\//.test(environment.userAgent);
+}
+
+function isFirefoxBrowser(environment: LocalAccessEnvironment): boolean {
+  return /\bFirefox\//.test(environment.userAgent);
+}
+
+function isSafariBrowser(environment: LocalAccessEnvironment): boolean {
+  return /\bSafari\//.test(environment.userAgent)
+    && !/\b(?:Chrome|Chromium|CriOS|FxiOS|Edg|OPR)\//.test(environment.userAgent);
 }
 
 function isLikelyMobileBrowser(environment: LocalAccessEnvironment): boolean {
