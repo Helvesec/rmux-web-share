@@ -73,6 +73,27 @@ test('Firefox local links do not show a local access permission prompt', async (
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
+test('unsupported browser crypto shows a modal before connecting', async ({ page }) => {
+  await page.addInitScript(() => {
+    const generateKey = SubtleCrypto.prototype.generateKey;
+    SubtleCrypto.prototype.generateKey = function failingX25519(algorithm, ...args) {
+      const name = typeof algorithm === 'string' ? algorithm : algorithm.name;
+      if (name === 'X25519') {
+        return Promise.reject(new DOMException('X25519 unavailable', 'NotSupportedError'));
+      }
+      return generateKey.call(this, algorithm, ...args);
+    };
+  });
+
+  await page.goto(`/#t=${spectatorToken}`);
+
+  await expect(page.locator('[data-share-confirm]')).toBeVisible();
+  await expect(page.locator('[data-share-confirm-title]')).toHaveText('Browser encryption unavailable');
+  await expect(page.locator('[data-share-confirm-detail]')).toContainText('RMUX end-to-end encryption');
+  await expect(page.locator('[data-share-confirm-connect]')).toHaveText('Copy link');
+  await expect.poll(() => socketCount(page)).toBe(0);
+});
+
 test('public-to-local links use browser-specific local access copy', async ({ page }) => {
   await page.goto('/');
 

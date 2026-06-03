@@ -26,6 +26,18 @@ const WASM_INTEGRITY = '__RMUX_WASM_INTEGRITY__';
 
 let wasmReady: Promise<void> | undefined;
 
+export type BrowserCryptoSupport =
+  | { supported: true }
+  | {
+    supported: false;
+    reason:
+      | 'insecure_context'
+      | 'webassembly_unavailable'
+      | 'webcrypto_unavailable'
+      | 'wasm_crypto_unavailable'
+      | 'x25519_unavailable';
+  };
+
 /** Lazily initialises the WASM crypto module exactly once. */
 function ensureWasm(): Promise<void> {
   if (!wasmReady) {
@@ -35,6 +47,35 @@ function ensureWasm(): Promise<void> {
     wasmReady = init.then(() => undefined);
   }
   return wasmReady;
+}
+
+export async function checkBrowserCryptoSupport(): Promise<BrowserCryptoSupport> {
+  if (!globalThis.isSecureContext) {
+    return { supported: false, reason: 'insecure_context' };
+  }
+  if (typeof WebAssembly !== 'object' || typeof WebAssembly.compile !== 'function') {
+    return { supported: false, reason: 'webassembly_unavailable' };
+  }
+  if (!globalThis.crypto?.subtle) {
+    return { supported: false, reason: 'webcrypto_unavailable' };
+  }
+  try {
+    await ensureWasm();
+  } catch {
+    return { supported: false, reason: 'wasm_crypto_unavailable' };
+  }
+  try {
+    const keyPair = (await crypto.subtle.generateKey({ name: 'X25519' }, false, [
+      'deriveBits',
+    ])) as CryptoKeyPair;
+    const publicRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    if (publicRaw.byteLength !== 32) {
+      return { supported: false, reason: 'x25519_unavailable' };
+    }
+  } catch {
+    return { supported: false, reason: 'x25519_unavailable' };
+  }
+  return { supported: true };
 }
 
 /**

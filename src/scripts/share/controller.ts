@@ -9,12 +9,14 @@ import {
   shareUrl,
 } from './fragment';
 import {
+  checkBrowserCryptoSupport,
   createClientHello,
   createEncryptedTransport,
   parseChallenge,
   type ClientHandshakeState,
   type EncryptedShareTransport,
 } from './e2ee';
+import { browserCryptoUnavailableCopy } from './browser-support';
 import {
   connectionErrorMessage,
   localAccessBlockedCopy,
@@ -209,10 +211,22 @@ export function startShareApp(root: HTMLElement): void {
   // (the operator's own recent link), so a known PIN never re-prompts. If it is
   // absent or the daemon rejects it, the requirePin callback shows the prompt.
   const rememberedPin = recentSharePin(params);
+  const connectWithCryptoCheck = (pin?: string) => {
+    void checkBrowserCryptoSupport().then(
+      (support) => {
+        if (!support.supported) {
+          showPrompt(host, browserCryptoUnavailableCopy(), false);
+          return;
+        }
+        connect(pin);
+      },
+      () => showPrompt(host, browserCryptoUnavailableCopy(), false),
+    );
+  };
   if (shouldShowLocalAccessPrompt(params.endpoint)) {
     view.confirm(host, localAccessPromptCopy(params.endpoint), false, {
       cancel: leaveShare,
-      connect: () => connect(rememberedPin),
+      connect: () => connectWithCryptoCheck(rememberedPin),
     });
     return;
   }
@@ -223,7 +237,7 @@ export function startShareApp(root: HTMLElement): void {
     });
     return;
   }
-  connect(rememberedPin);
+  connectWithCryptoCheck(rememberedPin);
 }
 
 class ShareConnection {
