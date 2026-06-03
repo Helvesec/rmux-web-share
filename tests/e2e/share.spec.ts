@@ -1316,7 +1316,7 @@ test('security provenance dialog displays build proof links', async ({ page }) =
       repository: 'https://github.com/Helvesec/rmux-web-share',
       commit_sha1: '0123456789abcdef0123456789abcdef01234567',
       commit_url: 'https://github.com/Helvesec/rmux-web-share/commit/0123456789abcdef0123456789abcdef01234567',
-      security_statement: 'This client connects directly to your local rmux daemon over loopback or a secure tunnel. All terminal traffic is encrypted end-to-end in the browser; credentials are kept in the URL fragment and never sent to the hosting server. Builds are public and reproducible for independent security audits.',
+      security_statement: 'This static page runs in your browser. It connects directly to your rmux daemon through loopback or your tunnel, with terminal traffic encrypted end-to-end. The share token stays in the URL fragment and is never sent to share.rmux.io.',
       github_actions: {
         run_id: '123456',
         run_url: 'https://github.com/Helvesec/rmux-web-share/actions/runs/123456',
@@ -1337,7 +1337,8 @@ test('security provenance dialog displays build proof links', async ({ page }) =
   await page.locator('[data-share-terminal-provenance]').click();
 
   await expect(page.locator('[data-share-provenance]')).toBeVisible();
-  await expect(page.locator('[data-share-provenance-statement]')).toContainText('independent security audits');
+  await expect(page.locator('[data-share-provenance-statement]')).toContainText('This static page runs in your browser.');
+  await expect(page.locator('[data-share-provenance-statement]')).toContainText('never sent to share.rmux.io');
   await expect(page.locator('[data-share-provenance-docs]')).toHaveAttribute('href', 'https://rmux.io/docs/web-share/');
   await expect(page.locator('[data-share-provenance-commit]')).toHaveText('0123456789ab');
   await expect(page.locator('[data-share-provenance-run]')).toHaveText('run 123456');

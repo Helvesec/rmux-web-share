@@ -8,9 +8,9 @@ const REPOSITORY = 'Helvesec/rmux-web-share';
 const PUBLIC_ORIGIN = 'https://share.rmux.io';
 const PROJECT_NAME = 'rmux-web-share';
 const SECURITY_STATEMENT = [
-  'This client connects directly to your local rmux daemon over loopback or a secure tunnel.',
-  'All terminal traffic is encrypted end-to-end in the browser; credentials are kept in the URL fragment and never sent to the hosting server.',
-  'Builds are public and reproducible for independent security audits.',
+  'This static page runs in your browser.',
+  'It connects directly to your rmux daemon through loopback or your tunnel, with terminal traffic encrypted end-to-end.',
+  'The share token stays in the URL fragment and is never sent to share.rmux.io.',
 ].join(' ');
 
 const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
