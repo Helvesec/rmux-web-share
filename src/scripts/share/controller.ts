@@ -1336,6 +1336,9 @@ class ShareView {
     }
     let currentInset = 0;
     let closeTimer: number | undefined;
+    const setViewportBottomInset = (inset: number) => {
+      this.app.style.setProperty('--viewport-bottom-inset', `${inset}px`);
+    };
     const commit = (inset: number) => {
       if (closeTimer !== undefined) {
         window.clearTimeout(closeTimer);
@@ -1356,11 +1359,17 @@ class ShareView {
     // also shrinks the visible viewport with no keyboard, so ignore it.
     const keyboardHeight = () =>
       viewport.scale > 1.01 ? 0 : Math.max(0, Math.round(window.innerHeight - viewport.height));
+    const viewportBottomInset = () =>
+      viewport.scale > 1.01
+        ? 0
+        : Math.max(0, Math.round(window.innerHeight - viewport.offsetTop - viewport.height));
     const apply = () => {
-      const onMobile = this.connected && !this.confirmDialog.open && isMobileShareViewport();
+      const mobileViewport = !this.confirmDialog.open && isMobileShareViewport();
+      const keyboardCanLift = this.connected && mobileViewport;
       const keyboard = keyboardHeight();
-      const target = onMobile && keyboard > 90 ? keyboard : 0;
-      if (target >= currentInset || !onMobile) {
+      const target = keyboardCanLift && keyboard > 90 ? keyboard : 0;
+      setViewportBottomInset(mobileViewport && target === 0 ? viewportBottomInset() : 0);
+      if (target >= currentInset || !keyboardCanLift) {
         // Opening/growing, or a hard close (disconnected, dialog open, desktop):
         // apply immediately so the lift tracks the keyboard with no lag.
         commit(target);
@@ -1374,9 +1383,12 @@ class ShareView {
       if (closeTimer === undefined) {
         closeTimer = window.setTimeout(() => {
           closeTimer = undefined;
-          const settledMobile = this.connected && !this.confirmDialog.open && isMobileShareViewport();
+          const settledMobileViewport = !this.confirmDialog.open && isMobileShareViewport();
+          const settledKeyboardCanLift = this.connected && settledMobileViewport;
           const settledKeyboard = keyboardHeight();
-          commit(settledMobile && settledKeyboard > 90 ? settledKeyboard : 0);
+          const settledTarget = settledKeyboardCanLift && settledKeyboard > 90 ? settledKeyboard : 0;
+          setViewportBottomInset(settledMobileViewport && settledTarget === 0 ? viewportBottomInset() : 0);
+          commit(settledTarget);
         }, KEYBOARD_INSET_CLOSE_DELAY_MS);
       }
     };

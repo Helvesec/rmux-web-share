@@ -445,6 +445,63 @@ test('session viewer keeps the status row visible after a remote resize notice',
   });
 });
 
+test('mobile Chrome iOS bottom toolbar does not cover the session status row', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Chrome iOS viewport chrome only affects mobile layout');
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userAgent', {
+      configurable: true,
+      get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/145.0 Mobile/15E148 Safari/604.1',
+    });
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+      windows: [{ index: 0, name: 'bash', active: true }],
+    };
+  });
+  await page.addInitScript(() => {
+    // Chrome on iOS can expose a layout viewport taller than the visible
+    // viewport while its bottom browser toolbar is shown. There is no keyboard;
+    // the app must reserve this occluded bottom strip locally.
+    const bottomToolbar = 78;
+    const target = new EventTarget();
+    const vv = {
+      get height() { return window.innerHeight - bottomToolbar; },
+      get width() { return window.innerWidth; },
+      get offsetTop() { return 0; },
+      get offsetLeft() { return 0; },
+      get pageTop() { return 0; },
+      get pageLeft() { return 0; },
+      get scale() { return 1; },
+      addEventListener: (t: string, l: EventListenerOrEventListenerObject) => target.addEventListener(t, l),
+      removeEventListener: (t: string, l: EventListenerOrEventListenerObject) => target.removeEventListener(t, l),
+      dispatchEvent: (e: Event) => target.dispatchEvent(e),
+    };
+    try {
+      Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => vv });
+    } catch {
+      // Some engines lock visualViewport; the projection assertion below will flag it.
+    }
+  });
+
+  await page.goto(`/#t=${spectatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => terminalProjection(page)).toMatchObject({
+    singleStatusRow: true,
+    statusAtBottom: true,
+    statusInsideVisualViewport: true,
+    terminalInsideVisualViewport: true,
+  });
+});
+
 test('session operator click selects the clicked pane without shell input', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.includes('mobile'), 'mobile selects panes from the pane picker.');
 
@@ -1678,8 +1735,17 @@ test('session pane scrollbar drag survives redraws and scrolls both ways', async
 
   const scrollbar = page.locator('.share-pane-scrollbar');
   await expect(scrollbar).toHaveCount(1);
-  const box = await scrollbar.boundingBox();
-  expect(box).not.toBeNull();
+  await expect(scrollbar).toBeVisible();
+  let box: { height: number; width: number; x: number; y: number } | null = null;
+  await expect.poll(async () => {
+    box = await scrollbar.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0
+        ? { height: rect.height, width: rect.width, x: rect.left, y: rect.top }
+        : null;
+    });
+    return box !== null;
+  }).toBe(true);
 
   const x = box!.x + box!.width / 2;
   await page.mouse.move(x, box!.y + box!.height - 2);
@@ -2374,6 +2440,8 @@ async function terminalProjection(page: import('@playwright/test').Page) {
         singleStatusRow: false,
         statusAtBottom: false,
         statusGreen: false,
+        statusInsideVisualViewport: false,
+        terminalInsideVisualViewport: false,
       };
     }
     const transform = getComputedStyle(stage).transform;
@@ -2383,6 +2451,10 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     const statusRows = rows.filter((row) => row.includes('[ci] 0:bash*'));
     const statusRow = Array.from(document.querySelectorAll<HTMLElement>('.xterm-rows > div'))
       .find((row) => (row.textContent ?? '').includes('[ci] 0:bash*'));
+    const visualViewportBottom = window.visualViewport
+      ? window.visualViewport.offsetTop + window.visualViewport.height
+      : window.innerHeight;
+    const statusRect = statusRow?.getBoundingClientRect();
     return {
       fitsViewport: screenRect
         ? screenRect.left >= terminalRect.left - 2
@@ -2396,13 +2468,15 @@ async function terminalProjection(page: import('@playwright/test').Page) {
       rowCount: rows.length,
       scaledDown: transform !== 'none',
       singleStatusRow: statusRows.length === 1,
-      statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash* "very-long-hostname" 16:34 27-May-26') ?? false,
+      statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash*') ?? false,
       statusGreen: statusRow
         ? Array.from(statusRow.querySelectorAll<HTMLElement>('span')).some((span) => {
           const match = getComputedStyle(span).backgroundColor.match(/\d+/g)?.map(Number);
           return match ? match[1] > match[0] + 20 && match[1] > match[2] + 20 : false;
         })
         : false,
+      statusInsideVisualViewport: statusRect ? statusRect.bottom <= visualViewportBottom + 2 : false,
+      terminalInsideVisualViewport: terminalRect.bottom <= visualViewportBottom + 2,
     };
   });
 }

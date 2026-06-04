@@ -53,6 +53,8 @@
   --share-terminal-outline: color-mix(in srgb, var(--share-text) 4%, transparent);
   --share-terminal-highlight: color-mix(in srgb, var(--share-text) 3%, transparent);
   --share-terminal-shadow: 0 22px 64px rgb(0 0 0 / 0.36);
+  --keyboard-inset: 0px;
+  --viewport-bottom-inset: 0px;
   --share-dialog-bg: #f7fbf6;
   --share-dialog-text: #10211a;
   --share-dialog-muted: #485a53;
@@ -89,7 +91,7 @@
 
 .share-app[data-chrome='hidden'] .share-terminal-shell,
 .share-app[data-navbar='off'] .share-terminal-shell {
-  padding: 8px;
+  padding: 8px 8px calc(8px + var(--viewport-bottom-inset));
 }
 
 .share-app[data-role='spectator'] {
@@ -188,7 +190,7 @@
   grid-row: 2;
   min-width: 0;
   min-height: 0;
-  padding: 18px 24px 24px;
+  padding: 18px 24px calc(24px + var(--viewport-bottom-inset));
   overflow: hidden;
   border: 0;
   border-radius: 0;
@@ -548,8 +550,9 @@
   .share-terminal-shell {
     grid-row: 3;
     /* Reserve room for the on-screen keyboard (set by bindKeyboardInsets) so the
-       terminal lifts above it instead of being hidden behind it. */
-    padding: 12px 10px calc(12px + var(--keyboard-inset, 0px));
+       terminal lifts above it instead of being hidden behind it. Also reserve
+       Chrome iOS' visible-viewport bottom strip when its browser toolbar is shown. */
+    padding: 12px 10px calc(12px + var(--keyboard-inset) + var(--viewport-bottom-inset));
   }
 
   .share-error {
@@ -568,7 +571,7 @@
     grid-template-rows: 40px minmax(0, 1fr);
   }
   .share-terminal-shell {
-    padding: 6px 12px calc(6px + var(--keyboard-inset, 0px));
+    padding: 6px 12px calc(6px + var(--keyboard-inset) + var(--viewport-bottom-inset));
   }
 }
 
