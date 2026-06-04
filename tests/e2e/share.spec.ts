@@ -1793,6 +1793,32 @@ test('session history scroll stays pinned across live refreshes until the user r
   await expect(page.locator('.xterm')).toContainText('lower history after quiet downward scroll');
   await expect(page.locator('.xterm')).not.toContainText('second live refresh that should stay hidden');
 
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlate live snapshot after suppressed reset'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await expect(page.locator('.xterm')).toContainText('lower history after quiet downward scroll');
+  await expect(page.locator('.xterm')).not.toContainText('late live snapshot after suppressed reset');
+
+  await page.mouse.wheel(0, -120);
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: Math.min(120, lowerOffset + 10),
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('lower history after quiet downward scroll');
+  await expect(page.locator('.xterm')).not.toContainText('late live snapshot after suppressed reset');
+
   await page.mouse.wheel(0, 4000);
   await dispatchSessionSnapshot(
     page,

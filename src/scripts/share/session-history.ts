@@ -85,6 +85,10 @@ export class SessionHistoryGate {
     return this.scrollIntent === 'history' || this.pinned;
   }
 
+  shouldQueueSnapshot(): boolean {
+    return !this.pinned || this.scrollIntent === 'history';
+  }
+
   private currentPaneOffset(paneId: number, pane?: SessionPaneView): number {
     return Math.max(0, this.paneOffsets.get(paneId) ?? pane?.scroll_offset ?? 0);
   }
