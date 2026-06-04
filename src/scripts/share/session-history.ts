@@ -1,6 +1,7 @@
 import type { SessionPaneView, SessionView } from './types';
 
 type SessionScrollIntent = 'history' | 'live';
+export type SessionSnapshotPolicy = 'drop' | 'keep-first' | 'replace';
 
 export class SessionHistoryGate {
   private pinned = false;
@@ -85,8 +86,14 @@ export class SessionHistoryGate {
     return this.scrollIntent === 'history' || this.pinned;
   }
 
-  shouldQueueSnapshot(): boolean {
-    return !this.pinned || this.scrollIntent === 'history';
+  snapshotPolicy(): SessionSnapshotPolicy {
+    if (!this.pinned) {
+      return 'replace';
+    }
+    if (this.scrollIntent === 'history') {
+      return 'keep-first';
+    }
+    return 'drop';
   }
 
   private currentPaneOffset(paneId: number, pane?: SessionPaneView): number {

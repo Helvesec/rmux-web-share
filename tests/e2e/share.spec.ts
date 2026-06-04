@@ -1669,6 +1669,11 @@ test('session history scroll stays pinned across live refreshes until the user r
     '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hhistory frame at offset 40'
       + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
   );
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlive snapshot racing before history view'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
   await dispatchSessionView(page, {
     size: { cols: 80, rows: 24 },
     panes: [{
@@ -1684,6 +1689,7 @@ test('session history scroll stays pinned across live refreshes until the user r
     }],
   });
   await expect(page.locator('.xterm')).toContainText('history frame at offset 40');
+  await expect(page.locator('.xterm')).not.toContainText('live snapshot racing before history view');
 
   await page.locator('.xterm-helper-textarea').evaluate((element) => {
     (element as HTMLElement).blur();

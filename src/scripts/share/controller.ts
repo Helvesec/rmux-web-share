@@ -555,9 +555,10 @@ class ShareConnection {
     const payload = frame.subarray(1);
     if (opcode === SNAPSHOT_FULL) {
       if (this.scope === 'session' && this.lastSessionView) {
-        if (this.sessionHistoryGate.shouldQueueSnapshot()) {
+        const policy = this.sessionHistoryGate.snapshotPolicy();
+        if (policy === 'replace' || (policy === 'keep-first' && !this.pendingSessionSnapshot)) {
           this.pendingSessionSnapshot = payload.slice();
-        } else {
+        } else if (policy === 'drop') {
           this.pendingSessionSnapshot = undefined;
         }
         return;
