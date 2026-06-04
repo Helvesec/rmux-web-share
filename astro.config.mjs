@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 
 const base = normalizeBasePath(process.env.RMUX_SHARE_BASE_PATH);
+const allowedHosts = normalizeAllowedHosts(process.env.RMUX_SHARE_ALLOWED_HOSTS);
 
 export default defineConfig({
   site: 'https://share.rmux.io',
@@ -9,6 +10,13 @@ export default defineConfig({
   devToolbar: {
     enabled: false,
   },
+  vite: allowedHosts.length > 0
+    ? {
+        server: {
+          allowedHosts,
+        },
+      }
+    : undefined,
 });
 
 function normalizeBasePath(value) {
@@ -20,4 +28,14 @@ function normalizeBasePath(value) {
     return '/';
   }
   return `/${trimmed.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function normalizeAllowedHosts(value) {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
 }

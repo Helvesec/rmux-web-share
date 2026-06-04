@@ -504,7 +504,7 @@ test('mobile browser chrome keeps both the navbar and session status row visible
   });
 });
 
-test('mobile browser chrome fallback protects the status row when visualViewport is blind', async ({ page }, testInfo) => {
+test('mobile browser chrome uses small viewport height and reserves bottom safe areas', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes('mobile'), 'mobile browser chrome fallback only affects mobile layout');
   await page.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'userAgent', {
@@ -526,9 +526,9 @@ test('mobile browser chrome fallback protects the status row when visualViewport
     };
   });
   await page.addInitScript(() => {
-    // Some iOS browser chrome states do not expose the bottom toolbar through
-    // visualViewport. In production the CSS fallback is `100dvh - 100svh`; the
-    // test pins that computed value so the regression is reproducible in CI.
+    // Some iOS browser chrome states do not expose bottom occlusion through
+    // visualViewport. The layout must still use the small viewport unit on
+    // mobile and reserve CSS-reported bottom safe areas.
     const target = new EventTarget();
     const vv = {
       get height() { return window.innerHeight; },
@@ -555,6 +555,7 @@ test('mobile browser chrome fallback protects the status row when visualViewport
   });
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => shareAppUsesSmallViewportHeight(page)).toBe(true);
   await expect.poll(() => terminalProjection(page)).toMatchObject({
     singleStatusRow: true,
     statusAtBottom: true,
@@ -2483,6 +2484,25 @@ async function focusTerminalKeyboard(page: import('@playwright/test').Page) {
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.classList.contains('xterm-helper-textarea') ?? false))
     .toBe(true);
+}
+
+async function shareAppUsesSmallViewportHeight(page: import('@playwright/test').Page) {
+  return page.locator('.share-app').evaluate((app) => {
+    if (!CSS.supports('height', '100svh')) {
+      return true;
+    }
+    const probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.left = '-1px';
+    probe.style.top = '0';
+    probe.style.width = '1px';
+    probe.style.height = '100svh';
+    probe.style.pointerEvents = 'none';
+    document.body.append(probe);
+    const smallViewportHeight = probe.getBoundingClientRect().height;
+    probe.remove();
+    return Math.abs(app.getBoundingClientRect().height - smallViewportHeight) <= 1;
+  });
 }
 
 function isResizeFrame(frame: unknown): frame is number[] {

@@ -92,12 +92,6 @@
   padding: var(--viewport-top-inset) 0 0;
 }
 
-@supports (height: 100svh) {
-  .share-app {
-    --browser-chrome-bottom-inset: max(env(safe-area-inset-bottom, 0px), calc(100dvh - 100svh));
-  }
-}
-
 .share-app[data-keyboard='open'] {
   --browser-chrome-bottom-inset: 0px;
   --terminal-bottom-inset: var(--viewport-bottom-inset);
@@ -546,6 +540,22 @@
     grid-template-rows: auto auto minmax(0, 1fr);
     gap: 0;
     padding: var(--viewport-top-inset) 0 0;
+  }
+
+  @supports (height: 100svh) {
+    .share-page,
+    .share-root {
+      height: 100svh;
+      max-height: 100svh;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .share-app {
+      height: 100svh;
+      max-height: 100svh;
+      min-height: 0;
+    }
   }
 
   .share-app[data-chrome='hidden'] {
