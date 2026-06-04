@@ -504,6 +504,64 @@ test('mobile browser chrome keeps both the navbar and session status row visible
   });
 });
 
+test('mobile browser chrome fallback protects the status row when visualViewport is blind', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'mobile browser chrome fallback only affects mobile layout');
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userAgent', {
+      configurable: true,
+      get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/145.0 Mobile/15E148 Safari/604.1',
+    });
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hprompt'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, active: true, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+      windows: [{ index: 0, name: 'bash', active: true }],
+    };
+  });
+  await page.addInitScript(() => {
+    // Some iOS browser chrome states do not expose the bottom toolbar through
+    // visualViewport. In production the CSS fallback is `100dvh - 100svh`; the
+    // test pins that computed value so the regression is reproducible in CI.
+    const target = new EventTarget();
+    const vv = {
+      get height() { return window.innerHeight; },
+      get width() { return window.innerWidth; },
+      get offsetTop() { return 0; },
+      get offsetLeft() { return 0; },
+      get pageTop() { return 0; },
+      get pageLeft() { return 0; },
+      get scale() { return 1; },
+      addEventListener: (t: string, l: EventListenerOrEventListenerObject) => target.addEventListener(t, l),
+      removeEventListener: (t: string, l: EventListenerOrEventListenerObject) => target.removeEventListener(t, l),
+      dispatchEvent: (e: Event) => target.dispatchEvent(e),
+    };
+    try {
+      Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => vv });
+    } catch {
+      // Some engines lock visualViewport; the fallback assertion below will flag it.
+    }
+  });
+
+  await page.goto(`/#t=${spectatorToken}`);
+  await page.addStyleTag({
+    content: '.share-app { --browser-chrome-bottom-inset: 168px !important; }',
+  });
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => terminalProjection(page)).toMatchObject({
+    singleStatusRow: true,
+    statusAtBottom: true,
+    statusAboveReservedBottom: true,
+  });
+});
+
 test('session operator click selects the clicked pane without shell input', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.includes('mobile'), 'mobile selects panes from the pane picker.');
 
@@ -2455,6 +2513,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
         scaledDown: false,
         singleStatusRow: false,
         statusAtBottom: false,
+        statusAboveReservedBottom: false,
         statusGreen: false,
         statusInsideVisualViewport: false,
         topbarInsideVisualViewport: false,
@@ -2463,6 +2522,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     }
     const transform = getComputedStyle(stage).transform;
     const terminalStyle = getComputedStyle(terminal);
+    const appStyle = getComputedStyle(document.querySelector<HTMLElement>('.share-app') ?? terminal);
     const terminalRect = terminal.getBoundingClientRect();
     const screenRect = document.querySelector<HTMLElement>('.xterm-screen')?.getBoundingClientRect();
     const statusRows = rows.filter((row) => row.includes('[ci] 0:bash*'));
@@ -2474,6 +2534,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     const visualViewportTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
     const statusRect = statusRow?.getBoundingClientRect();
     const topbarRect = topbar?.getBoundingClientRect();
+    const reservedBottom = Number.parseFloat(appStyle.getPropertyValue('--terminal-bottom-inset')) || 0;
     return {
       fitsViewport: screenRect
         ? screenRect.left >= terminalRect.left - 2
@@ -2488,6 +2549,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
       scaledDown: transform !== 'none',
       singleStatusRow: statusRows.length === 1,
       statusAtBottom: rows.at(-1)?.includes('[ci] 0:bash*') ?? false,
+      statusAboveReservedBottom: statusRect ? statusRect.bottom <= window.innerHeight - reservedBottom + 2 : false,
       statusGreen: statusRow
         ? Array.from(statusRow.querySelectorAll<HTMLElement>('span')).some((span) => {
           const match = getComputedStyle(span).backgroundColor.match(/\d+/g)?.map(Number);

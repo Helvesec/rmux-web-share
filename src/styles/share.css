@@ -56,6 +56,8 @@
   --keyboard-inset: 0px;
   --viewport-top-inset: 0px;
   --viewport-bottom-inset: 0px;
+  --browser-chrome-bottom-inset: env(safe-area-inset-bottom, 0px);
+  --terminal-bottom-inset: max(var(--viewport-bottom-inset), var(--browser-chrome-bottom-inset));
   --share-dialog-bg: #f7fbf6;
   --share-dialog-text: #10211a;
   --share-dialog-muted: #485a53;
@@ -90,9 +92,20 @@
   padding: var(--viewport-top-inset) 0 0;
 }
 
+@supports (height: 100svh) {
+  .share-app {
+    --browser-chrome-bottom-inset: max(env(safe-area-inset-bottom, 0px), calc(100dvh - 100svh));
+  }
+}
+
+.share-app[data-keyboard='open'] {
+  --browser-chrome-bottom-inset: 0px;
+  --terminal-bottom-inset: var(--viewport-bottom-inset);
+}
+
 .share-app[data-chrome='hidden'] .share-terminal-shell,
 .share-app[data-navbar='off'] .share-terminal-shell {
-  padding: 8px 8px calc(8px + var(--viewport-bottom-inset));
+  padding: 8px 8px calc(8px + var(--terminal-bottom-inset));
 }
 
 .share-app[data-role='spectator'] {
@@ -191,7 +204,7 @@
   grid-row: 2;
   min-width: 0;
   min-height: 0;
-  padding: 18px 24px calc(24px + var(--viewport-bottom-inset));
+  padding: 18px 24px calc(24px + var(--terminal-bottom-inset));
   overflow: hidden;
   border: 0;
   border-radius: 0;
@@ -553,7 +566,7 @@
     /* Reserve room for the on-screen keyboard (set by bindKeyboardInsets) so the
        terminal lifts above it instead of being hidden behind it. Also reserve
        Chrome iOS' visible-viewport bottom strip when its browser toolbar is shown. */
-    padding: 12px 10px calc(12px + var(--keyboard-inset) + var(--viewport-bottom-inset));
+    padding: 12px 10px calc(12px + var(--keyboard-inset) + var(--terminal-bottom-inset));
   }
 
   .share-error {
@@ -572,7 +585,7 @@
     grid-template-rows: 40px minmax(0, 1fr);
   }
   .share-terminal-shell {
-    padding: 6px 12px calc(6px + var(--keyboard-inset) + var(--viewport-bottom-inset));
+    padding: 6px 12px calc(6px + var(--keyboard-inset) + var(--terminal-bottom-inset));
   }
 }
 

@@ -1351,6 +1351,7 @@ class ShareView {
       }
       currentInset = inset;
       this.app.style.setProperty('--keyboard-inset', `${inset}px`);
+      this.app.dataset.keyboard = inset > 0 ? 'open' : 'closed';
       // Keep the remote grid keyboard-independent so opening the keyboard does not
       // resize the session and jump the focused pane. (this.terminal here is the
       // DOM container; the xterm controller lives on ShareConnection.)
