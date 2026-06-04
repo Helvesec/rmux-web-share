@@ -1187,11 +1187,12 @@ test('mobile keyboard keeps a single-pane session readable instead of shrinking 
 
   // The stage must stay at (near) natural size — cursor-follow, not a heavy shrink to
   // an unreadable ~0.55 scale.
-  const scale = await page.locator('.share-terminal-stage').evaluate((el) => {
+  await expect.poll(() => page.locator('.share-terminal-stage').evaluate((el) => {
     const transform = getComputedStyle(el).transform;
     return transform === 'none' ? 1 : new DOMMatrix(transform).a;
-  });
-  expect(scale, 'keyboard-open single-pane session should stay readable, not shrink').toBeGreaterThan(0.9);
+  }), {
+    message: 'keyboard-open single-pane session should stay readable, not shrink',
+  }).toBeGreaterThan(0.9);
 });
 
 test('short landscape grows the grid and lets the user pan to the top of a full-screen app', async ({ page }, testInfo) => {

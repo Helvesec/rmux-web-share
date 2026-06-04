@@ -35,7 +35,8 @@ export function installMockShareWebSocket(): void {
   let wasmPromise: Promise<WasmModule> | undefined;
   function serverCrypto(): Promise<WasmModule> {
     if (!wasmPromise) {
-      wasmPromise = import(/* @vite-ignore */ '/src/scripts/share/wasm-test/rmux_web_crypto_wasm.js').then(
+      const wasmUrl = new URL('/src/scripts/share/wasm-test/rmux_web_crypto_wasm.js', window.location.href).href;
+      wasmPromise = import(/* @vite-ignore */ wasmUrl).then(
         async (module) => {
           const wasm = module as unknown as WasmModule;
           await wasm.default();

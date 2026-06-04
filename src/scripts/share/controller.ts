@@ -527,7 +527,10 @@ class ShareConnection {
       toggleToolbar: () => this.toggleToolbar(),
     });
     this.view.bindMobilePaneSelect((paneId) => this.chooseMobilePane(paneId));
-    this.view.onKeyboardInset((px) => this.terminal?.setKeyboardInset(px));
+    this.view.onKeyboardInset((px) => {
+      this.terminal?.setKeyboardInset(px);
+      this.scheduleTerminalViewportSync();
+    });
     this.view.bindMobileControls({
       splitHorizontal: () => this.splitPane('horizontal'),
       splitVertical: () => this.splitPane('vertical'),
