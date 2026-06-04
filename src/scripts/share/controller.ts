@@ -666,6 +666,9 @@ class ShareConnection {
       return;
     }
     const wireDelta = this.sessionHistoryGate.notePaneScroll(paneId, delta, this.lastSessionView);
+    if (wireDelta === undefined) {
+      return;
+    }
     scrollSessionPane(this.transport, paneId, wireDelta);
   }
 

@@ -1725,27 +1725,47 @@ class XtermShareTerminal implements ShareTerminal {
     height: number,
     thumbHeight: number,
   ): void {
-    const update = (clientY: number) => {
-      const rect = bar.getBoundingClientRect();
+    let dragOffset = Math.max(0, pane.scroll_offset);
+    const update = (clientY: number, top: number) => {
       const travel = Math.max(1, height - thumbHeight);
-      const y = Math.min(travel, Math.max(0, clientY - rect.top - thumbHeight / 2));
+      const y = Math.min(travel, Math.max(0, clientY - top - thumbHeight / 2));
       const nextOffset = Math.round((1 - y / travel) * pane.history_size);
-      this.requestPaneOffset(pane, nextOffset);
+      if (!this.paneScrollHandler) {
+        return;
+      }
+      const target = Math.max(0, Math.min(pane.history_size, nextOffset));
+      if (target === dragOffset) {
+        return;
+      }
+      this.paneScrollHandler(pane.id, target > dragOffset ? -(target - dragOffset) : dragOffset - target);
+      dragOffset = target;
     };
     bar.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
-      bar.setPointerCapture(event.pointerId);
-      update(event.clientY);
-      const onMove = (move: PointerEvent) => update(move.clientY);
-      const onUp = () => {
-        bar.removeEventListener('pointermove', onMove);
-        bar.removeEventListener('pointerup', onUp);
-        bar.removeEventListener('pointercancel', onUp);
+      const { top } = bar.getBoundingClientRect();
+      update(event.clientY, top);
+      const onMove = (move: PointerEvent) => {
+        if (move.pointerId !== event.pointerId) {
+          return;
+        }
+        move.preventDefault();
+        update(move.clientY, top);
       };
-      bar.addEventListener('pointermove', onMove);
-      bar.addEventListener('pointerup', onUp);
-      bar.addEventListener('pointercancel', onUp);
+      const onUp = (up: PointerEvent) => {
+        if (up.pointerId !== event.pointerId) {
+          return;
+        }
+        window.removeEventListener('pointermove', onMove, true);
+        window.removeEventListener('pointerup', onUp, true);
+        window.removeEventListener('pointercancel', onUp, true);
+      };
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onUp, true);
     });
   }
 

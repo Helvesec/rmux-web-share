@@ -1626,6 +1626,74 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
   expect(await sentInputFrameCount(page)).toBe(0);
 });
 
+test('session pane scrollbar drag survives redraws and scrolls both ways', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hdrag-scrollable pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 120,
+        scroll_offset: 0,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const scrollbar = page.locator('.share-pane-scrollbar');
+  await expect(scrollbar).toHaveCount(1);
+  const box = await scrollbar.boundingBox();
+  expect(box).not.toBeNull();
+
+  const x = box!.x + box!.width / 2;
+  await page.mouse.move(x, box!.y + box!.height - 2);
+  await page.mouse.down();
+
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: 0,
+      alternate_on: false,
+    }],
+  });
+
+  const beforeUpDrag = (await paneScrollFrames(page)).length;
+  await page.mouse.move(x, box!.y + box!.height * 0.2, { steps: 4 });
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(beforeUpDrag);
+  const upScroll = (await paneScrollFrames(page)).at(-1);
+  expect(upScroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(upScroll!.delta).toBeLessThan(0);
+
+  const beforeDownDrag = (await paneScrollFrames(page)).length;
+  await page.mouse.move(x, box!.y + box!.height - 2, { steps: 4 });
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(beforeDownDrag);
+  const downScroll = (await paneScrollFrames(page)).at(-1);
+  expect(downScroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(downScroll!.delta).toBeGreaterThan(0);
+
+  await page.mouse.up();
+  expect(await sentInputFrameCount(page)).toBe(0);
+});
+
 test('session history scroll stays pinned across live refreshes until the user returns to bottom', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -1729,6 +1797,28 @@ test('session history scroll stays pinned across live refreshes until the user r
 
   await dispatchSessionSnapshot(
     page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hstale shallower history while scrolling up'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: Math.max(1, secondOffset - 10),
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('history frame at offset 40');
+  await expect(page.locator('.xterm')).not.toContainText('stale shallower history while scrolling up');
+
+  await dispatchSessionSnapshot(
+    page,
     '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hdeeper history after repeated scroll'
       + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
   );
@@ -1755,6 +1845,28 @@ test('session history scroll stays pinned across live refreshes until the user r
   expect(quietDownScroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
   expect(quietDownScroll!.delta).toBeGreaterThan(0);
   const lowerOffset = Math.max(1, secondOffset - quietDownScroll!.delta);
+
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hstale deeper history while scrolling down'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: secondOffset,
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('deeper history after repeated scroll');
+  await expect(page.locator('.xterm')).not.toContainText('stale deeper history while scrolling down');
 
   await dispatchSessionSnapshot(
     page,
@@ -1799,12 +1911,42 @@ test('session history scroll stays pinned across live refreshes until the user r
   await expect(page.locator('.xterm')).toContainText('lower history after quiet downward scroll');
   await expect(page.locator('.xterm')).not.toContainText('second live refresh that should stay hidden');
 
+  const framesBeforeSuppressedDown = (await paneScrollFrames(page)).length;
+  await page.mouse.wheel(0, 120);
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(framesBeforeSuppressedDown);
+  const downAfterSuppressedReset = (await paneScrollFrames(page)).at(-1);
+  expect(downAfterSuppressedReset).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(downAfterSuppressedReset!.delta).toBeLessThan(0);
+  const offsetAfterSuppressedDown = Math.max(1, Math.abs(downAfterSuppressedReset!.delta));
+  expect(offsetAfterSuppressedDown).toBeLessThan(lowerOffset);
+
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlower history after suppressed downward scroll'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: offsetAfterSuppressedDown,
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('lower history after suppressed downward scroll');
+
   await dispatchSessionSnapshot(
     page,
     '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlate live snapshot after suppressed reset'
       + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
   );
-  await expect(page.locator('.xterm')).toContainText('lower history after quiet downward scroll');
+  await expect(page.locator('.xterm')).toContainText('lower history after suppressed downward scroll');
   await expect(page.locator('.xterm')).not.toContainText('late live snapshot after suppressed reset');
 
   await page.mouse.wheel(0, -120);
@@ -1818,11 +1960,11 @@ test('session history scroll stays pinned across live refreshes until the user r
       rows: 23,
       active: true,
       history_size: 120,
-      scroll_offset: Math.min(120, lowerOffset + 10),
+      scroll_offset: Math.min(120, offsetAfterSuppressedDown + 10),
       alternate_on: false,
     }],
   });
-  await expect(page.locator('.xterm')).toContainText('lower history after quiet downward scroll');
+  await expect(page.locator('.xterm')).toContainText('lower history after suppressed downward scroll');
   await expect(page.locator('.xterm')).not.toContainText('late live snapshot after suppressed reset');
 
   await page.mouse.wheel(0, 4000);
