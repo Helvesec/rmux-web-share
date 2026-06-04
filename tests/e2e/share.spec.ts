@@ -471,7 +471,7 @@ test('mobile browser chrome keeps both the navbar and session status row visible
     // viewport while browser chrome covers the top and bottom. There is no
     // keyboard; the app must reserve both occluded strips locally.
     const topToolbar = 96;
-    const bottomToolbar = 64;
+    const bottomToolbar = 168;
     const target = new EventTarget();
     const vv = {
       get height() { return window.innerHeight - topToolbar - bottomToolbar; },
@@ -942,6 +942,7 @@ test('mobile keyboard does not resize the remote grid while a pane is focused', 
   const heightBefore = await page.locator('[data-share-terminal]').evaluate((el) => el.clientHeight);
 
   // Raise the keyboard: the visible viewport (and the terminal) shrinks.
+  await focusTerminalKeyboard(page);
   await page.evaluate(() => (window as unknown as { __setKeyboard: (px: number) => void }).__setKeyboard(340));
   await expect
     .poll(() => page.locator('[data-share-terminal]').evaluate((el) => el.clientHeight))
@@ -1013,6 +1014,7 @@ test('mobile keyboard inset survives per-keystroke viewport scroll jitter', asyn
   const frame = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
 
   // Open the on-screen keyboard: the inset lifts the terminal above it.
+  await focusTerminalKeyboard(page);
   await page.evaluate(() => (window as unknown as { __kbd: { open: (px?: number) => void } }).__kbd.open(336));
   await expect.poll(inset).toBe('336px');
   const openInset = await inset();
@@ -1177,6 +1179,7 @@ test('mobile keyboard keeps a single-pane session readable instead of shrinking 
 
   // Open the keyboard: the grid is kept at its full (keyboard-independent) height, so
   // the rendered xterm screen becomes taller than the now-shrunk container.
+  await focusTerminalKeyboard(page);
   await page.evaluate(() => (window as unknown as { __kbd: { open: (px: number) => void } }).__kbd.open(336));
   const screen = page.locator('.xterm-screen');
   const container = page.locator('[data-share-terminal]');
@@ -2413,6 +2416,15 @@ async function customProperty(page: import('@playwright/test').Page, name: strin
   return page.locator('.share-app').evaluate((element, property) => {
     return getComputedStyle(element).getPropertyValue(property).trim();
   }, name);
+}
+
+async function focusTerminalKeyboard(page: import('@playwright/test').Page) {
+  await page.locator('.xterm-helper-textarea').evaluate((element) => {
+    (element as HTMLTextAreaElement).focus();
+  });
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.classList.contains('xterm-helper-textarea') ?? false))
+    .toBe(true);
 }
 
 function isResizeFrame(frame: unknown): frame is number[] {

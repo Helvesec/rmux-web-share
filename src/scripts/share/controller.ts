@@ -64,6 +64,7 @@ import type {
 import type { TerminalThemePalette } from './types';
 import { ProvenanceDialog } from './provenance';
 import { SessionHistoryGate } from './session-history';
+import { measureShareViewportInsets } from './viewport-insets';
 import { shareViewTemplate, titleCase } from './view-content';
 import { enableShareWindowBoundsTracking, resizeShareWindowForPairingPrompt, resizeShareWindowForTerminal } from './window-bounds';
 import {
@@ -1355,36 +1356,26 @@ class ShareView {
       // DOM container; the xterm controller lives on ShareConnection.)
       this.keyboardInsetHandler?.(inset);
     };
-    // Browser chrome and the on-screen keyboard both shrink visualViewport. Treat
-    // small top/bottom occlusions as browser chrome (navbar/status must remain
-    // visible), and only treat a large bottom occlusion as the keyboard. Once the
-    // keyboard is open, keep using the total viewport delta: iOS can spike
-    // offsetTop on every keystroke, and subtracting that spike briefly made the
-    // keyboard look closed.
-    const viewportTopInset = () =>
-      viewport.scale > 1.01 ? 0 : Math.max(0, Math.round(viewport.offsetTop));
-    const viewportBottomInset = () =>
-      viewport.scale > 1.01
-        ? 0
-        : Math.max(0, Math.round(window.innerHeight - viewport.offsetTop - viewport.height));
-    const keyboardHeight = () =>
-      viewport.scale > 1.01
-        ? 0
-        : Math.max(0, Math.round(window.innerHeight - viewport.height));
-    const viewportChromeInsets = (keyboardTarget: number) =>
-      keyboardTarget > 0 ? { top: 0, bottom: 0 } : { top: viewportTopInset(), bottom: viewportBottomInset() };
+    // Browser chrome and the on-screen keyboard both shrink visualViewport. The
+    // distinction is not browser-specific: a shrink only counts as keyboard while
+    // an editable inside the terminal has focus; otherwise it is visible browser
+    // chrome and the layout reserves it so the navbar/status row stay in view.
+    const measure = () => measureShareViewportInsets({
+      activeElement: document.activeElement,
+      connected: this.connected,
+      dialogOpen: this.confirmDialog.open,
+      mobileViewport: isMobileShareViewport(),
+      terminalElement: this.terminal,
+      viewport,
+      windowHeight: window.innerHeight,
+    });
     const apply = () => {
-      const mobileViewport = !this.confirmDialog.open && isMobileShareViewport();
-      const keyboardCanLift = this.connected && mobileViewport;
-      const keyboard = keyboardHeight();
-      const bottomInset = viewportBottomInset();
-      const target = keyboardCanLift && keyboard > 90 && bottomInset > 90 ? keyboard : 0;
-      const chrome = mobileViewport ? viewportChromeInsets(target) : { top: 0, bottom: 0 };
-      setViewportChromeInsets(chrome.top, chrome.bottom);
-      if (target >= currentInset || !keyboardCanLift) {
+      const measured = measure();
+      setViewportChromeInsets(measured.top, measured.bottom);
+      if (measured.keyboard >= currentInset || currentInset === 0) {
         // Opening/growing, or a hard close (disconnected, dialog open, desktop):
         // apply immediately so the lift tracks the keyboard with no lag.
-        commit(target);
+        commit(measured.keyboard);
         return;
       }
       // Shrinking or closing while the keyboard is up: defer a single re-measure.
@@ -1395,16 +1386,9 @@ class ShareView {
       if (closeTimer === undefined) {
         closeTimer = window.setTimeout(() => {
           closeTimer = undefined;
-          const settledMobileViewport = !this.confirmDialog.open && isMobileShareViewport();
-          const settledKeyboardCanLift = this.connected && settledMobileViewport;
-          const settledKeyboard = keyboardHeight();
-          const settledBottomInset = viewportBottomInset();
-          const settledTarget = settledKeyboardCanLift && settledKeyboard > 90 && settledBottomInset > 90
-            ? settledKeyboard
-            : 0;
-          const settledChrome = settledMobileViewport ? viewportChromeInsets(settledTarget) : { top: 0, bottom: 0 };
-          setViewportChromeInsets(settledChrome.top, settledChrome.bottom);
-          commit(settledTarget);
+          const settled = measure();
+          setViewportChromeInsets(settled.top, settled.bottom);
+          commit(settled.keyboard);
         }, KEYBOARD_INSET_CLOSE_DELAY_MS);
       }
     };
