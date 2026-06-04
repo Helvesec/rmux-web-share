@@ -1,4 +1,4 @@
-import type { SessionView } from './types';
+import type { SessionPaneView, SessionView } from './types';
 
 type SessionScrollIntent = 'history' | 'live';
 
@@ -6,15 +6,29 @@ export class SessionHistoryGate {
   private pinned = false;
   private scrollIntent?: SessionScrollIntent;
   private followLiveRequested = false;
+  private liveResetWhilePinned = false;
+  private readonly paneOffsets = new Map<number, number>();
 
   reset(): void {
     this.pinned = false;
     this.scrollIntent = undefined;
     this.followLiveRequested = false;
+    this.liveResetWhilePinned = false;
+    this.paneOffsets.clear();
   }
 
   noteAppliedView(view: SessionView): void {
-    this.pinned = hasSessionScrollOffset(view);
+    const pinned = hasSessionScrollOffset(view);
+    this.pinned = pinned;
+    this.paneOffsets.clear();
+    if (pinned) {
+      this.liveResetWhilePinned = false;
+      for (const pane of view.panes) {
+        this.paneOffsets.set(pane.id, Math.max(0, pane.scroll_offset));
+      }
+    } else {
+      this.liveResetWhilePinned = false;
+    }
     this.scrollIntent = undefined;
     this.followLiveRequested = false;
   }
@@ -26,15 +40,28 @@ export class SessionHistoryGate {
     this.pinned = false;
     this.scrollIntent = undefined;
     this.followLiveRequested = true;
+    this.liveResetWhilePinned = false;
+    this.paneOffsets.clear();
     return true;
   }
 
-  notePaneScroll(delta: number): void {
-    this.scrollIntent = delta < 0 ? 'history' : 'live';
-    if (this.scrollIntent === 'history') {
+  notePaneScroll(paneId: number, delta: number, view?: SessionView): number {
+    const pane = view?.panes.find((candidate) => candidate.id === paneId);
+    const current = this.currentPaneOffset(paneId, pane);
+    const next = this.nextPaneOffset(current, delta, pane);
+    if (next > 0) {
       this.pinned = true;
+      this.scrollIntent = 'history';
       this.followLiveRequested = false;
+      this.paneOffsets.set(paneId, next);
+      return this.liveResetWhilePinned ? -next : delta;
     }
+    this.pinned = false;
+    this.scrollIntent = 'live';
+    this.followLiveRequested = true;
+    this.liveResetWhilePinned = false;
+    this.paneOffsets.delete(paneId);
+    return delta;
   }
 
   shouldApplyView(view: SessionView): boolean {
@@ -44,7 +71,11 @@ export class SessionHistoryGate {
     if (!this.pinned) {
       return true;
     }
-    return this.scrollIntent === 'live' || this.followLiveRequested;
+    const shouldFollowLive = this.scrollIntent === 'live' || this.followLiveRequested;
+    if (!shouldFollowLive) {
+      this.liveResetWhilePinned = true;
+    }
+    return shouldFollowLive;
   }
 
   shouldSuppressOutput(): boolean {
@@ -52,6 +83,15 @@ export class SessionHistoryGate {
       return false;
     }
     return this.scrollIntent === 'history' || this.pinned;
+  }
+
+  private currentPaneOffset(paneId: number, pane?: SessionPaneView): number {
+    return Math.max(0, this.paneOffsets.get(paneId) ?? pane?.scroll_offset ?? 0);
+  }
+
+  private nextPaneOffset(current: number, delta: number, pane?: SessionPaneView): number {
+    const historySize = Math.max(0, pane?.history_size ?? Number.MAX_SAFE_INTEGER);
+    return Math.max(0, Math.min(historySize, current - delta));
   }
 }
 

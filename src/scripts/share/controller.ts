@@ -660,8 +660,8 @@ class ShareConnection {
     if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session') {
       return;
     }
-    this.sessionHistoryGate.notePaneScroll(delta);
-    scrollSessionPane(this.transport, paneId, delta);
+    const wireDelta = this.sessionHistoryGate.notePaneScroll(paneId, delta, this.lastSessionView);
+    scrollSessionPane(this.transport, paneId, wireDelta);
   }
 
   private selectPane(paneId: number): void {
