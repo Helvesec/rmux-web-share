@@ -1499,6 +1499,30 @@ test('disconnected session operator hides session controls while reconnecting au
   await expect(page.locator('[data-share-session-controls]')).toBeVisible();
 });
 
+test('role capacity close shows a retrying max-limit state', async ({ page }) => {
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const closedState = await page.evaluate(() => {
+    const socket = window.__rmuxShareSockets?.at(-1) as unknown as { closeWith?: (code: number, reason: string) => void };
+    socket?.closeWith?.(4009, 'capacity_reached');
+    return {
+      status: document.querySelector('[data-share-status]')?.textContent,
+      placeholder: document.querySelector('.share-placeholder-state')?.textContent,
+      spinner: Boolean(document.querySelector('.share-placeholder-spinner')),
+    };
+  });
+
+  expect(closedState).toMatchObject({
+    status: 'Disconnected',
+    placeholder: expect.stringContaining('Max limit reached. Trying to reconnect...'),
+    spinner: true,
+  });
+
+  await expect.poll(() => socketCount(page)).toBe(2);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+});
+
 test('operator disconnect returns to recent links without reusing the share secret', async ({ page }) => {
   await page.goto(`/#t=${operatorToken}`);
   await expect.poll(() => socketCount(page)).toBe(1);

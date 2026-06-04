@@ -158,9 +158,11 @@ export function closeMessage(code: number): string {
       return 'server error; reconnect when the share is still active';
     case 4000:
       // v4 collapses every pre-ready rejection (bad link, wrong pairing code,
-      // capacity, or origin) to this single code; the server never discloses
-      // which, to avoid an identity/PIN oracle.
+      // origin, or global server capacity) to this single code; the server never
+      // discloses which, to avoid an identity/PIN oracle.
       return 'connection refused — check the share link and pairing code';
+    case 4009:
+      return 'Max limit reached';
     case 4001:
       return 'evicted due to backpressure';
     case 4002:

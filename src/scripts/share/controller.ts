@@ -91,8 +91,10 @@ const SESSION_VIEW = 0x11;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const PIN_RE = /^\d{6}$/;
 const PIN_REQUIRED_CLOSE_CODE = 4008;
+const CAPACITY_REACHED_CLOSE_CODE = 4009;
 const PIN_MASK_DELAY_MS = 330;
 const DISCONNECTED_RECONNECTING = 'Disconnected. Reconnecting...';
+const CAPACITY_REACHED_RECONNECTING = 'Max limit reached. Trying to reconnect...';
 const RECONNECT_BASE_DELAY_MS = 500;
 const RECONNECT_MAX_DELAY_MS = 10_000;
 // Ignore sub-threshold resize churn (e.g. the on-screen keyboard nudging the
@@ -109,6 +111,10 @@ interface TerminalMenuState {
   canKillPane: boolean;
   toolbarHidden: boolean;
   mobile: boolean;
+}
+
+function isReconnectingDetail(detail: string): boolean {
+  return detail === DISCONNECTED_RECONNECTING || detail === CAPACITY_REACHED_RECONNECTING;
 }
 
 interface MobileControlHandlers {
@@ -446,9 +452,14 @@ class ShareConnection {
       return;
     }
 
-    const recovery = `${message}. Lost connection? Try refreshing.`;
+    const recovery = event.code === CAPACITY_REACHED_CLOSE_CODE
+      ? CAPACITY_REACHED_RECONNECTING
+      : `${message}. Lost connection? Try refreshing.`;
     if (this.shouldReconnect(event.code)) {
-      this.scheduleReconnect(recovery);
+      this.scheduleReconnect(
+        recovery,
+        event.code === CAPACITY_REACHED_CLOSE_CODE ? CAPACITY_REACHED_RECONNECTING : undefined,
+      );
       return;
     }
 
@@ -976,16 +987,20 @@ class ShareConnection {
     if (!this.everReady && this.socketError && shouldShowLocalAccessBlockedHelp(this.params.endpoint)) {
       return false;
     }
-    return code === 1001 || code === 1006 || code === 1011 || code === 4001;
+    return code === 1001
+      || code === 1006
+      || code === 1011
+      || code === 4001
+      || code === CAPACITY_REACHED_CLOSE_CODE;
   }
 
-  private scheduleReconnect(message: string): void {
+  private scheduleReconnect(message: string, detail = DISCONNECTED_RECONNECTING): void {
     if (this.disposed || this.shareEnded || this.reconnectTimer !== undefined) {
       return;
     }
     markRecentShareDisconnected(this.params);
     this.view.setCanKillPane(false);
-    this.view.setStatus({ connected: false, detail: DISCONNECTED_RECONNECTING, tone: 'warn' });
+    this.view.setStatus({ connected: false, detail, tone: 'warn' });
     this.terminal?.notice(message);
     const delay = Math.min(
       RECONNECT_MAX_DELAY_MS,
@@ -1967,14 +1982,14 @@ class ShareView {
       button.textContent = status.detail;
       button.addEventListener('click', status.action);
       this.terminalPlaceholder.append(button);
-    } else if (!this.connected && status.detail === DISCONNECTED_RECONNECTING) {
+    } else if (!this.connected && isReconnectingDetail(status.detail)) {
       const state = document.createElement('span');
       state.className = 'share-placeholder-state';
       const spinner = document.createElement('span');
       spinner.className = 'share-placeholder-spinner';
       spinner.setAttribute('aria-hidden', 'true');
       const label = document.createElement('span');
-      label.textContent = DISCONNECTED_RECONNECTING;
+      label.textContent = status.detail;
       state.append(spinner, label);
       this.terminalPlaceholder.append(state);
     } else {
