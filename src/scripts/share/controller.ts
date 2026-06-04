@@ -64,6 +64,7 @@ import type {
 import type { TerminalThemePalette } from './types';
 import { ProvenanceDialog } from './provenance';
 import { SessionHistoryGate } from './session-history';
+import { bindMobileControlMenu, type MobileControlAction, type MobileControlHandlers } from './mobile-controls';
 import { measureShareViewportInsets } from './viewport-insets';
 import { shareViewTemplate, titleCase } from './view-content';
 import { enableShareWindowBoundsTracking, resizeShareWindowForPairingPrompt, resizeShareWindowForTerminal } from './window-bounds';
@@ -116,19 +117,6 @@ interface TerminalMenuState {
 
 function isReconnectingDetail(detail: string): boolean {
   return detail === DISCONNECTED_RECONNECTING || detail === CAPACITY_REACHED_RECONNECTING;
-}
-
-interface MobileControlHandlers {
-  splitHorizontal: () => void;
-  splitVertical: () => void;
-  newWindow: () => void;
-  killPane: () => void;
-  stopProcess: () => void;
-  clearScreen: () => void;
-  reverseSearch: () => void;
-  copyPane: () => void;
-  copy: () => void;
-  paste: () => void;
 }
 
 type ShareExitState = 'disconnected' | 'unavailable';
@@ -1225,16 +1213,7 @@ class ShareView {
       const rect = this.mobilePaneSelect.getBoundingClientRect();
       this.openMobilePaneMenu(rect.left, rect.bottom + 8);
     });
-    this.mobileSplitHorizontal.addEventListener('click', () => this.runMobileControl('splitHorizontal'));
-    this.mobileSplitVertical.addEventListener('click', () => this.runMobileControl('splitVertical'));
-    this.mobileNewWindow.addEventListener('click', () => this.runMobileControl('newWindow'));
-    this.mobileKillPane.addEventListener('click', () => this.runMobileControl('killPane'));
-    this.mobileStopProcess.addEventListener('click', () => this.runMobileControl('stopProcess'));
-    this.mobileClearScreen.addEventListener('click', () => this.runMobileControl('clearScreen'));
-    this.mobileReverseSearch.addEventListener('click', () => this.runMobileControl('reverseSearch'));
-    this.mobileCopyPane.addEventListener('click', () => this.runMobileControl('copyPane'));
-    this.mobileCopy.addEventListener('click', () => this.runMobileControl('copy'));
-    this.mobilePaste.addEventListener('click', () => this.runMobileControl('paste'));
+    this.bindMobileControlActions();
     this.windowNew.addEventListener('click', () => {
       this.closeWindowMenu();
       this.newWindowHandler?.();
@@ -1833,6 +1812,25 @@ class ShareView {
     this.mobileControlMenu.hidden = true;
   }
 
+  private bindMobileControlActions(): void {
+    bindMobileControlMenu(
+      this.mobileControlMenu,
+      [
+        { button: this.mobileSplitHorizontal, action: 'splitHorizontal' },
+        { button: this.mobileSplitVertical, action: 'splitVertical' },
+        { button: this.mobileNewWindow, action: 'newWindow' },
+        { button: this.mobileKillPane, action: 'killPane' },
+        { button: this.mobileStopProcess, action: 'stopProcess' },
+        { button: this.mobileClearScreen, action: 'clearScreen' },
+        { button: this.mobileReverseSearch, action: 'reverseSearch' },
+        { button: this.mobileCopyPane, action: 'copyPane' },
+        { button: this.mobileCopy, action: 'copy' },
+        { button: this.mobilePaste, action: 'paste' },
+      ],
+      (action) => this.runMobileControl(action),
+    );
+  }
+
   private runTerminalSessionControl(handler?: () => void): void {
     this.closeTerminalMenu();
     if (this.connected) {
@@ -1840,7 +1838,7 @@ class ShareView {
     }
   }
 
-  private runMobileControl(action: keyof MobileControlHandlers): void {
+  private runMobileControl(action: MobileControlAction): void {
     this.closeMobileControlMenu();
     if (!this.connected || !this.sessionControlVisible) {
       return;

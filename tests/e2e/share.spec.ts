@@ -908,7 +908,29 @@ test('mobile session view opens a pane picker instead of desktop controls', asyn
   await expect(page.locator('[data-share-mobile-clear-screen]')).toContainText('Clear screen');
   await expect(page.locator('[data-share-mobile-reverse-search]')).toContainText('Reverse search');
   await expect(page.locator('[data-share-mobile-copy-pane]')).toContainText('Copy pane');
-  await page.keyboard.press('Escape');
+
+  const splitFrameCount = async (direction: string) => (await jsonFrames(page)).filter(
+    (frame) => frame.type === 'split_pane' && frame.direction === direction,
+  ).length;
+  const splitRight = page.locator('[data-share-mobile-split-horizontal]');
+  const horizontalBefore = await splitFrameCount('horizontal');
+  const splitRightBox = await splitRight.boundingBox();
+  expect(splitRightBox).not.toBeNull();
+  await page.mouse.move(splitRightBox!.x + splitRightBox!.width / 2, splitRightBox!.y + splitRightBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect.poll(() => splitFrameCount('horizontal')).toBe(horizontalBefore + 1);
+  await expect(page.locator('[data-share-mobile-control-menu]')).toBeHidden();
+
+  await page.locator('[data-share-mobile-actions]').click();
+  await expect(page.locator('[data-share-mobile-control-menu]')).toBeVisible();
+  const splitDown = page.locator('[data-share-mobile-split-vertical]');
+  const verticalBefore = await splitFrameCount('vertical');
+  const splitDownBox = await splitDown.boundingBox();
+  expect(splitDownBox).not.toBeNull();
+  await page.touchscreen.tap(splitDownBox!.x + splitDownBox!.width / 2, splitDownBox!.y + splitDownBox!.height / 2);
+  await expect.poll(() => splitFrameCount('vertical')).toBe(verticalBefore + 1);
+  await expect(page.locator('[data-share-mobile-control-menu]')).toBeHidden();
 
   await page.locator('[data-share-mobile-pane-select]').click();
   await expect(page.locator('[data-share-mobile-pane-menu]')).toBeVisible();
