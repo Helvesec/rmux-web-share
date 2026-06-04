@@ -1336,8 +1336,9 @@ class ShareView {
     }
     let currentInset = 0;
     let closeTimer: number | undefined;
-    const setViewportBottomInset = (inset: number) => {
-      this.app.style.setProperty('--viewport-bottom-inset', `${inset}px`);
+    const setViewportChromeInsets = (top: number, bottom: number) => {
+      this.app.style.setProperty('--viewport-top-inset', `${top}px`);
+      this.app.style.setProperty('--viewport-bottom-inset', `${bottom}px`);
     };
     const commit = (inset: number) => {
       if (closeTimer !== undefined) {
@@ -1351,24 +1352,32 @@ class ShareView {
       // DOM container; the xterm controller lives on ShareConnection.)
       this.keyboardInsetHandler?.(inset);
     };
-    // Keyboard height = layout viewport minus the visible viewport. Do NOT subtract
-    // visualViewport.offsetTop: iOS scrolls the layout viewport under the keyboard on
-    // every keystroke, spiking offsetTop, which made the keyboard look briefly closed
-    // and zeroed the inset mid-typing — collapsing the remote grid (and the whole
-    // terminal) on each key, then snapping back ~1s later. A pinch-zoom (scale > 1)
-    // also shrinks the visible viewport with no keyboard, so ignore it.
-    const keyboardHeight = () =>
-      viewport.scale > 1.01 ? 0 : Math.max(0, Math.round(window.innerHeight - viewport.height));
+    // Browser chrome and the on-screen keyboard both shrink visualViewport. Treat
+    // small top/bottom occlusions as browser chrome (navbar/status must remain
+    // visible), and only treat a large bottom occlusion as the keyboard. Once the
+    // keyboard is open, keep using the total viewport delta: iOS can spike
+    // offsetTop on every keystroke, and subtracting that spike briefly made the
+    // keyboard look closed.
+    const viewportTopInset = () =>
+      viewport.scale > 1.01 ? 0 : Math.max(0, Math.round(viewport.offsetTop));
     const viewportBottomInset = () =>
       viewport.scale > 1.01
         ? 0
         : Math.max(0, Math.round(window.innerHeight - viewport.offsetTop - viewport.height));
+    const keyboardHeight = () =>
+      viewport.scale > 1.01
+        ? 0
+        : Math.max(0, Math.round(window.innerHeight - viewport.height));
+    const viewportChromeInsets = (keyboardTarget: number) =>
+      keyboardTarget > 0 ? { top: 0, bottom: 0 } : { top: viewportTopInset(), bottom: viewportBottomInset() };
     const apply = () => {
       const mobileViewport = !this.confirmDialog.open && isMobileShareViewport();
       const keyboardCanLift = this.connected && mobileViewport;
       const keyboard = keyboardHeight();
-      const target = keyboardCanLift && keyboard > 90 ? keyboard : 0;
-      setViewportBottomInset(mobileViewport && target === 0 ? viewportBottomInset() : 0);
+      const bottomInset = viewportBottomInset();
+      const target = keyboardCanLift && keyboard > 90 && bottomInset > 90 ? keyboard : 0;
+      const chrome = mobileViewport ? viewportChromeInsets(target) : { top: 0, bottom: 0 };
+      setViewportChromeInsets(chrome.top, chrome.bottom);
       if (target >= currentInset || !keyboardCanLift) {
         // Opening/growing, or a hard close (disconnected, dialog open, desktop):
         // apply immediately so the lift tracks the keyboard with no lag.
@@ -1386,8 +1395,12 @@ class ShareView {
           const settledMobileViewport = !this.confirmDialog.open && isMobileShareViewport();
           const settledKeyboardCanLift = this.connected && settledMobileViewport;
           const settledKeyboard = keyboardHeight();
-          const settledTarget = settledKeyboardCanLift && settledKeyboard > 90 ? settledKeyboard : 0;
-          setViewportBottomInset(settledMobileViewport && settledTarget === 0 ? viewportBottomInset() : 0);
+          const settledBottomInset = viewportBottomInset();
+          const settledTarget = settledKeyboardCanLift && settledKeyboard > 90 && settledBottomInset > 90
+            ? settledKeyboard
+            : 0;
+          const settledChrome = settledMobileViewport ? viewportChromeInsets(settledTarget) : { top: 0, bottom: 0 };
+          setViewportChromeInsets(settledChrome.top, settledChrome.bottom);
           commit(settledTarget);
         }, KEYBOARD_INSET_CLOSE_DELAY_MS);
       }

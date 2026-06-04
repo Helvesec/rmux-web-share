@@ -445,7 +445,7 @@ test('session viewer keeps the status row visible after a remote resize notice',
   });
 });
 
-test('mobile Chrome iOS bottom toolbar does not cover the session status row', async ({ page }, testInfo) => {
+test('mobile browser chrome keeps both the navbar and session status row visible', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes('mobile'), 'Chrome iOS viewport chrome only affects mobile layout');
   await page.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'userAgent', {
@@ -468,16 +468,17 @@ test('mobile Chrome iOS bottom toolbar does not cover the session status row', a
   });
   await page.addInitScript(() => {
     // Chrome on iOS can expose a layout viewport taller than the visible
-    // viewport while its bottom browser toolbar is shown. There is no keyboard;
-    // the app must reserve this occluded bottom strip locally.
-    const bottomToolbar = 78;
+    // viewport while browser chrome covers the top and bottom. There is no
+    // keyboard; the app must reserve both occluded strips locally.
+    const topToolbar = 96;
+    const bottomToolbar = 64;
     const target = new EventTarget();
     const vv = {
-      get height() { return window.innerHeight - bottomToolbar; },
+      get height() { return window.innerHeight - topToolbar - bottomToolbar; },
       get width() { return window.innerWidth; },
-      get offsetTop() { return 0; },
+      get offsetTop() { return topToolbar; },
       get offsetLeft() { return 0; },
-      get pageTop() { return 0; },
+      get pageTop() { return topToolbar; },
       get pageLeft() { return 0; },
       get scale() { return 1; },
       addEventListener: (t: string, l: EventListenerOrEventListenerObject) => target.addEventListener(t, l),
@@ -498,6 +499,7 @@ test('mobile Chrome iOS bottom toolbar does not cover the session status row', a
     singleStatusRow: true,
     statusAtBottom: true,
     statusInsideVisualViewport: true,
+    topbarInsideVisualViewport: true,
     terminalInsideVisualViewport: true,
   });
 });
@@ -2427,6 +2429,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
     const terminal = document.querySelector<HTMLElement>('[data-share-terminal]');
     const stage = document.querySelector<HTMLElement>('.share-terminal-stage');
+    const topbar = document.querySelector<HTMLElement>('.share-topbar');
     const rows = Array.from(document.querySelectorAll<HTMLElement>('.xterm-rows > div'))
       .map((row) => row.textContent ?? '');
     if (!terminal || !stage) {
@@ -2441,6 +2444,7 @@ async function terminalProjection(page: import('@playwright/test').Page) {
         statusAtBottom: false,
         statusGreen: false,
         statusInsideVisualViewport: false,
+        topbarInsideVisualViewport: false,
         terminalInsideVisualViewport: false,
       };
     }
@@ -2454,7 +2458,9 @@ async function terminalProjection(page: import('@playwright/test').Page) {
     const visualViewportBottom = window.visualViewport
       ? window.visualViewport.offsetTop + window.visualViewport.height
       : window.innerHeight;
+    const visualViewportTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
     const statusRect = statusRow?.getBoundingClientRect();
+    const topbarRect = topbar?.getBoundingClientRect();
     return {
       fitsViewport: screenRect
         ? screenRect.left >= terminalRect.left - 2
@@ -2476,7 +2482,11 @@ async function terminalProjection(page: import('@playwright/test').Page) {
         })
         : false,
       statusInsideVisualViewport: statusRect ? statusRect.bottom <= visualViewportBottom + 2 : false,
-      terminalInsideVisualViewport: terminalRect.bottom <= visualViewportBottom + 2,
+      topbarInsideVisualViewport: topbarRect
+        ? topbarRect.top >= visualViewportTop - 2 && topbarRect.bottom <= visualViewportBottom + 2
+        : false,
+      terminalInsideVisualViewport:
+        terminalRect.top >= visualViewportTop - 2 && terminalRect.bottom <= visualViewportBottom + 2,
     };
   });
 }
