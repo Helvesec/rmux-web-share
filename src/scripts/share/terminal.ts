@@ -195,7 +195,7 @@ class XtermShareTerminal implements ShareTerminal {
     this.role = role;
     this.mobilePaneMedia = window.matchMedia(MOBILE_PANE_QUERY);
     this.landscapeMedia = window.matchMedia(SHORT_LANDSCAPE_QUERY);
-    this.term = new Terminal(optionsForRole(role, theme));
+    this.term = new Terminal(optionsForRole(role, theme, userTheme));
     this.term.loadAddon(
       new ImageAddon({
         enableSizeReports: false,
@@ -1822,6 +1822,7 @@ export function terminalChromePalette(
 function optionsForRole(
   role: ShareRole,
   theme: TerminalThemeName,
+  userTheme?: TerminalThemePalette,
 ): ConstructorParameters<typeof Terminal>[0] {
   return {
     allowProposedApi: false,
@@ -1835,7 +1836,7 @@ function optionsForRole(
     letterSpacing: 0,
     lineHeight: 1.2,
     scrollback: LIVE_SCROLLBACK_LINES,
-    theme: themePalette(theme),
+    theme: themePalette(theme, userTheme),
     // rmux streams PTY output for a concrete remote geometry. Client-side
     // reflow corrupts redraw-heavy terminal UIs during resize.
     windowsPty: { backend: 'winpty' },

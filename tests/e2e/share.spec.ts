@@ -2279,6 +2279,7 @@ test('host terminal theme applies the palette from the ready message', async ({ 
   await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'dark');
   await expect(page.locator('.share-app')).toHaveAttribute('data-client-palette', 'present');
   await expect.poll(() => customProperty(page, '--share-client-bg')).toBe('#00343d');
+  await expect(page.locator('[data-share-terminal]')).toHaveCSS('background-color', 'rgb(0, 52, 61)');
   await expect(page.locator('.xterm')).toContainText('hello from rmux');
 
   await page.locator('[data-share-terminal-theme]').selectOption('dark');
