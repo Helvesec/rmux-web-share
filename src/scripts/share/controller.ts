@@ -63,6 +63,7 @@ import type {
 } from './types';
 import type { TerminalThemePalette } from './types';
 import { ProvenanceDialog } from './provenance';
+import { SessionHistoryGate } from './session-history';
 import { shareViewTemplate, titleCase } from './view-content';
 import { enableShareWindowBoundsTracking, resizeShareWindowForPairingPrompt, resizeShareWindowForTerminal } from './window-bounds';
 import {
@@ -267,6 +268,8 @@ class ShareConnection {
   private mobileFocusPaneId?: number;
   private mobileFocusFraction?: { w: number; h: number };
   private lastSessionView?: SessionView;
+  private pendingSessionSnapshot?: Uint8Array;
+  private readonly sessionHistoryGate = new SessionHistoryGate();
 
   constructor(
     private readonly params: ShareParams,
@@ -467,6 +470,9 @@ class ShareConnection {
     this.scope = message.scope;
     this.sessionControls = message.controls && message.scope === 'session' && message.role === 'operator';
     this.sessionPaneCount = 0;
+    this.lastSessionView = undefined;
+    this.pendingSessionSnapshot = undefined;
+    this.sessionHistoryGate.reset();
     this.everReady = true;
     this.reconnectAttempt = 0;
     this.clearReconnectTimer();
@@ -548,22 +554,28 @@ class ShareConnection {
     const opcode = frame[0];
     const payload = frame.subarray(1);
     if (opcode === SNAPSHOT_FULL) {
+      if (this.scope === 'session' && this.lastSessionView) {
+        this.pendingSessionSnapshot = payload.slice();
+        return;
+      }
       this.terminal.replace(payload);
       this.scheduleTerminalViewportSync();
     } else if (opcode === SESSION_VIEW) {
       const view = parseSessionView(payload);
-      this.sessionPaneCount = view.panes.length;
-      this.lastSessionView = view;
-      if (this.mobileFocusPaneId !== undefined && !view.panes.some((pane) => pane.id === this.mobileFocusPaneId)) {
-        this.mobileFocusPaneId = undefined;
-        this.mobileFocusFraction = undefined;
+      if (!this.shouldApplySessionView(view)) {
+        this.pendingSessionSnapshot = undefined;
+        return;
       }
-      this.terminal.setSessionView(view);
-      this.view.setSessionView(view);
-      this.view.setCanKillPane(this.canKillActivePane());
-      rememberRecentWindowName(this.params, view);
-      this.scheduleTerminalViewportSync();
+      const snapshot = this.pendingSessionSnapshot;
+      this.pendingSessionSnapshot = undefined;
+      if (snapshot) {
+        this.terminal.replace(snapshot);
+      }
+      this.applySessionView(view);
     } else if (opcode === OUTPUT_RAW) {
+      if (this.shouldSuppressSessionOutput()) {
+        return;
+      }
       this.terminal.write(payload);
       if (this.scope !== 'session') {
         this.scheduleTerminalViewportSync();
@@ -572,6 +584,38 @@ class ShareConnection {
       this.terminal.resize((payload[0] << 8) | payload[1], (payload[2] << 8) | payload[3]);
       this.scheduleTerminalViewportSync();
     }
+  }
+
+  private applySessionView(view: SessionView): void {
+    if (!this.terminal) {
+      return;
+    }
+    this.sessionPaneCount = view.panes.length;
+    this.lastSessionView = view;
+    if (this.mobileFocusPaneId !== undefined && !view.panes.some((pane) => pane.id === this.mobileFocusPaneId)) {
+      this.mobileFocusPaneId = undefined;
+      this.mobileFocusFraction = undefined;
+    }
+    this.terminal.setSessionView(view);
+    this.view.setSessionView(view);
+    this.view.setCanKillPane(this.canKillActivePane());
+    rememberRecentWindowName(this.params, view);
+    this.scheduleTerminalViewportSync();
+    this.sessionHistoryGate.noteAppliedView(view);
+  }
+
+  private shouldApplySessionView(view: SessionView): boolean {
+    if (this.scope !== 'session') {
+      return true;
+    }
+    return this.sessionHistoryGate.shouldApplyView(view);
+  }
+
+  private shouldSuppressSessionOutput(): boolean {
+    if (this.scope !== 'session') {
+      return false;
+    }
+    return this.sessionHistoryGate.shouldSuppressOutput();
   }
 
   setTerminalTheme(theme: TerminalThemeName): void {
@@ -592,6 +636,8 @@ class ShareConnection {
     this.socket?.close(1000, reason);
     this.socket = undefined;
     this.transport = undefined;
+    this.pendingSessionSnapshot = undefined;
+    this.sessionHistoryGate.reset();
     this.disposeTerminal();
   }
 
@@ -605,13 +651,16 @@ class ShareConnection {
       this.view.setStatus({ connected: true, detail: 'input too large', tone: 'error' });
       return;
     }
-    this.terminal?.followLiveOutput();
+    if (this.sessionHistoryGate.noteOperatorData(data)) {
+      this.terminal?.followLiveOutput();
+    }
   }
 
   private sendPaneScroll(paneId: number, delta: number): void {
     if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session') {
       return;
     }
+    this.sessionHistoryGate.notePaneScroll(delta);
     scrollSessionPane(this.transport, paneId, delta);
   }
 

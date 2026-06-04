@@ -1626,6 +1626,116 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
   expect(await sentInputFrameCount(page)).toBe(0);
 });
 
+test('session history scroll stays pinned across live refreshes until the user returns to bottom', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?1004h\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlive bottom frame'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 120,
+        scroll_offset: 0,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('live bottom frame');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 48, screen!.y + 64);
+  await page.mouse.wheel(0, -240);
+  await expect.poll(async () => (await paneScrollFrames(page)).at(-1)).toMatchObject({
+    type: 'pane_scroll',
+    pane_id: 7,
+    delta: expect.any(Number),
+  });
+
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hhistory frame at offset 40'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: 40,
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('history frame at offset 40');
+
+  await page.locator('.xterm-helper-textarea').evaluate((element) => {
+    (element as HTMLElement).blur();
+    (element as HTMLElement).focus();
+  });
+  await expect.poll(() => sentInputPayloads(page)).toContain('\x1b[I');
+
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlive refresh that should stay hidden'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: 0,
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('history frame at offset 40');
+  await expect(page.locator('.xterm')).not.toContainText('live refresh that should stay hidden');
+
+  await page.mouse.wheel(0, 240);
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hlive bottom after explicit return'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: 120,
+      scroll_offset: 0,
+      alternate_on: false,
+    }],
+  });
+  await expect(page.locator('.xterm')).toContainText('live bottom after explicit return');
+});
+
 test('toolbar remains visible by default across reloads', async ({ page }) => {
   const url = `/#t=${spectatorToken}`;
   await page.goto(url);
@@ -1848,6 +1958,13 @@ async function dispatchSessionView(page: import('@playwright/test').Page, view: 
   }, view);
 }
 
+async function dispatchSessionSnapshot(page: import('@playwright/test').Page, snapshot: string): Promise<void> {
+  await page.evaluate(async (text) => {
+    const bytes = new TextEncoder().encode(text);
+    await window.__rmuxShareSockets?.at(-1)?.serverBinary([0x10, ...Array.from(bytes)]);
+  }, snapshot);
+}
+
 async function sentFrames(page: import('@playwright/test').Page) {
   return page.evaluate(() => window.__rmuxShareSockets?.flatMap((socket) => socket.sent) ?? []);
 }
@@ -1924,6 +2041,16 @@ async function paneResizeFrames(page: import('@playwright/test').Page): Promise<
 async function sentInputFrameCount(page: import('@playwright/test').Page): Promise<number> {
   const frames = await sentFrames(page);
   return frames.filter((frame) => Array.isArray(frame) && (frame[0] === 0x80 || frame[0] === 0x83)).length;
+}
+
+async function sentInputPayloads(page: import('@playwright/test').Page): Promise<string[]> {
+  const frames = await sentFrames(page);
+  return frames.flatMap((frame) => {
+    if (!Array.isArray(frame) || (frame[0] !== 0x80 && frame[0] !== 0x83)) {
+      return [];
+    }
+    return [new TextDecoder().decode(new Uint8Array(frame.slice(1)))];
+  });
 }
 
 async function socketCount(page: import('@playwright/test').Page) {
