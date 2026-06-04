@@ -17,7 +17,7 @@
     "target": "web"
   },
   "build_command": "wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm-test",
-  "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build: committed bytes must match these hashes recorded in the same diff. (2) scripts/verify-wasm-from-source.mjs is the source->binary gate: it rebuilds this blob from the public rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm-test, pinned toolchain) and asserts byte-for-byte equality. CI blocks deploy if the commit is not reachable or if the rebuilt bytes differ. This blob is test-only and never shipped to production. Reproduce locally with: RMUX_SOURCE_DIR=/path/to/rmux node scripts/verify-wasm-from-source.mjs.",
+  "verification": "scripts/verify-wasm-provenance.mjs hash-pins this blob on every build. It is test-only and never shipped to production. Include it in the source-to-binary gate with RMUX_WASM_DIRS=wasm,wasm-test when a full test-blob audit is needed.",
   "artifacts": {
     "rmux_web_crypto_wasm_bg.wasm": "sha256:3b7b02abf6adf6d9b3707af98584b2a826e0ab84a067fc3bc7db7d2a17938bf0",
     "rmux_web_crypto_wasm.js": "sha256:de09e05be0180ee203c5ca0532d55820078f8bb8e8e5ae116f04802b25366ef0"

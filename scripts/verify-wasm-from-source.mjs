@@ -1,28 +1,8 @@
-// Source -> binary supply-chain gate for the committed crypto WASM blobs.
+// Source-to-binary gate for the production crypto WASM.
 //
-// verify-wasm-provenance.mjs proves the committed bytes match the hashes RECORDED
-// in PROVENANCE.json (tamper-evident against accidental drift), but it explicitly
-// does NOT re-derive the binary from Rust source — so an edit to BOTH the blob and
-// its recorded hash would pass. This script closes that hole: for each committed
-// blob it rebuilds from the rmux Rust source at the pinned source_commit, reusing
-// rmux's own scripts/build-web-crypto-wasm.sh recipe (no duplicated build logic),
-// and asserts the rebuilt bytes are byte-for-byte identical to the committed ones.
-// That ties the otherwise-unauditable binary to reviewable source.
-//
-// Fail-closed: any mismatch, unreachable source, missing commit, or build failure
-// exits non-zero. It is heavy (needs the Rust toolchain + wasm-pack), so it runs as
-// a dedicated CI job that gates the deploy — NOT inside the fast `npm run build`,
-// which keeps the cheap always-on hash-pin (verify-wasm-provenance.mjs).
-//
-// Source resolution, first that works:
-//   - $RMUX_SOURCE_DIR : a local rmux checkout. Built via a detached git worktree
-//     at source_commit, never mutating the checkout.
-//   - else: git clone <PROVENANCE.source.repository> into a temp dir, then the same
-//     worktree-at-source_commit build.
-//
-// The pinned toolchain is honoured by exporting RUSTUP_TOOLCHAIN from
-// PROVENANCE.toolchain.rustc (overrides the source tree's rust-toolchain.toml) so a
-// runner on a newer floating "stable" does not silently change the bytes.
+// The deploy workflow rebuilds the shipped blob from the pinned rmux source
+// commit and requires byte-for-byte equality before publishing share.rmux.io.
+// Set RMUX_WASM_DIRS=wasm,wasm-test when the test-only blob also needs checking.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -31,7 +11,20 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const shareRoot = fileURLToPath(new URL('../src/scripts/share/', import.meta.url));
-const WASM_DIRS = ['wasm', 'wasm-test']; // dir name doubles as the build feature set
+const VALID_WASM_DIRS = new Set(['wasm', 'wasm-test']);
+const requestedDirs = (process.env.RMUX_WASM_DIRS ?? 'wasm')
+  .split(',')
+  .map((dir) => dir.trim())
+  .filter(Boolean);
+if (requestedDirs.length === 0) {
+  throw new Error('wasm source gate: RMUX_WASM_DIRS did not name any artifact directory');
+}
+for (const dir of requestedDirs) {
+  if (!VALID_WASM_DIRS.has(dir)) {
+    throw new Error(`wasm source gate: unsupported artifact directory '${dir}'`);
+  }
+}
+const WASM_DIRS = requestedDirs; // dir name doubles as the build feature set
 const BUILD_SCRIPT = 'scripts/build-web-crypto-wasm.sh';
 
 const sha256 = (bytes) => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
