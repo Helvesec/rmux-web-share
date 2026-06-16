@@ -4,6 +4,7 @@ import { installMockShareWebSocket } from '../support/mock-share-websocket';
 
 const spectatorToken = `spectator_${'a'.repeat(48)}`;
 const operatorToken = `operator_${'b'.repeat(48)}`;
+const derivableOperatorToken = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(installMockShareWebSocket);
@@ -227,10 +228,17 @@ test('server shows the live connected browser count by default', async ({ page }
 });
 
 test('operator share menu exposes operator and spectator links with local QR codes', async ({ page }) => {
-  const derivableOperatorToken = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
   await page.addInitScript(() => {
     window.__rmuxShareReadyRole = 'operator';
     window.__rmuxShareSpectatorPairingCode = '654321';
+    window.__rmuxShareViewerCount = {
+      type: 'viewer_count',
+      spectators_active: 1,
+      spectators_max: 5,
+      operators_active: 0,
+      operators_max: 1,
+      viewers_connected: 1,
+    };
   });
 
   await page.goto(`/#t=${derivableOperatorToken}`);
@@ -248,6 +256,11 @@ test('operator share menu exposes operator and spectator links with local QR cod
   await expect(page.locator('[data-share-link-pin-code]')).toHaveText('654321');
   await expect(page.locator('[data-share-link-url]')).toContainText('#t=');
   await expect(page.locator('[data-share-link-url]')).not.toContainText(derivableOperatorToken);
+  const linkBox = await page.locator('[data-share-link-url]').boundingBox();
+  const copyBox = await page.locator('[data-share-link-copy]').boundingBox();
+  expect(linkBox).not.toBeNull();
+  expect(copyBox).not.toBeNull();
+  expect(copyBox!.x).toBeGreaterThan(linkBox!.x);
   await expect(page.locator('[data-share-link-qr]')).toHaveAttribute('src', /^data:image\/gif;base64,/);
   await expect(page.locator('[data-share-link-help]')).toContainText('QR code only contains the link');
   await page.locator('[data-share-link-close]').click();
@@ -261,16 +274,30 @@ test('operator share menu exposes operator and spectator links with local QR cod
   await expect(page.locator('[data-share-link-pin]')).toBeHidden();
 });
 
-test('spectator share button opens only the spectator link', async ({ page }) => {
+test('operator share link is hidden when the operator limit is reached', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyOperatorsActive = 1;
+    window.__rmuxShareReadyOperatorsMax = 1;
+  });
+  await page.goto(`/#t=${derivableOperatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-open]')).toBeVisible();
+  await page.locator('[data-share-open]').click();
+  await expect(page.locator('[data-share-link-menu]')).toBeHidden();
+  await expect(page.locator('[data-share-link-operator]')).toBeHidden();
+  await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
+  await expect(page.locator('[data-share-link-title]')).toHaveText('Spectator link');
+});
+
+test('spectator clients do not expose share links', async ({ page }) => {
   await page.goto(`/#t=${spectatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
-  await page.locator('[data-share-open]').click();
+  await expect(page.locator('[data-share-open]')).toBeHidden();
   await expect(page.locator('[data-share-link-menu]')).toBeHidden();
-  await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
-  await expect(page.locator('[data-share-link-title]')).toHaveText('Spectator link');
-  await expect(page.locator('[data-share-link-url]')).toContainText(`#t=${spectatorToken}`);
-  await expect(page.locator('[data-share-link-qr]')).toHaveAttribute('src', /^data:image\/gif;base64,/);
+  await expect(page.locator('[data-share-link-dialog]')).toBeHidden();
 });
 
 test('share link copy failures stay in the share dialog', async ({ page }) => {
@@ -281,11 +308,22 @@ test('share link copy failures stay in the share dialog', async ({ page }) => {
         writeText: () => Promise.reject(new DOMException('denied', 'NotAllowedError')),
       }),
     });
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyOperatorsMax = 2;
+    window.__rmuxShareViewerCount = {
+      type: 'viewer_count',
+      spectators_active: 1,
+      spectators_max: 5,
+      operators_active: 1,
+      operators_max: 2,
+      viewers_connected: 2,
+    };
   });
-  await page.goto(`/#t=${spectatorToken}`);
+  await page.goto(`/#t=${derivableOperatorToken}`);
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await page.locator('[data-share-open]').click();
+  await page.locator('[data-share-link-spectator]').click();
   await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
   await page.locator('[data-share-link-copy]').click();
 

@@ -66,9 +66,9 @@ export function shareViewTemplate(): string {
           <span class="share-visually-hidden" data-share-status>Disconnected</span>
           <button class="share-icon-button" data-share-open type="button" aria-haspopup="menu" aria-label="Share" title="Share" hidden>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M8 12h8" />
-              <path d="M13 7l5 5-5 5" />
-              <path d="M18 12H6a3 3 0 0 0-3 3v4" />
+              <path d="M12 3v12" />
+              <path d="m7 8 5-5 5 5" />
+              <path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" />
             </svg>
           </button>
           <label class="share-theme-control">
@@ -340,19 +340,19 @@ export function shareViewTemplate(): string {
           <div class="share-link-qr">
             <img data-share-link-qr alt="Share link QR code" />
           </div>
-          <label class="share-link-field">
+          <div class="share-link-field">
             <span>Link</span>
-            <output data-share-link-url></output>
-          </label>
+            <div class="share-link-url-row">
+              <output data-share-link-url></output>
+              <button data-share-link-copy type="button">Copy link</button>
+            </div>
+          </div>
           <div class="share-link-code" data-share-link-pin hidden>
             <span>Pairing code</span>
             <strong data-share-link-pin-code></strong>
             <button data-share-link-copy-pin type="button">Copy code</button>
           </div>
           <p class="share-link-help" data-share-link-help></p>
-          <div class="share-confirm-actions">
-            <button data-share-link-copy type="button" class="primary">Copy link</button>
-          </div>
         </form>
       </dialog>
       ${provenanceDialogTemplate()}

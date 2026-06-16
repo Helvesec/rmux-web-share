@@ -429,8 +429,7 @@ class ShareConnection {
         this.view.setOperatorConnected(message.connected);
         break;
       case 'viewer_count':
-        this.view.setViewerCount(message);
-        updateRecentShareViewers(this.params, connectedViewers(message));
+        this.handleViewerCount(message);
         break;
       case 'ttl_warn':
         this.terminal?.notice(`share expires in ${message.seconds_remaining}s`);
@@ -447,6 +446,22 @@ class ShareConnection {
         this.endShare(revokedMessage(message.reason), 'warn');
         break;
     }
+  }
+
+  private handleViewerCount(message: ViewerCountMessage): void {
+    if (this.readyMessage) {
+      this.readyMessage = {
+        ...this.readyMessage,
+        operators_active: message.operators_active,
+        operators_max: message.operators_max ?? this.readyMessage.operators_max,
+        spectators_active: message.spectators_active,
+        spectators_max: message.spectators_max,
+        viewers_connected: message.viewers_connected,
+      };
+      this.view.updateShareAvailability(this.readyMessage);
+    }
+    this.view.setViewerCount(message);
+    updateRecentShareViewers(this.params, connectedViewers(message));
   }
 
   private handleClose(event: CloseEvent): void {
@@ -601,7 +616,11 @@ class ShareConnection {
       return;
     }
     if (role === 'operator') {
-      if (ready.role !== 'operator' || !ready.operator_access) {
+      if (
+        ready.role !== 'operator'
+        || !ready.operator_access
+        || !hasShareCapacity(ready.operators_active, ready.operators_max)
+      ) {
         return;
       }
       this.view.openShareLinkDialog({
@@ -613,19 +632,17 @@ class ShareConnection {
       });
       return;
     }
-    if (!ready.spectator_access) {
+    if (ready.role !== 'operator' || !ready.spectator_access) {
       return;
     }
     try {
-      const token = ready.role === 'operator'
-        ? await deriveSpectatorToken(this.params.token)
-        : this.params.token;
+      const token = await deriveSpectatorToken(this.params.token);
       this.view.openShareLinkDialog({
         role,
         url: shareUrl({ ...this.params, token }),
         max: ready.spectators_max,
         active: ready.spectators_active,
-        pin: ready.role === 'operator' ? ready.spectator_pairing_code : this.pin,
+        pin: ready.spectator_pairing_code,
       });
     } catch {
       this.view.showError('Could not create a spectator link for this share.', 'share failed');
@@ -1763,6 +1780,10 @@ class ShareView {
     this.setStatus({ connected: true, detail: 'connected', tone: 'ok' });
   }
 
+  updateShareAvailability(message: ReadyMessage): void {
+    this.setShareAvailability(message);
+  }
+
   setRole(role: ShareRole): void {
     this.role.textContent = titleCase(role);
     this.terminal.dataset.role = role;
@@ -2054,8 +2075,8 @@ class ShareView {
       this.closeShareMenu();
       return;
     }
-    if (this.shareRole === 'spectator') {
-      this.runShareAction('spectator');
+    if (this.shareRole !== 'operator') {
+      this.closeShareMenu();
       return;
     }
     const available = [
@@ -2085,7 +2106,10 @@ class ShareView {
 
   private runShareAction(role: ShareRole): void {
     this.closeShareMenu();
-    if (!this.connected) {
+    const available = role === 'operator'
+      ? this.shareOperatorAvailable
+      : this.shareSpectatorAvailable;
+    if (!this.connected || !available) {
       return;
     }
     void this.shareOpenHandler?.(role);
@@ -2325,9 +2349,11 @@ class ShareView {
 
   private setShareAvailability(message: ReadyMessage): void {
     this.shareRole = message.role;
-    this.shareOperatorAvailable = message.role === 'operator' && message.operator_access;
-    this.shareSpectatorAvailable = message.spectator_access;
-    this.shareButton.title = message.role === 'operator' ? 'Share links' : 'Share spectator link';
+    this.shareOperatorAvailable = message.role === 'operator'
+      && message.operator_access
+      && hasShareCapacity(message.operators_active, message.operators_max);
+    this.shareSpectatorAvailable = message.role === 'operator' && message.spectator_access;
+    this.shareButton.title = 'Share links';
     this.updateShareButtonVisibility();
   }
 
@@ -2370,8 +2396,10 @@ class ShareView {
 
   private updateShareButtonVisibility(): void {
     const available = this.shareOperatorAvailable || this.shareSpectatorAvailable;
+    this.shareOperatorLink.hidden = !this.shareOperatorAvailable;
+    this.shareSpectatorLink.hidden = !this.shareSpectatorAvailable;
     this.shareButton.hidden = !this.connected || !available;
-    if (!this.connected) {
+    if (!this.connected || !available) {
       this.closeShareMenu();
     }
   }
@@ -2641,6 +2669,14 @@ function finiteCount(value: number | undefined): number | undefined {
   return value === undefined || !Number.isFinite(value)
     ? undefined
     : Math.max(0, Math.floor(value));
+}
+
+function hasShareCapacity(active: number | undefined, max: number | undefined): boolean {
+  const limit = finiteCount(max);
+  if (limit === undefined) {
+    return true;
+  }
+  return (finiteCount(active) ?? 0) < limit;
 }
 
 function shareLimitLabel(model: ShareLinkModel): string {

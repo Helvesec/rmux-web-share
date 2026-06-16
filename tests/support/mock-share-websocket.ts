@@ -220,18 +220,18 @@ export function installMockShareWebSocket(): void {
         role,
         operator: role === 'operator',
         operator_access: role === 'operator',
-        spectator_access: true,
+        spectator_access: window.__rmuxShareSpectatorAccess ?? true,
         controls: window.__rmuxShareReadyControls
           ?? (role === 'operator' && window.__rmuxShareReadyScope === 'session'),
         show_viewers: window.__rmuxShareShowViewers ?? true,
-        operators_active: 0,
-        operators_max: 1,
+        operators_active: window.__rmuxShareReadyOperatorsActive ?? 0,
+        operators_max: window.__rmuxShareReadyOperatorsMax ?? 1,
         spectator_pairing_code: role === 'operator'
           ? window.__rmuxShareSpectatorPairingCode
           : undefined,
         ttl_remaining_seconds: 60,
-        spectators_active: 1,
-        spectators_max: 5,
+        spectators_active: window.__rmuxShareReadySpectatorsActive ?? 1,
+        spectators_max: window.__rmuxShareReadySpectatorsMax ?? 5,
         viewers_connected: 1,
         terminal_palette: window.__rmuxShareTerminalPalette,
       };
@@ -332,6 +332,11 @@ declare global {
     __rmuxShareReadyRole?: 'spectator' | 'operator';
     __rmuxShareReadyScope?: 'pane' | 'session';
     __rmuxShareReadySize?: { cols: number; rows: number };
+    __rmuxShareReadyOperatorsActive?: number;
+    __rmuxShareReadyOperatorsMax?: number;
+    __rmuxShareReadySpectatorsActive?: number;
+    __rmuxShareReadySpectatorsMax?: number;
+    __rmuxShareSpectatorAccess?: boolean;
     __rmuxShareSessionView?: {
       size: { cols: number; rows: number };
       panes: Array<{

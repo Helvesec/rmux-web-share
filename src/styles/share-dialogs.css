@@ -48,6 +48,10 @@
   padding: 30px;
 }
 
+.share-link-panel {
+  position: relative;
+}
+
 .share-confirm[data-pin='true'] .share-confirm-panel {
   justify-items: center;
   gap: 16px;
@@ -62,6 +66,10 @@
   align-items: start;
   justify-content: space-between;
   gap: 24px;
+}
+
+.share-link-dialog .share-dialog-header {
+  padding-right: 56px;
 }
 
 .share-confirm-mark {
@@ -166,6 +174,13 @@
   font-weight: 760;
 }
 
+.share-link-url-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
 .share-link-field output,
 .share-link-code strong {
   min-width: 0;
@@ -188,6 +203,7 @@
   grid-column: 1;
 }
 
+.share-link-field button,
 .share-link-code button {
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -201,6 +217,12 @@
   font: inherit;
   font-size: 13px;
   font-weight: 760;
+}
+
+.share-link-field button {
+  grid-column: auto;
+  grid-row: auto;
+  white-space: nowrap;
 }
 
 .share-link-help {
@@ -219,7 +241,8 @@
    (specificity 0,2,1) so the close button keeps its 44x44 circle instead of
    inheriting the 52px pill geometry — without inflating that generic rule and
    accidentally outranking the .primary/.danger colours. */
-.share-session-actions .share-dialog-close[data-share-session-close] {
+.share-session-actions .share-dialog-close[data-share-session-close],
+.share-link-dialog .share-dialog-close[data-share-link-close] {
   position: absolute;
   top: 20px;
   right: 20px;
