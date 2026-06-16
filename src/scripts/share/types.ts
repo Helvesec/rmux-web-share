@@ -32,6 +32,7 @@ export interface ReadyMessage {
   show_viewers: boolean;
   operators_active?: number;
   operators_max?: number;
+  spectator_pairing_code?: string;
   ttl_remaining_seconds?: number;
   spectators_active?: number;
   spectators_max?: number;
@@ -58,6 +59,7 @@ export interface SessionPaneView {
   history_size: number;
   scroll_offset: number;
   alternate_on: boolean;
+  mouse_on?: boolean;
 }
 
 export interface SessionView {

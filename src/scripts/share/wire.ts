@@ -4,6 +4,7 @@ export const WEB_SHARE_PROTOCOL_VERSION = 1;
 export const WEB_SHARE_CLIENT_CAPABILITIES = [
   'e2ee-token-auth',
   'terminal-palette-v1',
+  'pane-frame-v1',
 ] as const;
 
 const INPUT_TEXT = 0x80;
@@ -12,6 +13,7 @@ const ATTACH_INPUT = 0x83;
 const SESSION_RESIZE_PANE = 0x84;
 const MAX_INPUT_BYTES = 4096;
 const MAX_PANE_RESIZE_CELLS = 10_000;
+export const MAX_PANE_SCROLL_DELTA = 10_000;
 const MAX_WINDOW_NAME_BYTES = 128;
 const PANE_RESIZE_DIRECTION_CODES: Record<PaneResizeDirection, number> = {
   down: 3,
@@ -105,7 +107,14 @@ export function logoutSession(ws: ShareTransport): void {
 }
 
 export function scrollSessionPane(ws: ShareTransport, paneId: number, delta: number): void {
-  ws.sendText(JSON.stringify({ type: 'pane_scroll', pane_id: paneId, delta }));
+  ws.sendText(JSON.stringify({ type: 'pane_scroll', pane_id: paneId, delta: clampPaneScrollDelta(delta) }));
+}
+
+export function clampPaneScrollDelta(delta: number): number {
+  if (!Number.isFinite(delta)) {
+    return 0;
+  }
+  return Math.max(-MAX_PANE_SCROLL_DELTA, Math.min(MAX_PANE_SCROLL_DELTA, Math.trunc(delta)));
 }
 
 export function selectSessionPane(ws: ShareTransport, paneId: number): void {
@@ -155,20 +164,20 @@ export function closeMessage(code: number): string {
     case 1000:
       return 'connection closed';
     case 1011:
-      return 'server error; reconnect when the share is still active';
+      return 'server error';
     case 4000:
-      // v4 collapses every pre-ready rejection (bad link, wrong pairing code,
-      // origin, or global server capacity) to this single code; the server never
-      // discloses which, to avoid an identity/PIN oracle.
+      // Protocol v1 collapses every pre-ready rejection (bad link, wrong
+      // pairing code, origin, or global server capacity) to this single code;
+      // the server never discloses which, to avoid an identity/PIN oracle.
       return 'connection refused — check the share link and pairing code';
     case 4009:
       return 'Max limit reached';
     case 4001:
-      return 'evicted due to backpressure';
+      return 'connection too slow';
     case 4002:
-      return 'frame too large';
+      return 'request too large';
     case 4006:
-      return 'protocol violation';
+      return 'unsupported action';
     default:
       return code ? `connection closed (${code})` : 'connection closed';
   }

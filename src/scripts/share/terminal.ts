@@ -41,6 +41,7 @@ const SHORT_LANDSCAPE_QUERY = '(pointer: coarse) and (orientation: landscape) an
 const TALL_VIEW_HEADROOM_ROWS = 18;
 const TALL_VIEW_MAX_ROWS = 44;
 const TOUCH_SCROLL_THRESHOLD_PX = 8;
+const PANE_TAP_MOVE_THRESHOLD_PX = 6;
 // Focused panes zoom to fill the width, but capped so a very narrow split pane
 // stays a comfortable reading size instead of becoming oversized. Panes wider
 // than ~1/1.8 of the screen still fill it; narrower ones top out here.
@@ -159,6 +160,7 @@ class XtermShareTerminal implements ShareTerminal {
   private readonly mobilePaneMedia: MediaQueryList;
   private mobilePaneId?: number;
   private mobileShowAllPanes = true;
+  private dataHandler?: (data: string) => void;
   private paneScrollHandler?: (paneId: number, delta: number) => void;
   private paneResizeHandler?: (paneId: number, direction: PaneResizeDirection, cells: number) => void;
   private paneResizeDrag?: PaneResizeDrag;
@@ -533,38 +535,41 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   onData(callback: (data: string) => void): void {
-    this.disposables.push(this.term.onData(callback));
+    this.dataHandler = callback;
+    const disposable = this.term.onData(callback);
+    this.disposables.push({
+      dispose: () => {
+        if (this.dataHandler === callback) {
+          this.dataHandler = undefined;
+        }
+        disposable.dispose();
+      },
+    });
   }
 
   onPaneSelect(callback: (paneId: number) => void): void {
-    // Desktop: select on mouse-down (preventDefault keeps a click from starting a
-    // text selection). Touch: only select on a quick tap (no drag, short hold) so
-    // a long-press is still free for native text selection and a drag for scroll.
+    // A short primary tap selects the pane. A drag is left to xterm/browser text
+    // selection, so web-share behaves like a normal terminal surface.
     let tap: { x: number; y: number; time: number; pointerId: number; moved: boolean } | undefined;
     const onPointerDown = (event: PointerEvent) => {
       if (this.scope !== 'session' || this.role !== 'operator') {
         return;
       }
-      if (event.pointerType === 'touch') {
-        tap = this.dividerFromMouseEvent(event)
-          ? undefined
-          : { x: event.clientX, y: event.clientY, time: nowMs(), pointerId: event.pointerId, moved: false };
-        return;
-      }
       if (event.button !== 0 || this.dividerFromMouseEvent(event)) {
+        tap = undefined;
         return;
       }
       const pane = this.paneFromMouseEvent(event);
       if (!pane) {
+        tap = undefined;
         return;
       }
-      event.preventDefault();
-      this.term.focus();
-      callback(pane.id);
+      tap = { x: event.clientX, y: event.clientY, time: nowMs(), pointerId: event.pointerId, moved: false };
     };
     const onPointerMove = (event: PointerEvent) => {
       if (tap && event.pointerId === tap.pointerId
-        && (Math.abs(event.clientX - tap.x) > 10 || Math.abs(event.clientY - tap.y) > 10)) {
+        && (Math.abs(event.clientX - tap.x) > PANE_TAP_MOVE_THRESHOLD_PX
+          || Math.abs(event.clientY - tap.y) > PANE_TAP_MOVE_THRESHOLD_PX)) {
         tap.moved = true;
       }
     };
@@ -579,17 +584,28 @@ class XtermShareTerminal implements ShareTerminal {
       }
       const pane = this.paneFromMouseEvent(event);
       if (pane && !this.dividerFromMouseEvent(event)) {
+        event.preventDefault();
+        if (event.pointerType !== 'touch') {
+          this.term.focus();
+        }
         callback(pane.id);
+      }
+    };
+    const onPointerCancel = (event: PointerEvent) => {
+      if (tap && event.pointerId === tap.pointerId) {
+        tap = undefined;
       }
     };
     this.stage.addEventListener('pointerdown', onPointerDown);
     this.stage.addEventListener('pointermove', onPointerMove);
     this.stage.addEventListener('pointerup', onPointerUp);
+    this.stage.addEventListener('pointercancel', onPointerCancel);
     this.disposables.push({
       dispose: () => {
         this.stage.removeEventListener('pointerdown', onPointerDown);
         this.stage.removeEventListener('pointermove', onPointerMove);
         this.stage.removeEventListener('pointerup', onPointerUp);
+        this.stage.removeEventListener('pointercancel', onPointerCancel);
       },
     });
   }
@@ -825,9 +841,12 @@ class XtermShareTerminal implements ShareTerminal {
       if (this.scope === 'session') {
         event.preventDefault();
         event.stopImmediatePropagation();
-        // Tall full-screen view (alt-screen app taller than the viewport): the wheel
-        // pans the VIEW locally — the same mechanic as dragging the view-pan scrollbar
-        // or a one-finger touch drag — instead of forwarding to the app's scrollback.
+        const pane = this.focusedMobilePane() ?? this.paneFromMouseEvent(event);
+        if (pane && this.forwardAlternateWheel(pane, event)) {
+          return;
+        }
+        // Tall full-screen fallback (alt-screen app taller than the viewport):
+        // pan the VIEW locally only when the pane/app did not consume the wheel.
         if (this.canViewPan()) {
           const { y } = wheelDeltaPixels(event, this.container.clientHeight);
           if (y !== 0) {
@@ -835,7 +854,6 @@ class XtermShareTerminal implements ShareTerminal {
           }
           return;
         }
-        const pane = this.focusedMobilePane() ?? this.paneFromMouseEvent(event);
         if (pane) {
           this.sendPaneScroll(pane, event);
         }
@@ -1674,6 +1692,55 @@ class XtermShareTerminal implements ShareTerminal {
     const lines = Math.max(1, Math.round(Math.abs(y) / Math.max(1, lineHeight)));
     this.paneScrollHandler(pane.id, y < 0 ? -lines : lines);
     return true;
+  }
+
+  private forwardAlternateWheel(pane: SessionPaneView, event: WheelEvent): boolean {
+    if (this.role !== 'operator' || !pane.alternate_on || !pane.mouse_on || !this.dataHandler) {
+      return false;
+    }
+    const { y } = wheelDeltaPixels(event, this.container.clientHeight);
+    if (y === 0) {
+      return false;
+    }
+    const point = this.paneMousePoint(pane, event);
+    if (!point) {
+      return false;
+    }
+    const metrics = this.cellMetrics();
+    const lineHeight = metrics?.height ?? WHEEL_PIXEL_LINE;
+    const steps = Math.max(1, Math.min(6, Math.round(Math.abs(y) / Math.max(1, lineHeight))));
+    const button = y < 0 ? 64 : 65;
+    const sequence = `\x1b[<${button};${point.col};${point.row}M`;
+    this.dataHandler(sequence.repeat(steps));
+    return true;
+  }
+
+  private paneMousePoint(pane: SessionPaneView, event: MouseEvent): { col: number; row: number } | undefined {
+    if (!this.sessionView) {
+      return undefined;
+    }
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen');
+    if (!screen) {
+      return undefined;
+    }
+    const rect = screen.getBoundingClientRect();
+    const metrics = this.sessionCellMetrics();
+    if (!metrics) {
+      return undefined;
+    }
+    const sessionCol = Math.floor((event.clientX - rect.left) / metrics.width);
+    const sessionRow = Math.floor((event.clientY - rect.top) / metrics.height);
+    if (
+      sessionCol < pane.x
+      || sessionCol >= pane.x + pane.cols
+      || sessionRow < pane.y
+      || sessionRow >= pane.y + pane.rows
+    ) {
+      return undefined;
+    }
+    const col = Math.max(1, Math.min(this.sessionView.size.cols, sessionCol + 1));
+    const row = Math.max(1, Math.min(this.sessionView.size.rows, sessionRow + 1));
+    return { col, row };
   }
 
   private renderPaneScrollbars(): void {

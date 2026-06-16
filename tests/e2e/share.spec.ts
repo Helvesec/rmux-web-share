@@ -34,7 +34,7 @@ test('spectator client connects immediately and receives the initial snapshot', 
     JSON.stringify({
       type: 'auth',
       protocol_version: 1,
-      capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
+      capabilities: ['e2ee-token-auth', 'terminal-palette-v1', 'pane-frame-v1'],
     }),
   );
   expect(JSON.stringify(await sentFrames(page))).not.toContain(spectatorToken);
@@ -213,7 +213,7 @@ test('explicit endpoint links keep the short e/t fragment contract', async ({ pa
     JSON.stringify({
       type: 'auth',
       protocol_version: 1,
-      capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
+      capabilities: ['e2ee-token-auth', 'terminal-palette-v1', 'pane-frame-v1'],
     }),
   );
 });
@@ -224,6 +224,73 @@ test('server shows the live connected browser count by default', async ({ page }
   await expect(page.locator('[data-share-viewers]')).toBeVisible();
   await expect(page.locator('[data-share-viewers-count]')).toHaveText('3');
   await expect(page.locator('[data-share-viewers] svg')).toBeVisible();
+});
+
+test('operator share menu exposes operator and spectator links with local QR codes', async ({ page }) => {
+  const derivableOperatorToken = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareSpectatorPairingCode = '654321';
+  });
+
+  await page.goto(`/#t=${derivableOperatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await page.locator('[data-share-open]').click();
+  await expect(page.locator('[data-share-link-menu]')).toBeVisible();
+  await expect(page.locator('[data-share-link-operator]')).toBeVisible();
+  await expect(page.locator('[data-share-link-spectator]')).toBeVisible();
+
+  await page.locator('[data-share-link-spectator]').click();
+  await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
+  await expect(page.locator('[data-share-link-title]')).toHaveText('Spectator link');
+  await expect(page.locator('[data-share-link-limit]')).toHaveText('Max spectators: 5 · active now: 1');
+  await expect(page.locator('[data-share-link-pin-code]')).toHaveText('654321');
+  await expect(page.locator('[data-share-link-url]')).toContainText('#t=');
+  await expect(page.locator('[data-share-link-url]')).not.toContainText(derivableOperatorToken);
+  await expect(page.locator('[data-share-link-qr]')).toHaveAttribute('src', /^data:image\/gif;base64,/);
+  await expect(page.locator('[data-share-link-help]')).toContainText('QR code only contains the link');
+  await page.locator('[data-share-link-close]').click();
+
+  await page.locator('[data-share-open]').click();
+  await page.locator('[data-share-link-operator]').click();
+  await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
+  await expect(page.locator('[data-share-link-title]')).toHaveText('Operator link');
+  await expect(page.locator('[data-share-link-limit]')).toHaveText('Max operators: 1 · active now: 0');
+  await expect(page.locator('[data-share-link-url]')).toContainText(`#t=${derivableOperatorToken}`);
+  await expect(page.locator('[data-share-link-pin]')).toBeHidden();
+});
+
+test('spectator share button opens only the spectator link', async ({ page }) => {
+  await page.goto(`/#t=${spectatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await page.locator('[data-share-open]').click();
+  await expect(page.locator('[data-share-link-menu]')).toBeHidden();
+  await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
+  await expect(page.locator('[data-share-link-title]')).toHaveText('Spectator link');
+  await expect(page.locator('[data-share-link-url]')).toContainText(`#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-link-qr]')).toHaveAttribute('src', /^data:image\/gif;base64,/);
+});
+
+test('share link copy failures stay in the share dialog', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'clipboard', {
+      configurable: true,
+      get: () => ({
+        writeText: () => Promise.reject(new DOMException('denied', 'NotAllowedError')),
+      }),
+    });
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await page.locator('[data-share-open]').click();
+  await expect(page.locator('[data-share-link-dialog]')).toBeVisible();
+  await page.locator('[data-share-link-copy]').click();
+
+  await expect(page.locator('[data-share-link-copy]')).toHaveText('Copy failed');
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
 });
 
 test('URL cannot force the live viewer count when the server disabled it', async ({ page }) => {
@@ -593,6 +660,82 @@ test('session operator click selects the clicked pane without shell input', asyn
     type: 'select_pane',
     pane_id: 2,
   });
+  expect(await sentInputFrameCount(page)).toBe(0);
+});
+
+test('session operator drag selects terminal text instead of selecting a pane', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'mobile uses native long-press selection.');
+
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane selectable words'
+      + '\x1b[1;42Hright pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 40, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+        { id: 2, x: 41, y: 0, cols: 39, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 8, screen!.y + 14);
+  await page.mouse.down();
+  await page.mouse.move(screen!.x + 160, screen!.y + 14, { steps: 8 });
+  await page.mouse.up();
+
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? '')).toContain('pane selectable');
+  expect(await selectedPaneFrames(page)).toEqual([]);
+  expect(await sentInputFrameCount(page)).toBe(0);
+});
+
+test('session operator Ctrl+C copies selected terminal text instead of sending interrupt', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'mobile uses action-menu clipboard controls.');
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          (window as unknown as { __rmuxCopiedTerminal?: string }).__rmuxCopiedTerminal = text;
+        },
+      },
+    });
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane selectable words'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        { id: 1, x: 0, y: 0, cols: 80, rows: 23, history_size: 0, scroll_offset: 0, alternate_on: false },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 8, screen!.y + 14);
+  await page.mouse.down();
+  await page.mouse.move(screen!.x + 180, screen!.y + 14, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? '')).toContain('pane selectable');
+
+  await page.keyboard.press('Control+C');
+
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __rmuxCopiedTerminal?: string }).__rmuxCopiedTerminal ?? ''))
+    .toContain('pane selectable');
   expect(await sentInputFrameCount(page)).toBe(0);
 });
 
@@ -1496,6 +1639,8 @@ test('operator sends xterm data and can open the disconnect dialog from exit', a
   await page.locator('.xterm').click();
   await page.keyboard.type('x');
   await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 120]);
+  await page.keyboard.press('Control+C');
+  await expect.poll(() => sentFrames(page)).toContainEqual([0x80, 3]);
 
   await page.locator('[data-share-session-menu]').click();
   await expect(page.locator('[data-share-session-actions]')).toBeVisible();
@@ -1622,6 +1767,7 @@ test('disconnected session operator hides session controls while reconnecting au
 
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-session-controls]')).toBeVisible();
+  await expect(page.locator('[data-share-open]')).toBeVisible();
 
   await page.evaluate(() => {
     const socket = window.__rmuxShareSockets?.at(-1) as unknown as { closeWith?: (code: number, reason: string) => void };
@@ -1630,6 +1776,7 @@ test('disconnected session operator hides session controls while reconnecting au
 
   await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
   await expect(page.locator('[data-share-session-controls]')).toBeHidden();
+  await expect(page.locator('[data-share-open]')).toBeHidden();
   await expect(page.locator('.share-placeholder-state')).toContainText('Disconnected. Reconnecting...');
 
   const screen = await page.locator('.xterm-screen').boundingBox();
@@ -1641,6 +1788,7 @@ test('disconnected session operator hides session controls while reconnecting au
   await expect.poll(() => socketCount(page)).toBe(2);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
   await expect(page.locator('[data-share-session-controls]')).toBeVisible();
+  await expect(page.locator('[data-share-open]')).toBeVisible();
 });
 
 test('role capacity close shows a retrying max-limit state', async ({ page }) => {
@@ -1665,6 +1813,22 @@ test('role capacity close shows a retrying max-limit state', async ({ page }) =>
 
   await expect.poll(() => socketCount(page)).toBe(2);
   await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+});
+
+test('viewer backpressure close does not reconnect into a snapshot loop', async ({ page }) => {
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(() => socketCount(page)).toBe(1);
+
+  await page.evaluate(() => {
+    const socket = window.__rmuxShareSockets?.at(-1) as unknown as { closeWith?: (code: number, reason: string) => void };
+    socket?.closeWith?.(4001, 'viewer_backpressure');
+  });
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
+  await page.waitForTimeout(1_200);
+  await expect(page.locator('[data-share-status]')).toHaveText('Disconnected');
+  await expect.poll(() => socketCount(page)).toBe(1);
 });
 
 test('operator disconnect returns to recent links without reusing the share secret', async ({ page }) => {
@@ -1756,6 +1920,134 @@ test('mouse wheel scroll stays local and does not send shell input', async ({ pa
   await expect.poll(() => sentFrames(page)).toEqual(before);
 });
 
+test('operator wheel on an alternate-screen pane is forwarded as app mouse input', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Halt-screen app'
+      + '\x1b[24;1H[ci] 0:editor* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 0,
+        scroll_offset: 0,
+        alternate_on: true,
+        mouse_on: true,
+      }],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 80, screen!.y + 80);
+  await page.mouse.wheel(0, -600);
+
+  await expect.poll(() => sentInputFrameCount(page)).toBeGreaterThan(0);
+  expect(await paneScrollFrames(page)).toEqual([]);
+  const payloads = await sentInputPayloads(page);
+  expect(payloads.some((payload) => payload.includes('\x1b[<64;'))).toBe(true);
+});
+
+test('operator wheel on an alternate-screen pane without mouse mode is not forwarded', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Halt-screen app'
+      + '\x1b[24;1H[ci] 0:less* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 0,
+        scroll_offset: 0,
+        alternate_on: true,
+        mouse_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  const before = await sentFrames(page);
+  await page.mouse.move(screen!.x + 80, screen!.y + 80);
+  await page.mouse.wheel(0, -600);
+
+  await expect.poll(() => sentFrames(page)).toEqual(before);
+});
+
+test('operator wheel on an offset alternate-screen pane uses session coordinates', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hleft pane'
+      + '\x1b[1;42Hright app'
+      + '\x1b[24;1H[ci] 0:editor* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [
+        {
+          id: 6,
+          x: 0,
+          y: 0,
+          cols: 40,
+          rows: 23,
+          active: false,
+          history_size: 0,
+          scroll_offset: 0,
+          alternate_on: false,
+        },
+        {
+          id: 7,
+          x: 41,
+          y: 0,
+          cols: 39,
+          rows: 23,
+          active: true,
+          history_size: 0,
+          scroll_offset: 0,
+          alternate_on: true,
+          mouse_on: true,
+        },
+      ],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + screen!.width * (42.5 / 80), screen!.y + screen!.height * (5.5 / 24));
+  await page.mouse.wheel(0, -600);
+
+  await expect.poll(() => sentInputFrameCount(page)).toBeGreaterThan(0);
+  const payloads = await sentInputPayloads(page);
+  expect(payloads.some((payload) => payload.includes('\x1b[<64;43;6M'))).toBe(true);
+});
+
 test('session pane scrollbar requests pane scroll without shell input', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
@@ -1772,7 +2064,7 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
         y: 0,
         cols: 80,
         rows: 23,
-        history_size: 120,
+        history_size: 50_000,
         scroll_offset: 0,
         alternate_on: false,
       }],
@@ -1792,6 +2084,85 @@ test('session pane scrollbar requests pane scroll without shell input', async ({
   expect(scroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
   expect(scroll!.delta).toBeLessThan(0);
   expect(await sentInputFrameCount(page)).toBe(0);
+});
+
+test('bursty pane wheel scrolls coalesce to one request per frame and stay in sync', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hscrollable pane'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        history_size: 50_000,
+        scroll_offset: 0,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.share-pane-scrollbar')).toHaveCount(1);
+
+  await page.locator('.xterm-screen').evaluate((screen) => {
+    const rect = screen.getBoundingClientRect();
+    for (let index = 0; index < 250; index += 1) {
+      screen.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + 48,
+        clientY: rect.top + 64,
+        deltaY: -1_000,
+      }));
+    }
+  });
+
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBe(1);
+  const scroll = (await paneScrollFrames(page))[0];
+  expect(scroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(scroll.delta).toBeLessThan(0);
+  expect(Math.abs(scroll.delta)).toBeGreaterThan(1);
+  expect(Math.abs(scroll.delta)).toBeLessThanOrEqual(10_000);
+  expect(await sentInputFrameCount(page)).toBe(0);
+
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      history_size: 50_000,
+      scroll_offset: Math.abs(scroll.delta),
+      alternate_on: false,
+    }],
+  });
+
+  await page.locator('.xterm-screen').evaluate((screen) => {
+    const rect = screen.getBoundingClientRect();
+    screen.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + 48,
+      clientY: rect.top + 64,
+      deltaY: -100,
+    }));
+  });
+
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBe(2);
+  const followUpScroll = (await paneScrollFrames(page))[1];
+  expect(followUpScroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(followUpScroll.delta).toBeLessThan(0);
+  expect(Math.abs(followUpScroll.delta)).toBeLessThan(200);
 });
 
 test('session pane scrollbar drag survives redraws and scrolls both ways', async ({ page }) => {
@@ -2167,6 +2538,45 @@ test('session history scroll stays pinned across live refreshes until the user r
   await expect(page.locator('.xterm')).toContainText('live bottom after explicit return');
 });
 
+test('malformed session view frames are ignored without crashing', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hstable session frame'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 0,
+        scroll_offset: 0,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('stable session frame');
+
+  await page.evaluate(async () => {
+    const bytes = new TextEncoder().encode('{not-json');
+    await window.__rmuxShareSockets?.at(-1)?.serverBinary([0x11, ...Array.from(bytes)]);
+  });
+
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('stable session frame');
+  expect(pageErrors).toEqual([]);
+});
+
 test('toolbar remains visible by default across reloads', async ({ page }) => {
   const url = `/#t=${spectatorToken}`;
   await page.goto(url);
@@ -2225,7 +2635,7 @@ test('pin-protected shares ask for the out-of-band pairing code after auth chall
     JSON.stringify({
       type: 'auth',
       protocol_version: 1,
-      capabilities: ['e2ee-token-auth', 'terminal-palette-v1'],
+      capabilities: ['e2ee-token-auth', 'terminal-palette-v1', 'pane-frame-v1'],
       pin: '123456',
     }),
   );

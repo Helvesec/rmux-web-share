@@ -12,6 +12,7 @@ import {
   checkBrowserCryptoSupport,
   createClientHello,
   createEncryptedTransport,
+  deriveSpectatorToken,
   parseChallenge,
   type ClientHandshakeState,
   type EncryptedShareTransport,
@@ -63,6 +64,7 @@ import type {
 } from './types';
 import type { TerminalThemePalette } from './types';
 import { ProvenanceDialog } from './provenance';
+import { qrDataUrl } from './qr';
 import { SessionHistoryGate } from './session-history';
 import { bindMobileControlMenu, type MobileControlAction, type MobileControlHandlers } from './mobile-controls';
 import { measureShareViewportInsets } from './viewport-insets';
@@ -70,6 +72,7 @@ import { shareViewTemplate, titleCase } from './view-content';
 import { enableShareWindowBoundsTracking, resizeShareWindowForPairingPrompt, resizeShareWindowForTerminal } from './window-bounds';
 import {
   authPayload,
+  clampPaneScrollDelta,
   closeMessage,
   killSessionPane,
   killSessionWindow,
@@ -90,6 +93,7 @@ const OUTPUT_RAW = 0x01;
 const RESIZE_NOTIFY = 0x02;
 const SNAPSHOT_FULL = 0x10;
 const SESSION_VIEW = 0x11;
+const SESSION_PANE_FRAME = 0x12;
 const TERMINAL_THEME_STORAGE_KEY = 'rmux.share.terminalTheme';
 const PIN_RE = /^\d{6}$/;
 const PIN_REQUIRED_CLOSE_CODE = 4008;
@@ -99,6 +103,7 @@ const DISCONNECTED_RECONNECTING = 'Disconnected. Reconnecting...';
 const CAPACITY_REACHED_RECONNECTING = 'Max limit reached. Trying to reconnect...';
 const RECONNECT_BASE_DELAY_MS = 500;
 const RECONNECT_MAX_DELAY_MS = 10_000;
+const RECONNECT_JITTER_RATIO = 0.2;
 // Ignore sub-threshold resize churn (e.g. the on-screen keyboard nudging the
 // viewport by a row) so it does not trigger a remote redraw on every keystroke.
 const RESIZE_HYSTERESIS_CELLS = 2;
@@ -106,6 +111,16 @@ const RESIZE_HYSTERESIS_CELLS = 2;
 // within a frame or two. Defer shrinking the keyboard inset by this long so the
 // transient cannot drop it mid-typing (which collapsed the remote grid on iOS).
 const KEYBOARD_INSET_CLOSE_DELAY_MS = 300;
+
+interface SessionPaneFrame {
+  size: {
+    cols: number;
+    rows: number;
+  };
+  pane: SessionPaneView;
+  frame: Uint8Array;
+}
+
 interface TerminalMenuState {
   canCopy: boolean;
   canPaste: boolean;
@@ -115,8 +130,25 @@ interface TerminalMenuState {
   mobile: boolean;
 }
 
+interface ShareLinkModel {
+  role: ShareRole;
+  url: string;
+  max?: number;
+  active?: number;
+  pin?: string;
+}
+
 function isReconnectingDetail(detail: string): boolean {
   return detail === DISCONNECTED_RECONNECTING || detail === CAPACITY_REACHED_RECONNECTING;
+}
+
+function reconnectDelayWithJitter(attempt: number): number {
+  const baseDelay = Math.min(
+    RECONNECT_MAX_DELAY_MS,
+    RECONNECT_BASE_DELAY_MS * (2 ** Math.min(attempt, 5)),
+  );
+  const jitter = baseDelay * RECONNECT_JITTER_RATIO;
+  return Math.round(baseDelay - jitter + (Math.random() * jitter * 2));
 }
 
 type ShareExitState = 'disconnected' | 'unavailable';
@@ -264,6 +296,10 @@ class ShareConnection {
   private mobileFocusFraction?: { w: number; h: number };
   private lastSessionView?: SessionView;
   private pendingSessionSnapshot?: Uint8Array;
+  private pendingPaneScrolls = new Map<number, number>();
+  private paneScrollMicrotaskPending = false;
+  private paneScrollRaf?: number;
+  private readyMessage?: ReadyMessage;
   private readonly sessionHistoryGate = new SessionHistoryGate();
 
   constructor(
@@ -294,6 +330,7 @@ class ShareConnection {
     this.socketError = false;
     this.handshake = undefined;
     this.transport = undefined;
+    this.clearPendingPaneScrolls();
     const connectionId = this.connectionId + 1;
     this.connectionId = connectionId;
     const socket = new WebSocket(this.params.endpoint);
@@ -441,10 +478,13 @@ class ShareConnection {
       return;
     }
 
+    const reconnecting = this.shouldReconnect(event.code);
     const recovery = event.code === CAPACITY_REACHED_CLOSE_CODE
       ? CAPACITY_REACHED_RECONNECTING
+      : reconnecting
+        ? DISCONNECTED_RECONNECTING
       : `${message}. Lost connection? Try refreshing.`;
-    if (this.shouldReconnect(event.code)) {
+    if (reconnecting) {
       this.scheduleReconnect(
         recovery,
         event.code === CAPACITY_REACHED_CLOSE_CODE ? CAPACITY_REACHED_RECONNECTING : undefined,
@@ -473,6 +513,7 @@ class ShareConnection {
     this.lastSessionView = undefined;
     this.pendingSessionSnapshot = undefined;
     this.sessionHistoryGate.reset();
+    this.readyMessage = message;
     this.everReady = true;
     this.reconnectAttempt = 0;
     this.clearReconnectTimer();
@@ -512,6 +553,7 @@ class ShareConnection {
     });
     this.view.bindTerminalActions({
       copy: () => this.copyTerminalSelection(),
+      hasSelection: () => this.hasTerminalSelection(),
       paste: () => this.pasteIntoTerminal(),
       toggleToolbar: () => this.toggleToolbar(),
     });
@@ -532,6 +574,9 @@ class ShareConnection {
       copy: () => void this.copyTerminalSelection(),
       paste: () => void this.pasteIntoTerminal(),
     });
+    this.view.bindShareActions({
+      open: (role) => void this.openShareLink(role),
+    });
     this.view.bindSessionControls({
       splitHorizontal: () => this.splitPane('horizontal'),
       splitVertical: () => this.splitPane('vertical'),
@@ -548,6 +593,43 @@ class ShareConnection {
     this.view.setBrandCrab(recent.crab);
     this.view.setViewerCount(message);
     this.bindTerminalViewport();
+  }
+
+  private async openShareLink(role: ShareRole): Promise<void> {
+    const ready = this.readyMessage;
+    if (!ready) {
+      return;
+    }
+    if (role === 'operator') {
+      if (ready.role !== 'operator' || !ready.operator_access) {
+        return;
+      }
+      this.view.openShareLinkDialog({
+        role,
+        url: shareUrl(this.params),
+        max: ready.operators_max,
+        active: ready.operators_active,
+        pin: this.pin,
+      });
+      return;
+    }
+    if (!ready.spectator_access) {
+      return;
+    }
+    try {
+      const token = ready.role === 'operator'
+        ? await deriveSpectatorToken(this.params.token)
+        : this.params.token;
+      this.view.openShareLinkDialog({
+        role,
+        url: shareUrl({ ...this.params, token }),
+        max: ready.spectators_max,
+        active: ready.spectators_active,
+        pin: ready.role === 'operator' ? ready.spectator_pairing_code : this.pin,
+      });
+    } catch {
+      this.view.showError('Could not create a spectator link for this share.', 'share failed');
+    }
   }
 
   private handleBinary(frame: Uint8Array): void {
@@ -570,6 +652,10 @@ class ShareConnection {
       this.scheduleTerminalViewportSync();
     } else if (opcode === SESSION_VIEW) {
       const view = parseSessionView(payload);
+      if (!view) {
+        this.pendingSessionSnapshot = undefined;
+        return;
+      }
       if (!this.shouldApplySessionView(view)) {
         this.pendingSessionSnapshot = undefined;
         return;
@@ -580,6 +666,8 @@ class ShareConnection {
         this.terminal.replace(snapshot);
       }
       this.applySessionView(view);
+    } else if (opcode === SESSION_PANE_FRAME) {
+      this.applySessionPaneFrame(payload);
     } else if (opcode === OUTPUT_RAW) {
       if (this.shouldSuppressSessionOutput()) {
         return;
@@ -592,6 +680,44 @@ class ShareConnection {
       this.terminal.resize((payload[0] << 8) | payload[1], (payload[2] << 8) | payload[3]);
       this.scheduleTerminalViewportSync();
     }
+  }
+
+  private applySessionPaneFrame(payload: Uint8Array): void {
+    if (this.scope !== 'session' || !this.terminal || !this.lastSessionView) {
+      return;
+    }
+    const patch = parseSessionPaneFrame(payload);
+    if (!patch || !this.sessionPanePatchFits(patch)) {
+      return;
+    }
+    const view = {
+      ...this.lastSessionView,
+      panes: this.lastSessionView.panes.map((pane) => (
+        pane.id === patch.pane.id
+          ? { ...pane, history_size: patch.pane.history_size, scroll_offset: patch.pane.scroll_offset }
+          : pane
+      )),
+    };
+    this.terminal.write(patch.frame);
+    this.applySessionView(view);
+  }
+
+  private sessionPanePatchFits(patch: SessionPaneFrame): boolean {
+    if (!this.lastSessionView) {
+      return false;
+    }
+    if (
+      this.lastSessionView.size.cols !== patch.size.cols
+      || this.lastSessionView.size.rows !== patch.size.rows
+    ) {
+      return false;
+    }
+    const pane = this.lastSessionView.panes.find((candidate) => candidate.id === patch.pane.id);
+    return !!pane
+      && pane.x === patch.pane.x
+      && pane.y === patch.pane.y
+      && pane.cols === patch.pane.cols
+      && pane.rows === patch.pane.rows;
   }
 
   private applySessionView(view: SessionView): void {
@@ -645,6 +771,7 @@ class ShareConnection {
     this.socket = undefined;
     this.transport = undefined;
     this.pendingSessionSnapshot = undefined;
+    this.clearPendingPaneScrolls();
     this.sessionHistoryGate.reset();
     this.disposeTerminal();
   }
@@ -668,11 +795,64 @@ class ShareConnection {
     if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session') {
       return;
     }
-    const wireDelta = this.sessionHistoryGate.notePaneScroll(paneId, delta, this.lastSessionView);
+    const acceptedDelta = this.availablePaneScrollDelta(paneId, delta);
+    if (acceptedDelta === 0) {
+      return;
+    }
+    const wireDelta = this.sessionHistoryGate.notePaneScroll(paneId, acceptedDelta, this.lastSessionView);
     if (wireDelta === undefined) {
       return;
     }
-    scrollSessionPane(this.transport, paneId, wireDelta);
+    this.queuePaneScroll(paneId, wireDelta);
+  }
+
+  private availablePaneScrollDelta(paneId: number, delta: number): number {
+    const current = this.pendingPaneScrolls.get(paneId) ?? 0;
+    return clampPaneScrollDelta(current + delta) - current;
+  }
+
+  private queuePaneScroll(paneId: number, delta: number): void {
+    const nextDelta = clampPaneScrollDelta((this.pendingPaneScrolls.get(paneId) ?? 0) + delta);
+    if (nextDelta === 0) {
+      this.pendingPaneScrolls.delete(paneId);
+    } else {
+      this.pendingPaneScrolls.set(paneId, nextDelta);
+    }
+    if (this.paneScrollMicrotaskPending || this.paneScrollRaf !== undefined) {
+      return;
+    }
+    this.paneScrollMicrotaskPending = true;
+    window.queueMicrotask(() => {
+      this.paneScrollMicrotaskPending = false;
+      this.flushPaneScrolls();
+      this.paneScrollRaf = window.requestAnimationFrame(() => {
+        this.paneScrollRaf = undefined;
+        this.flushPaneScrolls();
+      });
+    });
+  }
+
+  private flushPaneScrolls(): void {
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.transport || this.scope !== 'session') {
+      this.pendingPaneScrolls.clear();
+      return;
+    }
+    const scrolls = [...this.pendingPaneScrolls.entries()];
+    this.pendingPaneScrolls.clear();
+    for (const [paneId, delta] of scrolls) {
+      if (delta !== 0) {
+        scrollSessionPane(this.transport, paneId, clampPaneScrollDelta(delta));
+      }
+    }
+  }
+
+  private clearPendingPaneScrolls(): void {
+    this.pendingPaneScrolls.clear();
+    this.paneScrollMicrotaskPending = false;
+    if (this.paneScrollRaf !== undefined) {
+      window.cancelAnimationFrame(this.paneScrollRaf);
+      this.paneScrollRaf = undefined;
+    }
   }
 
   private selectPane(paneId: number): void {
@@ -801,6 +981,10 @@ class ShareConnection {
         // Clipboard failures are browser-policy dependent; keep the terminal session intact.
       }
     }
+  }
+
+  private hasTerminalSelection(): boolean {
+    return Boolean((window.getSelection()?.toString() ?? '') || this.terminal?.selection());
   }
 
   private async copyFocusedPaneText(): Promise<void> {
@@ -982,7 +1166,6 @@ class ShareConnection {
     return code === 1001
       || code === 1006
       || code === 1011
-      || code === 4001
       || code === CAPACITY_REACHED_CLOSE_CODE;
   }
 
@@ -994,10 +1177,7 @@ class ShareConnection {
     this.view.setCanKillPane(false);
     this.view.setStatus({ connected: false, detail, tone: 'warn' });
     this.terminal?.notice(message);
-    const delay = Math.min(
-      RECONNECT_MAX_DELAY_MS,
-      RECONNECT_BASE_DELAY_MS * (2 ** Math.min(this.reconnectAttempt, 5)),
-    );
+    const delay = reconnectDelayWithJitter(this.reconnectAttempt);
     this.reconnectAttempt += 1;
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = undefined;
@@ -1046,6 +1226,10 @@ class ShareView {
   private readonly mobilePaste: HTMLButtonElement;
   private readonly viewers: HTMLElement;
   private readonly viewersCount: HTMLElement;
+  private readonly shareButton: HTMLButtonElement;
+  private readonly shareMenu: HTMLElement;
+  private readonly shareOperatorLink: HTMLButtonElement;
+  private readonly shareSpectatorLink: HTMLButtonElement;
   private readonly sessionMenuButton: HTMLButtonElement;
   private readonly windowMenu: HTMLElement;
   private readonly windowNew: HTMLButtonElement;
@@ -1079,6 +1263,17 @@ class ShareView {
   private readonly sessionActionsClose: HTMLButtonElement;
   private readonly sessionActionsDetach: HTMLButtonElement;
   private readonly sessionActionsLogout: HTMLButtonElement;
+  private readonly shareLinkDialog: HTMLDialogElement;
+  private readonly shareLinkClose: HTMLButtonElement;
+  private readonly shareLinkTitle: HTMLElement;
+  private readonly shareLinkLimit: HTMLElement;
+  private readonly shareLinkQr: HTMLImageElement;
+  private readonly shareLinkUrl: HTMLElement;
+  private readonly shareLinkPin: HTMLElement;
+  private readonly shareLinkPinCode: HTMLElement;
+  private readonly shareLinkCopyPin: HTMLButtonElement;
+  private readonly shareLinkHelp: HTMLElement;
+  private readonly shareLinkCopy: HTMLButtonElement;
   private readonly provenanceOpen: HTMLButtonElement;
   private readonly pinGroup: HTMLElement;
   private readonly pinInput: HTMLInputElement;
@@ -1105,6 +1300,7 @@ class ShareView {
   private detachHandler?: () => void;
   private logoutHandler?: () => void;
   private copyTerminalHandler?: () => void | Promise<void>;
+  private terminalHasSelectionHandler?: () => boolean;
   private pasteTerminalHandler?: () => void | Promise<void>;
   private toggleToolbarHandler?: () => void;
   private mobilePaneSelectHandler?: (paneId?: number) => void;
@@ -1116,6 +1312,14 @@ class ShareView {
   private selectWindowHandler?: (windowIndex: number) => void;
   private editWindowHandler?: (windowIndex: number) => void;
   private killWindowHandler?: (windowIndex: number) => void;
+  private shareOpenHandler?: (role: ShareRole) => void | Promise<void>;
+  private shareRole?: ShareRole;
+  private shareOperatorAvailable = false;
+  private shareSpectatorAvailable = false;
+  private shareLinkUrlValue = '';
+  private shareLinkPinValue?: string;
+  private shareLinkCopyResetTimer?: number;
+  private shareLinkPinCopyResetTimer?: number;
 
   private constructor(root: HTMLElement) {
     root.innerHTML = shareViewTemplate();
@@ -1161,6 +1365,10 @@ class ShareView {
     this.mobilePaste = query(root, '[data-share-mobile-paste]');
     this.viewers = query(root, '[data-share-viewers]');
     this.viewersCount = query(root, '[data-share-viewers-count]');
+    this.shareButton = query(root, '[data-share-open]');
+    this.shareMenu = query(root, '[data-share-link-menu]');
+    this.shareOperatorLink = query(root, '[data-share-link-operator]');
+    this.shareSpectatorLink = query(root, '[data-share-link-spectator]');
     this.sessionMenuButton = query(root, '[data-share-session-menu]');
     this.windowMenu = query(root, '[data-share-window-menu]');
     this.windowNew = query(root, '[data-share-window-new]');
@@ -1194,12 +1402,29 @@ class ShareView {
     this.sessionActionsClose = query(root, '[data-share-session-close]');
     this.sessionActionsDetach = query(root, '[data-share-session-detach]');
     this.sessionActionsLogout = query(root, '[data-share-session-logout]');
+    this.shareLinkDialog = query(root, '[data-share-link-dialog]');
+    this.shareLinkClose = query(root, '[data-share-link-close]');
+    this.shareLinkTitle = query(root, '[data-share-link-title]');
+    this.shareLinkLimit = query(root, '[data-share-link-limit]');
+    this.shareLinkQr = query(root, '[data-share-link-qr]');
+    this.shareLinkUrl = query(root, '[data-share-link-url]');
+    this.shareLinkPin = query(root, '[data-share-link-pin]');
+    this.shareLinkPinCode = query(root, '[data-share-link-pin-code]');
+    this.shareLinkCopyPin = query(root, '[data-share-link-copy-pin]');
+    this.shareLinkHelp = query(root, '[data-share-link-help]');
+    this.shareLinkCopy = query(root, '[data-share-link-copy]');
     this.provenanceOpen = query(root, '[data-share-provenance-open]');
     this.pinGroup = query(root, '[data-share-pin-group]');
     this.pinInput = query(root, '[data-share-pin]');
     this.pinBoxes = query(root, '[data-share-pin-boxes]');
     this.pinError = query(root, '[data-share-pin-error]');
     this.meta = query(root, '[data-share-meta]');
+    this.shareButton.addEventListener('click', () => this.openSharePicker());
+    this.shareOperatorLink.addEventListener('click', () => this.runShareAction('operator'));
+    this.shareSpectatorLink.addEventListener('click', () => this.runShareAction('spectator'));
+    this.shareLinkClose.addEventListener('click', () => this.shareLinkDialog.close());
+    this.shareLinkCopy.addEventListener('click', () => void this.copyCurrentShareLink());
+    this.shareLinkCopyPin.addEventListener('click', () => void this.copyCurrentSharePin());
     this.sessionMenuButton.addEventListener('click', () => this.openSessionActions());
     this.splitHorizontal.addEventListener('click', () => this.splitHorizontalHandler?.());
     this.splitVertical.addEventListener('click', () => this.splitVerticalHandler?.());
@@ -1222,6 +1447,14 @@ class ShareView {
     this.windowKill.addEventListener('click', () => this.killSelectedWindow());
     document.addEventListener('pointerdown', (event) => {
       const target = event.target as Node | null;
+      if (
+        target
+        && !this.shareMenu.hidden
+        && !this.shareMenu.contains(target)
+        && !this.shareButton.contains(target)
+      ) {
+        this.closeShareMenu();
+      }
       if (!this.windowMenu.hidden && !this.windowMenu.contains(target)) {
         this.closeWindowMenu();
       }
@@ -1246,13 +1479,22 @@ class ShareView {
       }
     });
     document.addEventListener('keydown', (event) => {
+      if (isCopyShortcut(event)
+        && this.terminalHasSelectionHandler?.()
+        && !this.isEditableShortcutTargetOutsideTerminal(event.target)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void this.copyTerminalHandler?.();
+        return;
+      }
       if (event.key === 'Escape') {
+        this.closeShareMenu();
         this.closeWindowMenu();
         this.closeTerminalMenu();
         this.closeMobilePaneMenu();
         this.closeMobileControlMenu();
       }
-    });
+    }, { capture: true });
     this.terminalCopy.addEventListener('click', () => {
       this.closeTerminalMenu();
       void this.copyTerminalHandler?.();
@@ -1450,12 +1692,27 @@ class ShareView {
 
   bindTerminalActions(handlers: {
     copy: () => void | Promise<void>;
+    hasSelection: () => boolean;
     paste: () => void | Promise<void>;
     toggleToolbar: () => void;
   }): void {
     this.copyTerminalHandler = handlers.copy;
+    this.terminalHasSelectionHandler = handlers.hasSelection;
     this.pasteTerminalHandler = handlers.paste;
     this.toggleToolbarHandler = handlers.toggleToolbar;
+  }
+
+  private isEditableShortcutTargetOutsideTerminal(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+    if (this.terminal.contains(target)) {
+      return false;
+    }
+    return target.isContentEditable
+      || target instanceof HTMLInputElement
+      || target instanceof HTMLTextAreaElement
+      || target instanceof HTMLSelectElement;
   }
 
   bindMobilePaneSelect(handler: (paneId?: number) => void): void {
@@ -1464,6 +1721,10 @@ class ShareView {
 
   bindMobileControls(handlers: MobileControlHandlers): void {
     this.mobileControlHandlers = handlers;
+  }
+
+  bindShareActions(handlers: { open: (role: ShareRole) => void | Promise<void> }): void {
+    this.shareOpenHandler = handlers.open;
   }
 
   onKeyboardInset(handler: (px: number) => void): void {
@@ -1487,6 +1748,7 @@ class ShareView {
     this.terminal.dataset.scope = message.scope;
     this.setSessionActions(message.controls && message.scope === 'session' && message.role === 'operator');
     this.setSessionControls(message.scope === 'session' && message.role === 'operator');
+    this.setShareAvailability(message);
     this.setCanKillPane(false);
     this.panes = [];
     this.selectedPaneId = undefined;
@@ -1614,6 +1876,7 @@ class ShareView {
     this.status.textContent = this.connected ? 'Connected' : 'Disconnected';
     this.sessionMenuButton.title = this.connected ? 'Disconnect' : 'Disconnected';
     this.rootDataset('connected', String(this.connected));
+    this.updateShareButtonVisibility();
     this.updateSessionControlsVisibility();
     this.setTerminalPlaceholder(status);
   }
@@ -1652,6 +1915,7 @@ class ShareView {
       return;
     }
     this.closeTerminalMenu();
+    this.closeShareMenu();
     this.selectedWindowIndex = windowIndex;
     this.windowEdit.disabled = false;
     this.windowKill.disabled = false;
@@ -1667,6 +1931,7 @@ class ShareView {
   openMobilePaneMenu(x: number, y: number): void {
     this.closeTerminalMenu();
     this.closeWindowMenu();
+    this.closeShareMenu();
     this.closeMobileControlMenu();
     if (!this.connected || this.panes.length === 0) {
       this.closeMobilePaneMenu();
@@ -1683,6 +1948,7 @@ class ShareView {
 
   openTerminalMenu(x: number, y: number, state: TerminalMenuState): void {
     this.closeWindowMenu();
+    this.closeShareMenu();
     this.closeMobileControlMenu();
     this.closeMobilePaneMenu();
     if (!this.connected) {
@@ -1783,6 +2049,52 @@ class ShareView {
     this.windowMenu.hidden = true;
   }
 
+  private openSharePicker(): void {
+    if (!this.connected || !this.shareRole) {
+      this.closeShareMenu();
+      return;
+    }
+    if (this.shareRole === 'spectator') {
+      this.runShareAction('spectator');
+      return;
+    }
+    const available = [
+      this.shareOperatorAvailable ? 'operator' : undefined,
+      this.shareSpectatorAvailable ? 'spectator' : undefined,
+    ].filter((role): role is ShareRole => role !== undefined);
+    if (available.length === 1) {
+      this.runShareAction(available[0]);
+      return;
+    }
+    this.closeTerminalMenu();
+    this.closeWindowMenu();
+    this.closeMobilePaneMenu();
+    this.closeMobileControlMenu();
+    this.shareOperatorLink.hidden = !this.shareOperatorAvailable;
+    this.shareSpectatorLink.hidden = !this.shareSpectatorAvailable;
+    this.shareMenu.hidden = false;
+    const buttonRect = this.shareButton.getBoundingClientRect();
+    const rect = this.shareMenu.getBoundingClientRect();
+    const left = Math.min(Math.max(8, buttonRect.right - rect.width), window.innerWidth - rect.width - 8);
+    const top = Math.min(Math.max(8, buttonRect.bottom + 8), window.innerHeight - rect.height - 8);
+    this.shareMenu.style.left = `${left}px`;
+    this.shareMenu.style.top = `${top}px`;
+    const first = this.shareOperatorAvailable ? this.shareOperatorLink : this.shareSpectatorLink;
+    first.focus();
+  }
+
+  private runShareAction(role: ShareRole): void {
+    this.closeShareMenu();
+    if (!this.connected) {
+      return;
+    }
+    void this.shareOpenHandler?.(role);
+  }
+
+  private closeShareMenu(): void {
+    this.shareMenu.hidden = true;
+  }
+
   private closeTerminalMenu(): void {
     this.terminalMenu.hidden = true;
   }
@@ -1794,6 +2106,7 @@ class ShareView {
   private openMobileControlMenu(x: number, y: number): void {
     this.closeTerminalMenu();
     this.closeWindowMenu();
+    this.closeShareMenu();
     this.closeMobilePaneMenu();
     if (!this.connected || !this.sessionControlVisible) {
       this.closeMobileControlMenu();
@@ -1953,6 +2266,7 @@ class ShareView {
     this.killPane.hidden = !visible || !this.canKillPane;
     this.killPane.disabled = !visible || !this.canKillPane;
     if (!this.connected) {
+      this.closeShareMenu();
       this.closeMobilePaneMenu();
       this.closeMobileControlMenu();
     }
@@ -2007,6 +2321,84 @@ class ShareView {
       this.terminalPlaceholder.textContent = status.detail;
     }
     this.terminalPlaceholder.dataset.tone = status.tone ?? 'idle';
+  }
+
+  private setShareAvailability(message: ReadyMessage): void {
+    this.shareRole = message.role;
+    this.shareOperatorAvailable = message.role === 'operator' && message.operator_access;
+    this.shareSpectatorAvailable = message.spectator_access;
+    this.shareButton.title = message.role === 'operator' ? 'Share links' : 'Share spectator link';
+    this.updateShareButtonVisibility();
+  }
+
+  openShareLinkDialog(model: ShareLinkModel): void {
+    this.shareLinkUrlValue = model.url;
+    this.shareLinkPinValue = model.pin;
+    this.shareLinkTitle.textContent = model.role === 'operator' ? 'Operator link' : 'Spectator link';
+    this.shareLinkLimit.textContent = shareLimitLabel(model);
+    this.shareLinkQr.src = qrDataUrl(model.url);
+    this.shareLinkUrl.textContent = model.url;
+    const hasPin = Boolean(model.pin);
+    this.shareLinkPin.hidden = !hasPin;
+    this.shareLinkPinCode.textContent = model.pin ?? '';
+    this.shareLinkHelp.textContent = shareLinkHelp(model.role, hasPin);
+    this.resetShareCopyButton(this.shareLinkCopy, 'Copy link', 'link');
+    this.resetShareCopyButton(this.shareLinkCopyPin, 'Copy code', 'pin');
+    this.shareLinkDialog.showModal();
+  }
+
+  private async copyCurrentShareLink(): Promise<void> {
+    try {
+      await copyText(this.shareLinkUrlValue);
+      this.flashShareCopyButton(this.shareLinkCopy, 'Copied', 'link');
+    } catch {
+      this.flashShareCopyButton(this.shareLinkCopy, 'Copy failed', 'link');
+    }
+  }
+
+  private async copyCurrentSharePin(): Promise<void> {
+    if (!this.shareLinkPinValue) {
+      return;
+    }
+    try {
+      await copyText(this.shareLinkPinValue);
+      this.flashShareCopyButton(this.shareLinkCopyPin, 'Copied', 'pin');
+    } catch {
+      this.flashShareCopyButton(this.shareLinkCopyPin, 'Copy failed', 'pin');
+    }
+  }
+
+  private updateShareButtonVisibility(): void {
+    const available = this.shareOperatorAvailable || this.shareSpectatorAvailable;
+    this.shareButton.hidden = !this.connected || !available;
+    if (!this.connected) {
+      this.closeShareMenu();
+    }
+  }
+
+  private flashShareCopyButton(button: HTMLButtonElement, label: string, kind: 'link' | 'pin'): void {
+    this.resetShareCopyButton(button, label, kind);
+    const timer = window.setTimeout(() => {
+      this.resetShareCopyButton(button, kind === 'link' ? 'Copy link' : 'Copy code', kind);
+    }, 1100);
+    if (kind === 'link') {
+      this.shareLinkCopyResetTimer = timer;
+    } else {
+      this.shareLinkPinCopyResetTimer = timer;
+    }
+  }
+
+  private resetShareCopyButton(button: HTMLButtonElement, label: string, kind: 'link' | 'pin'): void {
+    const existing = kind === 'link' ? this.shareLinkCopyResetTimer : this.shareLinkPinCopyResetTimer;
+    if (existing !== undefined) {
+      window.clearTimeout(existing);
+    }
+    if (kind === 'link') {
+      this.shareLinkCopyResetTimer = undefined;
+    } else {
+      this.shareLinkPinCopyResetTimer = undefined;
+    }
+    button.textContent = label;
   }
 
   private confirmPin(requiresPin: boolean): string | undefined | false {
@@ -2158,12 +2550,43 @@ function query<T extends Element>(root: ParentNode, selector: string): T {
   return element;
 }
 
-function parseSessionView(payload: Uint8Array): SessionView {
-  const view = JSON.parse(new TextDecoder().decode(payload)) as SessionView;
-  if (!view || !Array.isArray(view.panes)) {
-    throw new Error('invalid session view');
+function parseSessionView(payload: Uint8Array): SessionView | undefined {
+  try {
+    const view = JSON.parse(new TextDecoder().decode(payload)) as SessionView;
+    if (!view || !Array.isArray(view.panes)) {
+      return undefined;
+    }
+    return view;
+  } catch {
+    return undefined;
   }
-  return view;
+}
+
+function parseSessionPaneFrame(payload: Uint8Array): SessionPaneFrame | undefined {
+  if (payload.length < 24) {
+    return undefined;
+  }
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const paneId = view.getUint32(0);
+  const pane: SessionPaneView = {
+    id: paneId,
+    x: view.getUint16(8),
+    y: view.getUint16(10),
+    cols: view.getUint16(12),
+    rows: view.getUint16(14),
+    active: undefined,
+    history_size: view.getUint32(20),
+    scroll_offset: view.getUint32(16),
+    alternate_on: false,
+  };
+  return {
+    size: {
+      cols: view.getUint16(4),
+      rows: view.getUint16(6),
+    },
+    pane,
+    frame: payload.subarray(24),
+  };
 }
 
 function connectedViewers(message: ReadyMessage | ViewerCountMessage): number {
@@ -2220,6 +2643,22 @@ function finiteCount(value: number | undefined): number | undefined {
     : Math.max(0, Math.floor(value));
 }
 
+function shareLimitLabel(model: ShareLinkModel): string {
+  const noun = model.role === 'operator' ? 'operators' : 'spectators';
+  const max = finiteCount(model.max);
+  const active = finiteCount(model.active);
+  const limit = max === undefined ? `Max ${noun}: unlimited` : `Max ${noun}: ${max}`;
+  return active === undefined ? limit : `${limit} · active now: ${active}`;
+}
+
+function shareLinkHelp(role: ShareRole, hasPin: boolean): string {
+  const pin = hasPin ? 'Share the pairing code separately; the QR code only contains the link.' : 'This share does not require a pairing code.';
+  if (role === 'operator') {
+    return `Operator links can type into the terminal. Use --max-operators to change the operator limit. ${pin}`;
+  }
+  return `Spectator links are read-only. Use --max-spectators to change the viewer limit. ${pin}`;
+}
+
 function isMobileShareViewport(): boolean {
   return window.matchMedia('(max-width: 760px) and (pointer: coarse)').matches;
 }
@@ -2232,6 +2671,13 @@ function clampFocusFill(value: number, base: number): number {
 
 function primaryShortcutLabel(): string {
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+}
+
+function isCopyShortcut(event: KeyboardEvent): boolean {
+  return event.key.toLowerCase() === 'c'
+    && !event.altKey
+    && !event.shiftKey
+    && (event.metaKey || event.ctrlKey);
 }
 
 function bindUserThemeChanges(callback: () => void): void {

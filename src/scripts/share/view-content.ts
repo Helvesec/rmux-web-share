@@ -64,6 +64,13 @@ export function shareViewTemplate(): string {
             <span data-share-viewers-count>0</span>
           </span>
           <span class="share-visually-hidden" data-share-status>Disconnected</span>
+          <button class="share-icon-button" data-share-open type="button" aria-haspopup="menu" aria-label="Share" title="Share" hidden>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M8 12h8" />
+              <path d="M13 7l5 5-5 5" />
+              <path d="M18 12H6a3 3 0 0 0-3 3v4" />
+            </svg>
+          </button>
           <label class="share-theme-control">
             <span class="share-visually-hidden">Terminal theme</span>
             <svg class="share-theme-icon share-theme-icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none">
@@ -122,6 +129,22 @@ export function shareViewTemplate(): string {
         <button data-share-window-new type="button" role="menuitem">New</button>
         <button data-share-window-edit type="button" role="menuitem">Edit</button>
         <button data-share-window-kill class="danger" type="button" role="menuitem">Delete</button>
+      </div>
+      <div class="share-link-menu" data-share-link-menu role="menu" hidden>
+        <button data-share-link-operator type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M7 10V8a5 5 0 0 1 10 0v2" />
+            <rect x="5" y="10" width="14" height="10" rx="2" />
+          </svg>
+          <span class="share-menu-label">Operator link</span>
+        </button>
+        <button data-share-link-spectator type="button" role="menuitem">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+            <circle cx="12" cy="12" r="2.8" />
+          </svg>
+          <span class="share-menu-label">Spectator link</span>
+        </button>
       </div>
       <div class="share-mobile-pane-menu" data-share-mobile-pane-menu role="menu" hidden>
         <div class="share-mobile-pane-menu-title" data-share-mobile-pane-title>Session panes</div>
@@ -298,6 +321,37 @@ export function shareViewTemplate(): string {
           <div class="share-confirm-actions">
             <button data-share-confirm-cancel type="button">Cancel</button>
             <button data-share-confirm-connect class="primary" type="button">Connect</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog class="share-link-dialog" data-share-link-dialog>
+        <form method="dialog" class="share-link-panel">
+          <div class="share-dialog-header">
+            <div>
+              <h2 data-share-link-title>Share link</h2>
+              <p data-share-link-limit></p>
+            </div>
+            <button class="share-dialog-close" data-share-link-close type="button" aria-label="Close" title="Close">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
+          <div class="share-link-qr">
+            <img data-share-link-qr alt="Share link QR code" />
+          </div>
+          <label class="share-link-field">
+            <span>Link</span>
+            <output data-share-link-url></output>
+          </label>
+          <div class="share-link-code" data-share-link-pin hidden>
+            <span>Pairing code</span>
+            <strong data-share-link-pin-code></strong>
+            <button data-share-link-copy-pin type="button">Copy code</button>
+          </div>
+          <p class="share-link-help" data-share-link-help></p>
+          <div class="share-confirm-actions">
+            <button data-share-link-copy type="button" class="primary">Copy link</button>
           </div>
         </form>
       </dialog>

@@ -176,6 +176,7 @@
 }
 
 .share-icon-button[hidden],
+.share-link-menu button[hidden],
 .share-terminal-menu button[hidden] {
   display: none;
 }
@@ -270,6 +271,7 @@
 }
 
 .share-window-menu,
+.share-link-menu,
 .share-terminal-menu,
 .share-mobile-pane-menu,
 .share-mobile-control-menu {
@@ -289,7 +291,12 @@
   min-width: 270px;
 }
 
+.share-link-menu {
+  min-width: 210px;
+}
+
 .share-window-menu[hidden],
+.share-link-menu[hidden],
 .share-terminal-menu[hidden],
 .share-mobile-pane-menu[hidden],
 .share-mobile-control-menu[hidden] {
@@ -297,6 +304,7 @@
 }
 
 .share-window-menu button,
+.share-link-menu button,
 .share-terminal-menu button,
 .share-mobile-pane-menu button,
 .share-mobile-control-menu button {
@@ -379,12 +387,15 @@
 }
 
 .share-window-menu button:last-child,
+.share-link-menu button:last-child,
 .share-terminal-menu button:last-child {
   border-bottom: 0;
 }
 
 .share-window-menu button:hover,
 .share-window-menu button:focus-visible,
+.share-link-menu button:hover,
+.share-link-menu button:focus-visible,
 .share-terminal-menu button:hover,
 .share-terminal-menu button:focus-visible,
 .share-mobile-pane-menu button:hover,
@@ -405,6 +416,7 @@
 }
 
 .share-terminal-menu svg,
+.share-link-menu svg,
 .share-mobile-control-menu svg {
   width: 18px;
   height: 18px;

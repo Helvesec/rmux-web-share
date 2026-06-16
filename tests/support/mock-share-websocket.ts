@@ -11,7 +11,7 @@ export function installMockShareWebSocket(): void {
   const decoder = new TextDecoder();
   const serverNonce = 'EDEODQwLCgkIBwYFBAMCAQ';
   const PROTOCOL_VERSION = 1;
-  const CAPABILITIES = ['e2ee-token-auth', 'terminal-palette-v1'];
+  const CAPABILITIES = ['e2ee-token-auth', 'terminal-palette-v1', 'pane-frame-v1'];
 
   // Loose typing for the dynamically imported WASM module.
   type WasmModule = {
@@ -225,6 +225,10 @@ export function installMockShareWebSocket(): void {
           ?? (role === 'operator' && window.__rmuxShareReadyScope === 'session'),
         show_viewers: window.__rmuxShareShowViewers ?? true,
         operators_active: 0,
+        operators_max: 1,
+        spectator_pairing_code: role === 'operator'
+          ? window.__rmuxShareSpectatorPairingCode
+          : undefined,
         ttl_remaining_seconds: 60,
         spectators_active: 1,
         spectators_max: 5,
@@ -340,6 +344,7 @@ declare global {
         history_size: number;
         scroll_offset: number;
         alternate_on: boolean;
+        mouse_on?: boolean;
       }>;
       windows?: Array<{
         index: number;
@@ -349,6 +354,7 @@ declare global {
     };
     __rmuxShareRequirePin?: boolean;
     __rmuxShareShowViewers?: boolean;
+    __rmuxShareSpectatorPairingCode?: string;
     __rmuxShareSockets?: Array<{
       sent: unknown[];
       serverText(message: unknown): Promise<void>;

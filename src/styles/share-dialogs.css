@@ -1,5 +1,6 @@
 .share-confirm,
 .share-session-actions,
+.share-link-dialog,
 .share-provenance {
   width: min(560px, calc(100vw - 32px));
   padding: 0;
@@ -24,12 +25,14 @@
 
 .share-confirm::backdrop,
 .share-session-actions::backdrop,
+.share-link-dialog::backdrop,
 .share-provenance::backdrop {
   background: rgb(0 0 0 / 0.62);
 }
 
 .share-confirm-panel,
 .share-session-actions-panel,
+.share-link-panel,
 .share-provenance-panel {
   display: grid;
   gap: 16px;
@@ -40,6 +43,7 @@
 }
 
 .share-session-actions-panel,
+.share-link-panel,
 .share-provenance-panel {
   padding: 30px;
 }
@@ -83,6 +87,7 @@
 .share-confirm h1,
 .share-session-actions h1,
 .share-session-actions h2,
+.share-link-dialog h2,
 .share-provenance h2 {
   margin: 0;
   color: var(--share-dialog-text);
@@ -102,6 +107,7 @@
 
 .share-confirm p,
 .share-session-actions p,
+.share-link-dialog p,
 .share-provenance p {
   margin: 0;
   color: var(--share-dialog-muted);
@@ -125,6 +131,80 @@
 .share-provenance p a:focus-visible {
   text-decoration: underline;
   outline: none;
+}
+
+.share-link-qr {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border: 1px solid rgb(69 136 87 / 0.18);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.share-link-qr img {
+  display: block;
+  width: min(236px, 62vw);
+  height: min(236px, 62vw);
+  image-rendering: pixelated;
+}
+
+.share-link-field,
+.share-link-code {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgb(69 136 87 / 0.18);
+  border-radius: 8px;
+  background: var(--share-dialog-field-bg);
+}
+
+.share-link-field span,
+.share-link-code span {
+  color: var(--share-dialog-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.share-link-field output,
+.share-link-code strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--share-dialog-text);
+  font: 13px / 1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.share-link-code {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.share-link-code[hidden] {
+  display: none;
+}
+
+.share-link-code span,
+.share-link-code strong {
+  grid-column: 1;
+}
+
+.share-link-code button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgb(69 136 87 / 0.22);
+  border-radius: 6px;
+  background: var(--share-dialog-button-bg);
+  color: var(--share-dialog-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.share-link-help {
+  padding: 0 2px;
 }
 
 .share-session-actions-panel {
@@ -457,6 +537,7 @@
 }
 
 .share-confirm button.primary,
+.share-link-dialog button.primary,
 .share-session-actions button.primary {
   border-color: var(--share-dialog-button-primary-border);
   background: var(--share-dialog-button-primary-bg);
@@ -482,6 +563,8 @@
 
 .share-confirm button.primary:hover,
 .share-confirm button.primary:focus-visible,
+.share-link-dialog button.primary:hover,
+.share-link-dialog button.primary:focus-visible,
 .share-session-actions button.primary:hover,
 .share-session-actions button.primary:focus-visible {
   background: color-mix(in srgb, var(--share-dialog-button-primary-bg) 76%, white);
