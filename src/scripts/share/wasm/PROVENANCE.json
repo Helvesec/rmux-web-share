@@ -5,21 +5,21 @@
     "repository": "https://github.com/Helvesec/rmux",
     "crate": "crates/rmux-web-crypto",
     "feature_set": ["wasm"],
-    "source_commit": "4c3df646623f4fa03ff620d57cfd390f0cb92af7",
+    "source_commit": "2c65f0efbfa73f3f84807711e6afd63bbd322a3b",
     "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration."
   },
   "toolchain": {
     "rustc": "1.94.1",
     "rustc_note": "Exact rustc that reproduces these bytes. verify-wasm-from-source.mjs exports it as RUSTUP_TOOLCHAIN so a floating 'stable' runner cannot silently change codegen.",
-    "wasm_bindgen": "0.2.118",
-    "wasm_bindgen_note": "These bytes are produced by wasm-pack 0.13.1's PINNED, DOWNLOADED prebuilt wasm-bindgen 0.2.118 — not a source-built cli. A `cargo install wasm-bindgen-cli --version 0.2.118` built from source emits the same .js glue but a DIFFERENT .wasm, so reproduction must use wasm-pack's prebuilt path (no conflicting wasm-bindgen on PATH). Building the cli reproducibly from source is tracked future hardening.",
+    "wasm_bindgen": "0.2.123",
+    "wasm_bindgen_note": "These bytes are produced by wasm-pack 0.13.1's PINNED, DOWNLOADED prebuilt wasm-bindgen 0.2.123 — not a source-built cli. A `cargo install wasm-bindgen-cli --version 0.2.123` built from source emits the same .js glue but a DIFFERENT .wasm, so reproduction must use wasm-pack's prebuilt path (no conflicting wasm-bindgen on PATH). Building the cli reproducibly from source is tracked future hardening.",
     "wasm_opt": false,
     "target": "web"
   },
   "build_command": "wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm",
   "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build: committed bytes must match these hashes recorded in the same diff. (2) scripts/verify-wasm-from-source.mjs is the source-to-binary gate: it rebuilds this production blob from the public rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm, pinned toolchain) and asserts byte-for-byte equality. CI blocks deploy if the commit is not reachable or if the rebuilt bytes differ.",
   "artifacts": {
-    "rmux_web_crypto_wasm_bg.wasm": "sha256:4afdfc60c95d497a17b6cb3dd89f10cb32aa2673bc4524498a9e2c4e6a99fad6",
-    "rmux_web_crypto_wasm.js": "sha256:a1a2372a1ccc9279414dfbbb5d3ac3ee9172b4351bec65c5643507e40ccbdf7d"
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:af2cd3c8ef49e9b5e1a7191e2943acdf0c6d9c911e342d3606ea562a0d853c7b",
+    "rmux_web_crypto_wasm.js": "sha256:ee961372d759c18c318c655fdf078e20380840ac8ce265cf161f5f4566e203cc"
   }
 }

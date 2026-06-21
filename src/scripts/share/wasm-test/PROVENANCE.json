@@ -5,21 +5,21 @@
     "repository": "https://github.com/Helvesec/rmux",
     "crate": "crates/rmux-web-crypto",
     "feature_set": ["wasm-test"],
-    "source_commit": "4c3df646623f4fa03ff620d57cfd390f0cb92af7",
+    "source_commit": "2c65f0efbfa73f3f84807711e6afd63bbd322a3b",
     "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration. This blob is test-only and never shipped to production."
   },
   "toolchain": {
     "rustc": "1.94.1",
     "rustc_note": "Exact rustc that reproduces these bytes. verify-wasm-from-source.mjs exports it as RUSTUP_TOOLCHAIN so a floating 'stable' runner cannot silently change codegen.",
-    "wasm_bindgen": "0.2.118",
-    "wasm_bindgen_note": "These bytes are produced by wasm-pack 0.13.1's PINNED, DOWNLOADED prebuilt wasm-bindgen 0.2.118 — not a source-built cli. A `cargo install wasm-bindgen-cli --version 0.2.118` built from source emits the same .js glue but a DIFFERENT .wasm, so reproduction must use wasm-pack's prebuilt path (no conflicting wasm-bindgen on PATH). Building the cli reproducibly from source is tracked future hardening.",
+    "wasm_bindgen": "0.2.123",
+    "wasm_bindgen_note": "These bytes are produced by wasm-pack 0.13.1's PINNED, DOWNLOADED prebuilt wasm-bindgen 0.2.123 — not a source-built cli. A `cargo install wasm-bindgen-cli --version 0.2.123` built from source emits the same .js glue but a DIFFERENT .wasm, so reproduction must use wasm-pack's prebuilt path (no conflicting wasm-bindgen on PATH). Building the cli reproducibly from source is tracked future hardening.",
     "wasm_opt": false,
     "target": "web"
   },
   "build_command": "wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm-test",
   "verification": "scripts/verify-wasm-provenance.mjs hash-pins this blob on every build. It is test-only and never shipped to production. Include it in the source-to-binary gate with RMUX_WASM_DIRS=wasm,wasm-test when a full test-blob audit is needed.",
   "artifacts": {
-    "rmux_web_crypto_wasm_bg.wasm": "sha256:3b7b02abf6adf6d9b3707af98584b2a826e0ab84a067fc3bc7db7d2a17938bf0",
-    "rmux_web_crypto_wasm.js": "sha256:de09e05be0180ee203c5ca0532d55820078f8bb8e8e5ae116f04802b25366ef0"
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:e5c7c68dfe3dbd814378a56fecf4e8702adb6a96bd9ce03eac6260c7eb37c3de",
+    "rmux_web_crypto_wasm.js": "sha256:61d0dee23b681fb05afc6f84550d2d3cf6fd74c276cc750b60aa0fa4938838a7"
   }
 }

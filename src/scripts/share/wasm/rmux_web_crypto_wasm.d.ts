@@ -9,11 +9,12 @@ export class ClientSession {
     free(): void;
     [Symbol.dispose](): void;
     /**
-     * Derives the client session from the PSK, the X25519 DH shared secret,
-     * and the exact handshake transcript bytes.
+     * Derives the client session from the PSK, the X25519 DH shared secret, the
+     * ML-KEM shared secret, and the exact handshake transcript bytes.
      *
      * - `psk`: `SHA-256(token)`, 32 bytes, computed in the browser.
      * - `dh`: X25519 shared secret, exactly 32 bytes, from WebCrypto.
+     * - `ml_kem_secret`: ML-KEM-768 shared secret, exactly 32 bytes.
      * - `client_hello` / `server_challenge`: exact wire bytes.
      */
     constructor(psk: Uint8Array, dh: Uint8Array, ml_kem_secret: Uint8Array, client_hello: Uint8Array, server_challenge: Uint8Array);
@@ -83,20 +84,22 @@ export interface InitOutput {
     readonly __wbg_clientsession_free: (a: number, b: number) => void;
     readonly __wbg_mlkemkeypair_free: (a: number, b: number) => void;
     readonly __wbg_opened_free: (a: number, b: number) => void;
-    readonly clientsession_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
-    readonly clientsession_open: (a: number, b: number, c: number, d: number) => void;
-    readonly clientsession_sealBinary: (a: number, b: number, c: number, d: number) => void;
-    readonly clientsession_sealText: (a: number, b: number, c: number, d: number) => void;
-    readonly mlkemkeypair_decapsulate: (a: number, b: number, c: number, d: number) => void;
-    readonly mlkemkeypair_encapsulationKey: (a: number, b: number) => void;
-    readonly mlkemkeypair_new: (a: number, b: number, c: number) => void;
-    readonly opened_binary: (a: number, b: number) => void;
+    readonly clientsession_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+    readonly clientsession_open: (a: number, b: number, c: number) => [number, number, number];
+    readonly clientsession_sealBinary: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly clientsession_sealText: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly mlkemkeypair_decapsulate: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly mlkemkeypair_encapsulationKey: (a: number) => [number, number];
+    readonly mlkemkeypair_new: (a: number, b: number) => [number, number, number];
+    readonly opened_binary: (a: number) => [number, number];
     readonly opened_isText: (a: number) => number;
-    readonly opened_text: (a: number, b: number) => void;
-    readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export: (a: number, b: number) => number;
-    readonly __wbindgen_export2: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
+    readonly opened_text: (a: number) => [number, number];
+    readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_start: () => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
