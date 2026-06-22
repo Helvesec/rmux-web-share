@@ -18,7 +18,8 @@ export type { TerminalThemeName } from './types';
 export type TerminalThemeMode = 'dark' | 'light';
 
 export const DEFAULT_TERMINAL_THEME: TerminalThemeName = 'user';
-const LIVE_SCROLLBACK_LINES = 0;
+const SESSION_SCROLLBACK_LINES = 0;
+const PANE_SCROLLBACK_LINES = 10_000;
 const BOTTOM_STICKY_THRESHOLD_PX = 8;
 const WHEEL_PIXEL_LINE = 16;
 const IMAGE_PIXEL_LIMIT = 4_194_304;
@@ -197,7 +198,12 @@ class XtermShareTerminal implements ShareTerminal {
     this.role = role;
     this.mobilePaneMedia = window.matchMedia(MOBILE_PANE_QUERY);
     this.landscapeMedia = window.matchMedia(SHORT_LANDSCAPE_QUERY);
-    this.term = new Terminal(optionsForRole(role, theme, userTheme));
+    this.term = new Terminal(optionsForRole(
+      role,
+      theme,
+      userTheme,
+      scope === 'session' ? SESSION_SCROLLBACK_LINES : PANE_SCROLLBACK_LINES,
+    ));
     this.term.loadAddon(
       new ImageAddon({
         enableSizeReports: false,
@@ -865,8 +871,12 @@ class XtermShareTerminal implements ShareTerminal {
       }
       event.preventDefault();
       event.stopImmediatePropagation();
-      this.container.scrollLeft += x;
-      this.container.scrollTop += y;
+      if (x !== 0) {
+        this.container.scrollLeft += x;
+      }
+      if (y !== 0) {
+        this.scrollPaneViewportByPixels(y);
+      }
     };
     this.container.addEventListener('wheel', onWheel, { capture: true, passive: false });
     const onPointerDown = (event: PointerEvent) => {
@@ -977,6 +987,12 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private bindScrollAnchor(): void {
+    if (this.scope !== 'session') {
+      this.disposables.push(this.term.onScroll(() => {
+        this.stickToBottom = this.isPaneViewportNearBottom();
+      }));
+      return;
+    }
     const onScroll = () => {
       this.stickToBottom = this.isNearBottom();
     };
@@ -987,6 +1003,11 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private scrollToBottom(): void {
+    if (this.scope !== 'session') {
+      this.term.scrollToBottom();
+      this.stickToBottom = true;
+      return;
+    }
     this.container.scrollTop = this.container.scrollHeight;
     this.stickToBottom = true;
   }
@@ -1006,6 +1027,11 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private scrollToTop(): void {
+    if (this.scope !== 'session') {
+      this.term.scrollToTop();
+      this.stickToBottom = false;
+      return;
+    }
     this.container.scrollTop = 0;
     this.stickToBottom = false;
   }
@@ -1016,8 +1042,24 @@ class XtermShareTerminal implements ShareTerminal {
   }
 
   private isNearBottom(): boolean {
+    if (this.scope !== 'session') {
+      return this.isPaneViewportNearBottom();
+    }
     return this.container.scrollTop + this.container.clientHeight
       >= this.container.scrollHeight - BOTTOM_STICKY_THRESHOLD_PX;
+  }
+
+  private isPaneViewportNearBottom(): boolean {
+    const buffer = this.term.buffer.active;
+    return buffer.viewportY >= buffer.baseY - 1;
+  }
+
+  private scrollPaneViewportByPixels(deltaY: number): void {
+    const metrics = this.cellMetrics();
+    const lineHeight = metrics?.height ?? WHEEL_PIXEL_LINE;
+    const lines = Math.max(1, Math.round(Math.abs(deltaY) / Math.max(1, lineHeight)));
+    this.term.scrollLines(deltaY < 0 ? -lines : lines);
+    this.stickToBottom = this.isPaneViewportNearBottom();
   }
 
   private writeSessionSnapshotNow(text: string, done: () => void): void {
@@ -1890,6 +1932,7 @@ function optionsForRole(
   role: ShareRole,
   theme: TerminalThemeName,
   userTheme?: TerminalThemePalette,
+  scrollback = SESSION_SCROLLBACK_LINES,
 ): ConstructorParameters<typeof Terminal>[0] {
   return {
     allowProposedApi: false,
@@ -1902,7 +1945,7 @@ function optionsForRole(
     fontSize: 13,
     letterSpacing: 0,
     lineHeight: 1.2,
-    scrollback: LIVE_SCROLLBACK_LINES,
+    scrollback,
     theme: themePalette(theme, userTheme),
     // rmux streams PTY output for a concrete remote geometry. Client-side
     // reflow corrupts redraw-heavy terminal UIs during resize.

@@ -459,6 +459,29 @@ test('full snapshots replace the previous terminal frame', async ({ page }) => {
   await expect(page.locator('.xterm')).not.toContainText('hello from rmux');
 });
 
+test('pane shares keep local scrollback and wheel through previous output', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'pane';
+    window.__rmuxShareReadySize = { cols: 24, rows: 6 };
+    window.__rmuxShareInitialSnapshot = Array.from({ length: 60 }, (_, index) => {
+      return `line ${String(index + 1).padStart(3, '0')}`;
+    }).join('\r\n');
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('line 060');
+  await expect(page.locator('.xterm')).not.toContainText('line 001');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 32, screen!.y + 32);
+  const beforeWheel = await sentFrames(page);
+  await page.mouse.wheel(0, -4000);
+
+  await expect(page.locator('.xterm')).toContainText('line 001');
+  await expect.poll(() => sentFrames(page)).toEqual(beforeWheel);
+});
+
 test('session viewer keeps the remote grid local without sending resize frames', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
