@@ -1968,6 +1968,52 @@ test('operator session shares send attach input without a controls toggle', asyn
   await expect.poll(() => sentFrames(page)).toContainEqual([0x83, 120]);
 });
 
+test('operator backspace sends the Windows erase byte on Windows clients', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-client-os', 'windows');
+  await expect(page.locator('.xterm')).toHaveCSS('cursor', 'default');
+
+  await focusTerminalKeyboard(page);
+  await page.keyboard.type('abc');
+  await page.keyboard.press('Backspace');
+
+  await expect.poll(() => sentInputPayloads(page)).toContain('\b');
+  expect(await sentInputPayloads(page)).not.toContain('\x7f');
+});
+
+test('operator backspace keeps xterm delete on non-Windows clients', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userAgentData', {
+      configurable: true,
+      get: () => ({ platform: 'Linux' }),
+    });
+    Object.defineProperty(Navigator.prototype, 'platform', {
+      configurable: true,
+      get: () => 'Linux x86_64',
+    });
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-client-os', 'other');
+  await expect(page.locator('.xterm')).toHaveCSS('cursor', 'text');
+
+  await focusTerminalKeyboard(page);
+  await page.keyboard.type('abc');
+  await page.keyboard.press('Backspace');
+
+  await expect.poll(() => sentInputPayloads(page)).toContain('\x7f');
+  expect(await sentInputPayloads(page)).not.toContain('\b');
+});
+
 test('mouse wheel scroll stays local and does not send shell input', async ({ page }) => {
   await page.addInitScript(() => {
     window.__rmuxShareReadyScope = 'session';
