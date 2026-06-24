@@ -55,6 +55,19 @@ test('terminal SHARE link returns to the dashboard instead of reopening the shar
     .toBeNull();
 });
 
+test('host theme without a captured palette falls back to dark even for light viewers', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+
+  await page.goto(`/#t=${spectatorToken}`);
+
+  await expect(page.locator('[data-share-terminal-theme]')).toHaveValue('user');
+  await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme', 'user');
+  await expect(page.locator('[data-share-terminal]')).toHaveAttribute('data-theme-mode', 'dark');
+  await expect(page.locator('.share-app')).toHaveAttribute('data-terminal-mode', 'dark');
+  await expect(page.locator('.xterm-viewport')).toHaveCSS('background-color', 'rgb(11, 20, 22)');
+  await expect(page.locator('.xterm')).toContainText('hello from rmux');
+});
+
 test('Firefox local links do not show a local access permission prompt', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(Navigator.prototype, 'userAgent', {
@@ -3029,12 +3042,12 @@ test('pin prompt escape returns to the recent links dashboard', async ({ page })
     .toBeNull();
 });
 
-test('pin-protected minimal links stay readable in a light user theme', async ({ page }) => {
+test('pin-protected minimal links stay readable in an explicit light theme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.addInitScript(() => {
     window.__rmuxShareRequirePin = true;
   });
-  const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off`;
+  const url = `/#t=${spectatorToken}&navbar=off&disclaimer=off&theme=light`;
   await page.goto(url);
 
   await expect(page.locator('[data-share-confirm]')).toBeVisible();

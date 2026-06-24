@@ -1926,7 +1926,7 @@ export function terminalThemeMode(theme: TerminalThemeName, userTheme?: Terminal
   if (palette) {
     return relativeLuminance(palette.background) > 0.5 ? 'light' : 'dark';
   }
-  return userPrefersLight() ? 'light' : 'dark';
+  return 'dark';
 }
 
 export function terminalChromePalette(
@@ -2238,11 +2238,6 @@ function themePalette(
     white: '#d8dedc',
     yellow: '#d8b84f',
   };
-}
-
-function userPrefersLight(): boolean {
-  return typeof window !== 'undefined'
-    && window.matchMedia('(prefers-color-scheme: light)').matches;
 }
 
 function normalizeUserTheme(theme?: TerminalThemePalette): TerminalThemePalette | undefined {
