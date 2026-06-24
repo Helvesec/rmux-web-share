@@ -2119,6 +2119,14 @@ test('operator session shares send attach input without a controls toggle', asyn
 
 test('operator backspace sends the Windows erase byte on Windows clients', async ({ page }) => {
   await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userAgentData', {
+      configurable: true,
+      get: () => ({ platform: 'Windows' }),
+    });
+    Object.defineProperty(Navigator.prototype, 'platform', {
+      configurable: true,
+      get: () => 'Win32',
+    });
     window.__rmuxShareReadyScope = 'session';
     window.__rmuxShareReadyRole = 'operator';
     window.__rmuxShareReadyControls = true;
