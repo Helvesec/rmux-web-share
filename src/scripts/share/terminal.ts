@@ -330,14 +330,15 @@ class XtermShareTerminal implements ShareTerminal {
     if (this.scope !== 'session' || this.keyboardInset > 0) {
       return false;
     }
-    // A single full-screen (alternate-screen) app: render at natural width and let
-    // the user pan vertically, with a few extra rows requested from the daemon so
-    // more of the app's UI is drawn (see TALL_VIEW_HEADROOM_ROWS). This used to be
-    // gated to mobile/short-landscape media, leaving a desktop browser no way to
-    // reach a grid taller than its window (it just scaled the whole thing down).
-    // Enabling it on desktop too gives the same scroll/pan mechanic as mobile.
+    // A single full-screen (alternate-screen) app on touch/mobile: render at
+    // natural width and let the user pan vertically, with a few extra rows
+    // requested from the daemon so more of the app's UI is drawn. Do not do this
+    // on desktop: CLIs like Claude should receive the actual browser grid size,
+    // otherwise their bottom status/input rows are laid out below the viewport.
     const panes = this.sessionView?.panes ?? [];
-    return panes.length === 1 && panes[0].alternate_on === true;
+    return (this.mobilePaneMedia.matches || this.landscapeMedia.matches)
+      && panes.length === 1
+      && panes[0].alternate_on === true;
   }
 
   private resetSessionPan(): void {
@@ -865,16 +866,18 @@ class XtermShareTerminal implements ShareTerminal {
         event.preventDefault();
         event.stopImmediatePropagation();
         const pane = this.focusedMobilePane() ?? this.paneFromMouseEvent(event);
-        if (pane && this.forwardAlternateWheel(pane, event)) {
-          return;
-        }
-        // Tall full-screen fallback (alt-screen app taller than the viewport):
-        // pan the VIEW locally only when the pane/app did not consume the wheel.
+        // Tall full-screen fallback (touch/mobile alt-screen app taller than the
+        // viewport): mouse wheels should pan the local VIEW just like dragging the
+        // view-pan scrollbar. Do this before forwarding app mouse reporting, or a
+        // mouse-enabled TUI can trap the wheel and leave the oversized view stuck.
         if (this.canViewPan()) {
           const { y } = wheelDeltaPixels(event, this.container.clientHeight);
           if (y !== 0) {
             this.applyViewPan(-y);
           }
+          return;
+        }
+        if (pane && this.forwardAlternateWheel(pane, event)) {
           return;
         }
         if (pane) {

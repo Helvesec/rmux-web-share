@@ -1579,7 +1579,7 @@ test('short landscape grows the grid and lets the user pan to the top of a full-
     // A single full-screen (alternate-screen) app, taller than the short landscape.
     window.__rmuxShareSessionView = {
       size: { cols: 80, rows: 40 },
-      panes: [{ id: 1, x: 0, y: 0, cols: 80, rows: 40, active: true, history_size: 0, scroll_offset: 0, alternate_on: true }],
+      panes: [{ id: 1, x: 0, y: 0, cols: 80, rows: 40, active: true, history_size: 0, scroll_offset: 0, alternate_on: true, mouse_on: true }],
       windows: [{ index: 0, name: 'app', active: true }],
     };
   });
@@ -1608,6 +1608,22 @@ test('short landscape grows the grid and lets the user pan to the top of a full-
   await expect.poll(translateY).toBeLessThan(-20);
   const atBottom = await translateY();
 
+  // External mouse/trackpad wheels must pan the local view even when the TUI has
+  // enabled mouse reporting; otherwise the view-pan scrollbar is draggable but
+  // wheel scrolling appears dead.
+  await page.locator('[data-share-terminal]').evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    el.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      deltaY: -80,
+    }));
+  });
+  await expect.poll(translateY).toBeGreaterThan(atBottom + 5);
+  const afterWheel = await translateY();
+
   // Drag one finger DOWN on the terminal → reveal the TOP (translateY moves toward 0).
   await page.evaluate(() => {
     const el = document.querySelector('[data-share-terminal]') as HTMLElement;
@@ -1622,7 +1638,45 @@ test('short landscape grows the grid and lets the user pan to the top of a full-
     }
     fire('pointerup', y0 + 220);
   });
-  expect(await translateY(), 'dragging down should reveal the top of the app').toBeGreaterThan(atBottom + 20);
+  expect(await translateY(), 'dragging down should reveal the top of the app').toBeGreaterThan(afterWheel + 20);
+});
+
+test('desktop full-screen session apps use the visible browser grid without tall-view headroom', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'desktop layout guard');
+  await page.setViewportSize({ width: 1280, height: 760 });
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'operator';
+    window.__rmuxShareReadyControls = true;
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hfull screen app'
+      + '\x1b[24;1H\x1b[42m                                                                                \x1b[0m';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{ id: 1, x: 0, y: 0, cols: 80, rows: 24, active: true, history_size: 0, scroll_offset: 0, alternate_on: true, mouse_on: true }],
+      windows: [{ index: 0, name: 'app', active: true }],
+    };
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect.poll(async () => (await sentFrames(page)).some(isResizeFrame)).toBe(true);
+
+  await expect.poll(() => page.locator('.share-terminal-stage').evaluate((el) => {
+    const transform = getComputedStyle(el).transform;
+    return transform === 'none' ? 0 : new DOMMatrix(transform).f;
+  })).toBeGreaterThanOrEqual(-1);
+  await expect.poll(() => page.locator('.share-view-pan-scrollbar').evaluate((el) => {
+    const style = getComputedStyle(el);
+    return (el as HTMLElement).hidden || style.display === 'none';
+  })).toBe(true);
+  await expect.poll(() => page.locator('.xterm-screen').evaluate((screen) => {
+    const terminal = document.querySelector<HTMLElement>('[data-share-terminal]');
+    if (!terminal) {
+      return false;
+    }
+    return screen.getBoundingClientRect().height <= terminal.getBoundingClientRect().height + 1;
+  })).toBe(true);
 });
 
 test('mobile: tapping the green status bar selects the window without focusing the terminal', async ({ page }, testInfo) => {
