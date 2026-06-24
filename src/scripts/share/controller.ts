@@ -715,6 +715,9 @@ class ShareConnection {
           : pane
       )),
     };
+    if (!this.shouldApplySessionView(view)) {
+      return;
+    }
     this.terminal.write(patch.frame);
     this.applySessionView(view);
   }

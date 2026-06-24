@@ -10,8 +10,9 @@ export class SessionHistoryGate {
   private scrollDirection?: SessionScrollDirection;
   private scrollPaneId?: number;
   private followLiveRequested = false;
-  private readonly desiredPaneOffsets = new Map<number, number>();
-  private readonly daemonPaneOffsets = new Map<number, number>();
+  // scroll_offset is relative to the live bottom and changes as output appends.
+  // top_line is the stable history anchor shared with the daemon.
+  private readonly desiredPaneTopLines = new Map<number, number>();
 
   reset(): void {
     this.pinned = false;
@@ -19,20 +20,16 @@ export class SessionHistoryGate {
     this.scrollDirection = undefined;
     this.scrollPaneId = undefined;
     this.followLiveRequested = false;
-    this.desiredPaneOffsets.clear();
-    this.daemonPaneOffsets.clear();
+    this.desiredPaneTopLines.clear();
   }
 
   noteAppliedView(view: SessionView): void {
     const pinned = hasSessionScrollOffset(view);
     this.pinned = pinned;
-    this.desiredPaneOffsets.clear();
-    this.daemonPaneOffsets.clear();
+    this.desiredPaneTopLines.clear();
     if (pinned) {
       for (const pane of view.panes) {
-        const offset = Math.max(0, pane.scroll_offset);
-        this.desiredPaneOffsets.set(pane.id, offset);
-        this.daemonPaneOffsets.set(pane.id, offset);
+        this.desiredPaneTopLines.set(pane.id, paneTopLine(pane));
       }
     }
     this.scrollIntent = undefined;
@@ -50,39 +47,42 @@ export class SessionHistoryGate {
     this.scrollDirection = undefined;
     this.scrollPaneId = undefined;
     this.followLiveRequested = true;
-    this.desiredPaneOffsets.clear();
-    this.daemonPaneOffsets.clear();
+    this.desiredPaneTopLines.clear();
     return true;
   }
 
   notePaneScroll(paneId: number, delta: number, view?: SessionView): number | undefined {
     const pane = view?.panes.find((candidate) => candidate.id === paneId);
-    const current = this.currentDesiredPaneOffset(paneId, pane);
-    const next = this.nextPaneOffset(current, delta, pane);
-    const daemonCurrent = this.currentDaemonPaneOffset(paneId, pane);
-    const wireDelta = daemonCurrent - next;
+    const current = this.currentDesiredPaneTopLine(paneId, pane);
+    if (current === undefined) {
+      return undefined;
+    }
+    const next = this.nextPaneTopLine(current, delta, pane);
+    if (next === current) {
+      return undefined;
+    }
     this.scrollPaneId = paneId;
-    this.scrollDirection = next > current ? 'history' : 'live';
-    if (next > 0) {
+    this.scrollDirection = next < current ? 'history' : 'live';
+    const historySize = Math.max(0, pane?.history_size ?? Number.MAX_SAFE_INTEGER);
+    if (next < historySize) {
       this.pinned = true;
       this.scrollIntent = 'history';
       this.followLiveRequested = false;
-      this.desiredPaneOffsets.set(paneId, next);
-      this.daemonPaneOffsets.set(paneId, next);
-      return wireDelta === 0 ? undefined : wireDelta;
+      this.desiredPaneTopLines.set(paneId, next);
+      // The daemon owns the same top_line anchor, so the wire request stays a
+      // plain relative scroll delta instead of a compensation from old offsets.
+      return delta;
     }
     this.pinned = false;
     this.scrollIntent = 'live';
     this.followLiveRequested = true;
-    this.desiredPaneOffsets.delete(paneId);
-    this.daemonPaneOffsets.delete(paneId);
-    return wireDelta === 0 ? undefined : wireDelta;
+    this.desiredPaneTopLines.delete(paneId);
+    return delta;
   }
 
   shouldApplyView(view: SessionView): boolean {
     if (hasSessionScrollOffset(view)) {
       if (this.scrollIntent === 'live' || this.followLiveRequested || this.shouldSuppressStaleHistoryView(view)) {
-        this.noteSuppressedDaemonView(view);
         return false;
       }
       return true;
@@ -91,9 +91,6 @@ export class SessionHistoryGate {
       return true;
     }
     const shouldFollowLive = this.scrollIntent === 'live' || this.followLiveRequested;
-    if (!shouldFollowLive) {
-      this.noteSuppressedDaemonView(view);
-    }
     return shouldFollowLive;
   }
 
@@ -114,47 +111,41 @@ export class SessionHistoryGate {
     return 'drop';
   }
 
-  private currentDesiredPaneOffset(paneId: number, pane?: SessionPaneView): number {
-    return Math.max(0, this.desiredPaneOffsets.get(paneId) ?? pane?.scroll_offset ?? 0);
+  private currentDesiredPaneTopLine(paneId: number, pane?: SessionPaneView): number | undefined {
+    const desired = this.desiredPaneTopLines.get(paneId);
+    if (desired !== undefined) {
+      return Math.max(0, desired);
+    }
+    return pane ? paneTopLine(pane) : undefined;
   }
 
-  private currentDaemonPaneOffset(paneId: number, pane?: SessionPaneView): number {
-    return Math.max(0, this.daemonPaneOffsets.get(paneId) ?? pane?.scroll_offset ?? 0);
-  }
-
-  private nextPaneOffset(current: number, delta: number, pane?: SessionPaneView): number {
+  private nextPaneTopLine(current: number, delta: number, pane?: SessionPaneView): number {
     const historySize = Math.max(0, pane?.history_size ?? Number.MAX_SAFE_INTEGER);
-    return Math.max(0, Math.min(historySize, current - delta));
+    return Math.max(0, Math.min(historySize, current + delta));
   }
 
   private shouldSuppressStaleHistoryView(view: SessionView): boolean {
     if (!this.pinned || this.scrollIntent !== 'history' || this.scrollPaneId === undefined || this.scrollDirection === undefined) {
       return false;
     }
-    const desired = this.desiredPaneOffsets.get(this.scrollPaneId);
+    const desired = this.desiredPaneTopLines.get(this.scrollPaneId);
     const pane = view.panes.find((candidate) => candidate.id === this.scrollPaneId);
     if (desired === undefined || !pane || pane.scroll_offset <= 0) {
       return false;
     }
-    const actual = Math.max(0, pane.scroll_offset);
-    return this.scrollDirection === 'history' ? actual < desired : actual > desired;
-  }
-
-  private noteSuppressedDaemonView(view: SessionView): void {
-    const paneIds = new Set(view.panes.map((pane) => pane.id));
-    for (const paneId of this.daemonPaneOffsets.keys()) {
-      if (!paneIds.has(paneId)) {
-        this.daemonPaneOffsets.delete(paneId);
-      }
-    }
-    for (const pane of view.panes) {
-      this.daemonPaneOffsets.set(pane.id, Math.max(0, pane.scroll_offset));
-    }
+    const actual = paneTopLine(pane);
+    return this.scrollDirection === 'history' ? actual > desired : actual < desired;
   }
 }
 
 function hasSessionScrollOffset(view: SessionView): boolean {
   return view.panes.some((pane) => pane.scroll_offset > 0);
+}
+
+function paneTopLine(pane: SessionPaneView): number {
+  const historySize = Math.max(0, pane.history_size);
+  const scrollOffset = Math.max(0, Math.min(historySize, pane.scroll_offset));
+  return historySize - scrollOffset;
 }
 
 function isPassiveOperatorSignal(data: string): boolean {

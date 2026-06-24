@@ -2495,6 +2495,7 @@ test('session history scroll stays pinned across live refreshes until the user r
   });
   await expect(page.locator('.xterm')).toContainText('history frame at offset 40');
   await expect(page.locator('.xterm')).not.toContainText('live snapshot racing before history view');
+  let expectedScrollOffset = 40;
 
   await page.locator('.xterm-helper-textarea').evaluate((element) => {
     (element as HTMLElement).blur();
@@ -2529,8 +2530,8 @@ test('session history scroll stays pinned across live refreshes until the user r
   await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(framesBeforeSecondScroll);
   const secondScroll = (await paneScrollFrames(page)).at(-1);
   expect(secondScroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
-  expect(secondScroll!.delta).toBeLessThan(-40);
-  const secondOffset = Math.abs(secondScroll!.delta);
+  expect(secondScroll!.delta).toBeLessThan(0);
+  expectedScrollOffset += Math.abs(secondScroll!.delta);
 
   await dispatchSessionSnapshot(
     page,
@@ -2547,7 +2548,7 @@ test('session history scroll stays pinned across live refreshes until the user r
       rows: 23,
       active: true,
       history_size: 120,
-      scroll_offset: Math.max(1, secondOffset - 10),
+      scroll_offset: Math.max(1, expectedScrollOffset - 10),
       alternate_on: false,
     }],
   });
@@ -2569,7 +2570,7 @@ test('session history scroll stays pinned across live refreshes until the user r
       rows: 23,
       active: true,
       history_size: 120,
-      scroll_offset: secondOffset,
+      scroll_offset: expectedScrollOffset,
       alternate_on: false,
     }],
   });
@@ -2581,7 +2582,7 @@ test('session history scroll stays pinned across live refreshes until the user r
   const quietDownScroll = (await paneScrollFrames(page)).at(-1);
   expect(quietDownScroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
   expect(quietDownScroll!.delta).toBeGreaterThan(0);
-  const lowerOffset = Math.max(1, secondOffset - quietDownScroll!.delta);
+  const lowerOffset = Math.max(1, expectedScrollOffset - quietDownScroll!.delta);
 
   await dispatchSessionSnapshot(
     page,
@@ -2598,7 +2599,7 @@ test('session history scroll stays pinned across live refreshes until the user r
       rows: 23,
       active: true,
       history_size: 120,
-      scroll_offset: secondOffset,
+      scroll_offset: expectedScrollOffset,
       alternate_on: false,
     }],
   });
@@ -2649,12 +2650,12 @@ test('session history scroll stays pinned across live refreshes until the user r
   await expect(page.locator('.xterm')).not.toContainText('second live refresh that should stay hidden');
 
   const framesBeforeSuppressedDown = (await paneScrollFrames(page)).length;
-  await page.mouse.wheel(0, 120);
+  await page.mouse.wheel(0, 16);
   await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(framesBeforeSuppressedDown);
   const downAfterSuppressedReset = (await paneScrollFrames(page)).at(-1);
   expect(downAfterSuppressedReset).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
-  expect(downAfterSuppressedReset!.delta).toBeLessThan(0);
-  const offsetAfterSuppressedDown = Math.max(1, Math.abs(downAfterSuppressedReset!.delta));
+  expect(downAfterSuppressedReset!.delta).toBeGreaterThan(0);
+  const offsetAfterSuppressedDown = Math.max(1, lowerOffset - downAfterSuppressedReset!.delta);
   expect(offsetAfterSuppressedDown).toBeLessThan(lowerOffset);
 
   await dispatchSessionSnapshot(
@@ -2725,6 +2726,127 @@ test('session history scroll stays pinned across live refreshes until the user r
     }],
   });
   await expect(page.locator('.xterm')).toContainText('live bottom after explicit return');
+});
+
+test('session history applies grown-history view for the same top line while scrolling down', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hpinned history before growth'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 120,
+        scroll_offset: 40,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('pinned history before growth');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 48, screen!.y + 64);
+  const beforeScroll = (await paneScrollFrames(page)).length;
+  await page.mouse.wheel(0, 16);
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(beforeScroll);
+  const scroll = (await paneScrollFrames(page)).at(-1);
+  expect(scroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(scroll!.delta).toBeGreaterThan(0);
+
+  const desiredTopLine = 80 + scroll!.delta;
+  const grownHistorySize = 220;
+  await dispatchSessionSnapshot(
+    page,
+    '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hgrown history at the same top line'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26',
+  );
+  await dispatchSessionView(page, {
+    size: { cols: 80, rows: 24 },
+    panes: [{
+      id: 7,
+      x: 0,
+      y: 0,
+      cols: 80,
+      rows: 23,
+      active: true,
+      history_size: grownHistorySize,
+      scroll_offset: grownHistorySize - desiredTopLine,
+      alternate_on: false,
+    }],
+  });
+
+  await expect(page.locator('.xterm')).toContainText('grown history at the same top line');
+});
+
+test('stale session pane frames are ignored while a newer scroll is pending', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'session';
+    window.__rmuxShareReadyRole = 'spectator';
+    window.__rmuxShareReadySize = { cols: 80, rows: 24 };
+    window.__rmuxShareInitialSnapshot =
+      '\x1b[0m\x1b[?25l\x1b[3J\x1b[2J\x1b[Hpane frame anchor before scroll'
+      + '\x1b[24;1H[ci] 0:bash* "host" 16:34 27-May-26';
+    window.__rmuxShareSessionView = {
+      size: { cols: 80, rows: 24 },
+      panes: [{
+        id: 7,
+        x: 0,
+        y: 0,
+        cols: 80,
+        rows: 23,
+        active: true,
+        history_size: 120,
+        scroll_offset: 40,
+        alternate_on: false,
+      }],
+    };
+  });
+  await page.goto(`/#t=${spectatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 48, screen!.y + 64);
+  const beforeScroll = (await paneScrollFrames(page)).length;
+  await page.mouse.wheel(0, -120);
+  await expect.poll(async () => (await paneScrollFrames(page)).length).toBeGreaterThan(beforeScroll);
+  const scroll = (await paneScrollFrames(page)).at(-1);
+  expect(scroll).toMatchObject({ type: 'pane_scroll', pane_id: 7 });
+  expect(scroll!.delta).toBeLessThan(0);
+
+  const desiredTopLine = 80 + scroll!.delta;
+  const staleTopLine = desiredTopLine + 5;
+  await dispatchSessionPaneFrame(page, {
+    paneId: 7,
+    size: { cols: 80, rows: 24 },
+    pane: { x: 0, y: 0, cols: 80, rows: 23 },
+    historySize: 120,
+    scrollOffset: 120 - staleTopLine,
+    frame: '\x1b[1;1Hstale pane frame after newer scroll',
+  });
+  await expect(page.locator('.xterm')).not.toContainText('stale pane frame after newer scroll');
+
+  await dispatchSessionPaneFrame(page, {
+    paneId: 7,
+    size: { cols: 80, rows: 24 },
+    pane: { x: 0, y: 0, cols: 80, rows: 23 },
+    historySize: 120,
+    scrollOffset: 120 - desiredTopLine,
+    frame: '\x1b[1;1Hcorrect pane frame after newer scroll',
+  });
+  await expect(page.locator('.xterm')).toContainText('correct pane frame after newer scroll');
 });
 
 test('malformed session view frames are ignored without crashing', async ({ page }) => {
@@ -3001,6 +3123,36 @@ async function dispatchRawOutput(page: import('@playwright/test').Page, output: 
     const bytes = new TextEncoder().encode(text);
     await window.__rmuxShareSockets?.at(-1)?.serverBinary([0x01, ...Array.from(bytes)]);
   }, output);
+}
+
+async function dispatchSessionPaneFrame(
+  page: import('@playwright/test').Page,
+  patch: {
+    paneId: number;
+    size: { cols: number; rows: number };
+    pane: { x: number; y: number; cols: number; rows: number };
+    historySize: number;
+    scrollOffset: number;
+    frame: string;
+  },
+): Promise<void> {
+  await page.evaluate(async (input) => {
+    const frame = new TextEncoder().encode(input.frame);
+    const bytes = new Uint8Array(25 + frame.length);
+    const view = new DataView(bytes.buffer);
+    bytes[0] = 0x12;
+    view.setUint32(1, input.paneId);
+    view.setUint16(5, input.size.cols);
+    view.setUint16(7, input.size.rows);
+    view.setUint16(9, input.pane.x);
+    view.setUint16(11, input.pane.y);
+    view.setUint16(13, input.pane.cols);
+    view.setUint16(15, input.pane.rows);
+    view.setUint32(17, input.scrollOffset);
+    view.setUint32(21, input.historySize);
+    bytes.set(frame, 25);
+    await window.__rmuxShareSockets?.at(-1)?.serverBinary(bytes);
+  }, patch);
 }
 
 async function sentFrames(page: import('@playwright/test').Page) {
