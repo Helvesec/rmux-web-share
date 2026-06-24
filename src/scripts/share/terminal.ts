@@ -124,6 +124,8 @@ interface SessionPoint {
   row: number;
 }
 
+type StickToBottomPolicy = boolean | (() => boolean);
+
 // rmux re-renders the whole session screen on every frame and prefixes it with a
 // screen clear — the snapshot form is ESC[3J ESC[2J, and the live attach form is
 // ESC[H ESC[2J (zoomed/full redraw). xterm processes the write asynchronously and
@@ -458,13 +460,13 @@ class XtermShareTerminal implements ShareTerminal {
       });
       return;
     }
-    const stickToBottom = this.stickToBottom;
-    this.enqueue((done) => this.writeDecodedNow(text, stickToBottom, done));
+    this.enqueue((done) => this.writeDecodedNow(text, () => this.stickToBottom, done));
   }
 
-  private writeDecodedNow(data: string, stickToBottom: boolean, done: () => void): void {
+  private writeDecodedNow(data: string, stickToBottom: StickToBottomPolicy, done: () => void): void {
     this.term.write(data, () => {
-      if (stickToBottom) {
+      const shouldStickToBottom = typeof stickToBottom === 'function' ? stickToBottom() : stickToBottom;
+      if (shouldStickToBottom) {
         this.scrollToBottom();
       }
       this.renderActivePanePrompt();

@@ -482,6 +482,88 @@ test('pane shares keep local scrollback and wheel through previous output', asyn
   await expect.poll(() => sentFrames(page)).toEqual(beforeWheel);
 });
 
+test('pane share scrollback stays pinned while live output continues', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__rmuxShareReadyScope = 'pane';
+    window.__rmuxShareReadySize = { cols: 24, rows: 6 };
+    window.__rmuxShareInitialSnapshot = Array.from({ length: 80 }, (_, index) => {
+      return `line ${String(index + 1).padStart(3, '0')}`;
+    }).join('\r\n');
+  });
+  await page.goto(`/#t=${operatorToken}`);
+  await expect(page.locator('[data-share-status]')).toHaveText('Connected');
+  await expect(page.locator('.xterm')).toContainText('line 080');
+
+  const screen = await page.locator('.xterm-screen').boundingBox();
+  expect(screen).not.toBeNull();
+  await page.mouse.move(screen!.x + 32, screen!.y + 32);
+  const beforeWheel = await sentFrames(page);
+  await page.mouse.wheel(0, -4000);
+  await expect(page.locator('.xterm')).toContainText('line 001');
+
+  await dispatchRawOutput(page, '\r\nlive output after scroll');
+
+  await expect(page.locator('.xterm')).toContainText('line 001');
+  await expect(page.locator('.xterm')).not.toContainText('live output after scroll');
+  await expect.poll(() => sentFrames(page)).toEqual(beforeWheel);
+
+  await page.mouse.wheel(0, 4000);
+  await expect(page.locator('.xterm')).toContainText('live output after scroll');
+});
+
+test('pane terminal keeps user scroll when a queued write callback completes', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { openShareTerminal } = await import('/src/scripts/share/terminal.ts');
+    document.body.replaceChildren();
+    const container = document.createElement('div');
+    container.style.width = '360px';
+    container.style.height = '120px';
+    container.style.overflow = 'hidden';
+    document.body.append(container);
+    const terminal = openShareTerminal(container, 'pane', 'spectator', 24, 6);
+    window.__rmuxTestTerminal = terminal;
+    const initial = Array.from({ length: 80 }, (_, index) => {
+      return `line ${String(index + 1).padStart(3, '0')}`;
+    }).join('\r\n');
+    terminal.replace(new TextEncoder().encode(initial));
+  });
+  await expect(page.locator('.xterm')).toContainText('line 080');
+
+  await page.evaluate(() => {
+    const terminal = window.__rmuxTestTerminal;
+    if (!terminal) {
+      throw new Error('missing test terminal');
+    }
+    const delayedCallbacks: Array<() => void> = [];
+    window.__rmuxDelayedWriteCallbacks = delayedCallbacks;
+    const realWrite = terminal.term.write.bind(terminal.term);
+    terminal.term.write = (data: string | Uint8Array, callback?: () => void) => {
+      realWrite(data, () => {
+        if (callback) {
+          delayedCallbacks.push(callback);
+        }
+      });
+    };
+    terminal.write(new TextEncoder().encode('\r\nqueued live output'));
+  });
+  await expect(page.locator('.xterm')).toContainText('queued live output');
+  await expect.poll(() => page.evaluate(() => window.__rmuxDelayedWriteCallbacks?.length ?? 0)).toBe(1);
+
+  await page.evaluate(() => window.__rmuxTestTerminal?.term.scrollLines(-10_000));
+  await expect(page.locator('.xterm')).toContainText('line 001');
+
+  await page.evaluate(() => {
+    for (const callback of window.__rmuxDelayedWriteCallbacks ?? []) {
+      callback();
+    }
+  });
+  await page.waitForTimeout(100);
+
+  await expect(page.locator('.xterm')).toContainText('line 001');
+  await expect(page.locator('.xterm')).not.toContainText('queued live output');
+});
+
 test('session viewer keeps the remote grid local without sending resize frames', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
@@ -2912,6 +2994,13 @@ async function dispatchSessionSnapshot(page: import('@playwright/test').Page, sn
     const bytes = new TextEncoder().encode(text);
     await window.__rmuxShareSockets?.at(-1)?.serverBinary([0x10, ...Array.from(bytes)]);
   }, snapshot);
+}
+
+async function dispatchRawOutput(page: import('@playwright/test').Page, output: string): Promise<void> {
+  await page.evaluate(async (text) => {
+    const bytes = new TextEncoder().encode(text);
+    await window.__rmuxShareSockets?.at(-1)?.serverBinary([0x01, ...Array.from(bytes)]);
+  }, output);
 }
 
 async function sentFrames(page: import('@playwright/test').Page) {
