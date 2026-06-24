@@ -506,6 +506,10 @@
   overflow: hidden;
 }
 
+.share-terminal[data-client-os='windows'] .xterm {
+  cursor: default;
+}
+
 .share-terminal .xterm-helpers,
 .share-terminal .xterm-screen {
   max-width: none;

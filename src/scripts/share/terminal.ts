@@ -238,8 +238,9 @@ class XtermShareTerminal implements ShareTerminal {
     container.append(this.stage);
     container.append(this.reflowMask);
     container.append(this.viewPanBar);
+    container.dataset.clientOs = isWindowsClient() ? 'windows' : 'other';
     this.setTheme(theme, userTheme);
-    this.term.attachCustomKeyEventHandler(() => this.role !== 'spectator');
+    this.term.attachCustomKeyEventHandler((event) => this.handleCustomKey(event));
     this.bindScrollAnchor();
     const onMobilePaneChange = () => {
       this.fitSessionStage();
@@ -837,6 +838,20 @@ class XtermShareTerminal implements ShareTerminal {
 
   focus(): void {
     this.term.focus();
+  }
+
+  private handleCustomKey(event: KeyboardEvent): boolean {
+    if (this.role === 'spectator') {
+      return false;
+    }
+    // Windows console PTYs use BS as their erase byte; xterm's default Backspace
+    // emits DEL, which leaves Windows-native prompts unable to delete text.
+    if (shouldSendWindowsBackspace(event) && this.dataHandler) {
+      event.preventDefault();
+      this.dataHandler('\b');
+      return false;
+    }
+    return true;
   }
 
   bindLocalWheelScroll(): void {
@@ -1951,6 +1966,21 @@ function optionsForRole(
     // reflow corrupts redraw-heavy terminal UIs during resize.
     windowsPty: { backend: 'winpty' },
   };
+}
+
+function shouldSendWindowsBackspace(event: KeyboardEvent): boolean {
+  return event.type === 'keydown'
+    && event.key === 'Backspace'
+    && !event.altKey
+    && !event.ctrlKey
+    && !event.metaKey
+    && isWindowsClient();
+}
+
+function isWindowsClient(): boolean {
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const platform = nav.userAgentData?.platform || nav.platform || '';
+  return /^Win/i.test(platform);
 }
 
 function wheelDeltaPixels(event: WheelEvent, pageHeight: number): { x: number; y: number } {
