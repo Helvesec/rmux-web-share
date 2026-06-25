@@ -114,6 +114,16 @@ function buildAtCommit(sourceDir, commit, feature, rustc, artifactNames) {
         throw new Error(`wasm source gate: active rustc "${active}" is not the pinned ${rustc}`);
       }
     }
+    const home = env.HOME;
+    const cargoHome = env.CARGO_HOME ?? (home ? join(home, '.cargo') : null);
+    const rustupHome = env.RUSTUP_HOME ?? (home ? join(home, '.rustup') : null);
+    const remapFlags = [
+      `--remap-path-prefix=${worktree}=/rmux-source`,
+      cargoHome ? `--remap-path-prefix=${cargoHome}=/cargo` : null,
+      rustupHome ? `--remap-path-prefix=${rustupHome}=/rustup` : null,
+    ].filter(Boolean);
+    env.RUSTFLAGS = [env.RUSTFLAGS, ...remapFlags].filter(Boolean).join(' ');
+
     console.log(`wasm source gate: building '${feature}' at ${commit.slice(0, 12)}${rustc ? ` (rustc ${rustc})` : ''}`);
     run('bash', [join(worktree, BUILD_SCRIPT), feature], { cwd: worktree, env, stdio: ['ignore', 'inherit', 'inherit'] });
     const pkg = join(worktree, 'crates/rmux-web-crypto/pkg');

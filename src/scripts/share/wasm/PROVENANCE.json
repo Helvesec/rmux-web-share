@@ -10,16 +10,16 @@
   },
   "toolchain": {
     "rustc": "1.94.1",
-    "rustc_note": "Exact rustc that reproduces these bytes. verify-wasm-from-source.mjs exports it as RUSTUP_TOOLCHAIN so a floating 'stable' runner cannot silently change codegen.",
+    "rustc_note": "Exact rustc that reproduces these bytes. verify-wasm-from-source.mjs exports it as RUSTUP_TOOLCHAIN and applies --remap-path-prefix for source, Cargo, and rustup roots so local paths cannot change the emitted WASM.",
     "wasm_bindgen": "0.2.123",
     "wasm_bindgen_note": "These bytes are produced by wasm-pack 0.13.1's PINNED, DOWNLOADED prebuilt wasm-bindgen 0.2.123 — not a source-built cli. A `cargo install wasm-bindgen-cli --version 0.2.123` built from source emits the same .js glue but a DIFFERENT .wasm, so reproduction must use wasm-pack's prebuilt path (no conflicting wasm-bindgen on PATH). Building the cli reproducibly from source is tracked future hardening.",
     "wasm_opt": false,
     "target": "web"
   },
-  "build_command": "wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm",
-  "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build: committed bytes must match these hashes recorded in the same diff. (2) scripts/verify-wasm-from-source.mjs is the source-to-binary gate: it rebuilds this production blob from the public rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm, pinned toolchain) and asserts byte-for-byte equality. CI blocks deploy if the commit is not reachable or if the rebuilt bytes differ.",
+  "build_command": "RUSTFLAGS='--remap-path-prefix=<worktree>=/rmux-source --remap-path-prefix=<cargo-home>=/cargo --remap-path-prefix=<rustup-home>=/rustup' wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm",
+  "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build: committed bytes must match these hashes recorded in the same diff. (2) scripts/verify-wasm-from-source.mjs is the source-to-binary gate: it rebuilds this production blob from the public rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm, pinned toolchain, path-prefix remapping) and asserts byte-for-byte equality. CI blocks deploy if the commit is not reachable or if the rebuilt bytes differ.",
   "artifacts": {
-    "rmux_web_crypto_wasm_bg.wasm": "sha256:af2cd3c8ef49e9b5e1a7191e2943acdf0c6d9c911e342d3606ea562a0d853c7b",
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:55a0b7ef2f1f8ad6cf9f1e06532dc1f1e961c67b91bb0d89c4a71c5f66f28e99",
     "rmux_web_crypto_wasm.js": "sha256:ee961372d759c18c318c655fdf078e20380840ac8ce265cf161f5f4566e203cc"
   }
 }
