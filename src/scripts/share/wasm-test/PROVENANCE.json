@@ -5,7 +5,7 @@
     "repository": "https://github.com/Helvesec/rmux",
     "crate": "crates/rmux-web-crypto",
     "feature_set": ["wasm-test"],
-    "source_commit": "2c65f0efbfa73f3f84807711e6afd63bbd322a3b",
+    "source_commit": "0c0a7bf3b80d4f987a6e4501091419c1381944c2",
     "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration. This blob is test-only and never shipped to production."
   },
   "toolchain": {
