@@ -5,7 +5,7 @@
     "repository": "https://github.com/Helvesec/rmux",
     "crate": "crates/rmux-web-crypto",
     "feature_set": ["wasm-test"],
-    "source_commit": "0c0a7bf3b80d4f987a6e4501091419c1381944c2",
+    "source_commit": "e2bce4c6885ef314c30f5fa79a521bfb6ef2a421",
     "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration. This blob is test-only and never shipped to production."
   },
   "toolchain": {
@@ -19,7 +19,7 @@
   "build_command": "RUSTFLAGS='--remap-path-prefix=<worktree>=/rmux-source --remap-path-prefix=<cargo-home>=/cargo --remap-path-prefix=<rustup-home>=/rustup' wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm-test",
   "verification": "scripts/verify-wasm-provenance.mjs hash-pins this blob on every build. It is test-only and never shipped to production. Include it in the source-to-binary gate with RMUX_WASM_DIRS=wasm,wasm-test when a full test-blob audit is needed.",
   "artifacts": {
-    "rmux_web_crypto_wasm_bg.wasm": "sha256:8e58ab5902c04df86c85646e986315483c9ef059dfb24fae7b3b216fd95b5b96",
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:35917e36d1a0fcd257e0600491c1fc044247dbe1eaf61fd7de48aeda646cd611",
     "rmux_web_crypto_wasm.js": "sha256:61d0dee23b681fb05afc6f84550d2d3cf6fd74c276cc750b60aa0fa4938838a7"
   }
 }

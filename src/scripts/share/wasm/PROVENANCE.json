@@ -5,7 +5,7 @@
     "repository": "https://github.com/Helvesec/rmux",
     "crate": "crates/rmux-web-crypto",
     "feature_set": ["wasm"],
-    "source_commit": "0c0a7bf3b80d4f987a6e4501091419c1381944c2",
+    "source_commit": "e2bce4c6885ef314c30f5fa79a521bfb6ef2a421",
     "source_commit_note": "The rmux commit these artifacts were built from. Re-stamped by scripts/build-web-crypto-wasm.sh on regeneration."
   },
   "toolchain": {
@@ -19,7 +19,7 @@
   "build_command": "RUSTFLAGS='--remap-path-prefix=<worktree>=/rmux-source --remap-path-prefix=<cargo-home>=/cargo --remap-path-prefix=<rustup-home>=/rustup' wasm-pack build crates/rmux-web-crypto --release --target web --out-name rmux_web_crypto_wasm -- --no-default-features --features wasm",
   "verification": "Two gates. (1) scripts/verify-wasm-provenance.mjs runs on every build: committed bytes must match these hashes recorded in the same diff. (2) scripts/verify-wasm-from-source.mjs is the source-to-binary gate: it rebuilds this production blob from the public rmux source at source_commit (via scripts/build-web-crypto-wasm.sh wasm, pinned toolchain, path-prefix remapping) and asserts byte-for-byte equality. CI blocks deploy if the commit is not reachable or if the rebuilt bytes differ.",
   "artifacts": {
-    "rmux_web_crypto_wasm_bg.wasm": "sha256:55a0b7ef2f1f8ad6cf9f1e06532dc1f1e961c67b91bb0d89c4a71c5f66f28e99",
+    "rmux_web_crypto_wasm_bg.wasm": "sha256:e2595bcfe4addda43ba6c77238a993145c24d44c49308137129ec0f7bd7d60ee",
     "rmux_web_crypto_wasm.js": "sha256:ee961372d759c18c318c655fdf078e20380840ac8ce265cf161f5f4566e203cc"
   }
 }
